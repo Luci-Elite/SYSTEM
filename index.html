@@ -63,6 +63,13 @@ td.r,th.r{text-align:right}
 .tot{max-width:320px;margin-left:auto}
 .tot div{display:flex;justify-content:space-between;padding:4px 0}
 .tot .g{font-size:18px;font-weight:700;border-top:2px solid var(--ink);margin-top:4px;padding-top:6px}
+.pw{position:relative}.pw input{padding-right:40px}
+.eye{position:absolute;right:2px;top:2px;bottom:2px;width:34px;border:0;background:transparent;font-size:16px;opacity:.5;padding:0}
+.eye.on{opacity:1}
+.tabs{display:flex;gap:4px;margin:12px 0 16px;border-bottom:1px solid var(--line)}
+.tabs a{padding:8px 12px;cursor:pointer;color:var(--mut);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs a.on{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.link{color:var(--acc);cursor:pointer;font-size:13px}
 @media(max-width:760px){#side{position:static;width:auto}#side nav{display:flex;overflow:auto}#side a{white-space:nowrap;border-left:0;border-bottom:3px solid transparent}#side a.on{border-bottom-color:#5cc8e6}#main{margin:0;padding:12px}#app{display:none}}
 </style>
 </head>
@@ -71,10 +78,39 @@ td.r,th.r{text-align:right}
 <div id="login">
   <div class="lbox">
     <h1>Stock &amp; Invoice System</h1>
-    <p>Sign in with your username and password.</p>
-    <div class="f"><label>Username</label><input id="lu" autocomplete="username"></div>
-    <div class="f"><label>Password</label><input id="lp" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
-    <button class="btn" style="width:100%" onclick="doLogin()">Sign in</button>
+    <div class="tabs" id="tabs"><a id="t_in" class="on" onclick="lview('in')">Sign in</a><a id="t_up" onclick="lview('up')">Create account</a></div>
+
+    <div id="v_in">
+      <div class="f"><label>Username or email</label><input id="lu" autocomplete="username"></div>
+      <div class="f"><label>Password</label><div class="pw"><input id="lp" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"><button type="button" class="eye" onclick="eye('lp',this)" aria-label="Show or hide password">&#128065;</button></div></div>
+      <button class="btn" style="width:100%" onclick="doLogin()">Sign in</button>
+      <p style="margin:12px 0 0"><a class="link" onclick="lview('fp')">Forgot password?</a></p>
+    </div>
+
+    <div id="v_up" style="display:none">
+      <div class="f"><label>Username</label><input id="su" autocomplete="username"></div>
+      <div class="f"><label>Email</label><input id="se" type="email" autocomplete="email"></div>
+      <div class="f"><label>Password (min 6 characters)</label><div class="pw"><input id="sp" type="password" autocomplete="new-password"><button type="button" class="eye" onclick="eye('sp',this)" aria-label="Show or hide password">&#128065;</button></div></div>
+      <div class="f"><label>Confirm password</label><div class="pw"><input id="sp2" type="password" autocomplete="new-password" onkeydown="if(event.key==='Enter')doSignup()"><button type="button" class="eye" onclick="eye('sp2',this)" aria-label="Show or hide password">&#128065;</button></div></div>
+      <button class="btn" style="width:100%" onclick="doSignup()">Create account</button>
+      <p style="margin:12px 0 0;font-size:12.5px">New accounts can sign in after an admin approves them.</p>
+    </div>
+
+    <div id="v_fp" style="display:none">
+      <h3 style="margin-bottom:6px">Reset password</h3>
+      <p>Enter your email or username. We will send a link to set a new password.</p>
+      <div class="f"><label>Email or username</label><input id="fe" onkeydown="if(event.key==='Enter')doForgot()"></div>
+      <button class="btn" style="width:100%" onclick="doForgot()">Send reset link</button>
+      <p style="margin:12px 0 0"><a class="link" onclick="lview('in')">Back to sign in</a></p>
+    </div>
+
+    <div id="v_rp" style="display:none">
+      <h3 style="margin-bottom:6px">Set a new password</h3>
+      <div class="f"><label>New password (min 6 characters)</label><div class="pw"><input id="rp1" type="password" autocomplete="new-password"><button type="button" class="eye" onclick="eye('rp1',this)" aria-label="Show or hide password">&#128065;</button></div></div>
+      <div class="f"><label>Confirm new password</label><div class="pw"><input id="rp2" type="password" autocomplete="new-password" onkeydown="if(event.key==='Enter')doReset()"><button type="button" class="eye" onclick="eye('rp2',this)" aria-label="Show or hide password">&#128065;</button></div></div>
+      <button class="btn" style="width:100%" onclick="doReset()">Save new password</button>
+    </div>
+
     <p id="lmsg" style="color:var(--bad);margin:12px 0 0"></p>
   </div>
 </div>
@@ -83,7 +119,7 @@ td.r,th.r{text-align:right}
   <aside id="side">
     <div class="brand"><span id="coName">Company</span><small>Stock &amp; Invoice</small></div>
     <nav id="nav"></nav>
-    <div class="me"><div id="meName"></div><a onclick="logout()" style="padding:6px 0;cursor:pointer;color:#fff;border:0">Sign out</a></div>
+    <div class="me"><div id="meName"></div><a onclick="pwModal()" style="padding:4px 0;cursor:pointer;color:#fff;border:0">Change password</a><a onclick="logout()" style="padding:4px 0;cursor:pointer;color:#fff;border:0">Sign out</a></div>
   </aside>
   <main id="main"></main>
 </div>
@@ -111,23 +147,86 @@ function addMonths(d,m){const x=new Date(d);x.setMonth(x.getMonth()+Number(m||0)
 async function run(p){const r=await p;if(r.error){toast(r.error.message,true);throw r.error}return r.data}
 
 /* ---------------- Auth ---------------- */
+const RECOVERY = location.hash.includes('type=recovery');
+let recovering = RECOVERY;
+function msg(t,ok){const m=$('#lmsg');m.textContent=t||'';m.style.color=ok?'var(--ok)':'var(--bad)'}
+function lview(v){
+  ['in','up','fp','rp'].forEach(x=>{$('#v_'+x).style.display=x===v?'block':'none'});
+  $('#tabs').style.display=(v==='in'||v==='up')?'flex':'none';
+  $('#t_in').classList.toggle('on',v!=='up');$('#t_up').classList.toggle('on',v==='up');msg('');
+}
+function eye(id,b){const i=$('#'+id),show=i.type==='password';i.type=show?'text':'password';b.classList.toggle('on',show)}
+function pwf(id,label){return `<div class="row"><label>${label}</label><div class="pw"><input id="${id}" type="password" autocomplete="new-password"><button type="button" class="eye" onclick="eye('${id}',this)" aria-label="Show or hide password">&#128065;</button></div></div>`}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function emailFor(u){const {data}=await sb.rpc('email_for_username',{u});return data||null}
+
 if (CFG.url.startsWith('YOUR')) {
-  $('#lmsg').textContent = 'Setup needed: put your Supabase URL and anon key at the top of index.html.';
+  msg('Setup needed: put your Supabase URL and key at the top of index.html.');
 } else {
   sb = supabase.createClient(CFG.url, CFG.key);
-  sb.auth.getSession().then(({data}) => { if (data.session) afterLogin(data.session.user.id); });
+  sb.auth.onAuthStateChange(ev => { if (ev === 'PASSWORD_RECOVERY') { recovering = true; lview('rp'); } });
+  if (RECOVERY) lview('rp');
+  sb.auth.getSession().then(({data}) => { if (data.session && !recovering) afterLogin(data.session.user.id); });
 }
+
 async function doLogin(){
   const u=$('#lu').value.trim().toLowerCase(), p=$('#lp').value;
-  $('#lmsg').textContent='';
-  if(!sb) return;
-  const {data,error}=await sb.auth.signInWithPassword({email:u+EMAIL_DOMAIN,password:p});
-  if(error){$('#lmsg').textContent='Wrong username or password.';return}
+  msg('');
+  if(!sb||!u||!p)return;
+  let email=u;
+  if(!u.includes('@')) email=(await emailFor(u))||(u+EMAIL_DOMAIN);
+  const {data,error}=await sb.auth.signInWithPassword({email,password:p});
+  if(error){msg(error.message==='Invalid login credentials'?'Wrong username or password.':'Login error: '+error.message);console.error(error);return}
   afterLogin(data.user.id);
+}
+
+async function doSignup(){
+  const u=$('#su').value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,''), em=$('#se').value.trim().toLowerCase(), p=$('#sp').value, p2=$('#sp2').value;
+  if(!u)return msg('Enter a username (letters, numbers, . _ -)');
+  if(!em.includes('@'))return msg('Enter a valid email');
+  if(p.length<6)return msg('Password must be at least 6 characters');
+  if(p!==p2)return msg('Passwords do not match');
+  if(await emailFor(u))return msg('That username is already taken');
+  const {error}=await sb.auth.signUp({email:em,password:p,options:{data:{username:u}}});
+  if(error)return msg(error.message);
+  await sb.auth.signOut();
+  lview('in');msg('Account created. You can sign in after an admin approves it.',true);
+}
+
+async function doForgot(){
+  let em=$('#fe').value.trim().toLowerCase();
+  if(!em)return msg('Enter your email or username');
+  if(!em.includes('@')){em=await emailFor(em);if(!em){lview('in');return msg('If that account exists, a reset link was sent.',true)}}
+  const {error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});
+  if(error)return msg(error.message);
+  lview('in');msg('If that account exists, a reset link was sent. Check your inbox and spam folder.',true);
+}
+
+async function doReset(){
+  const p=$('#rp1').value,p2=$('#rp2').value;
+  if(p.length<6)return msg('Password must be at least 6 characters');
+  if(p!==p2)return msg('Passwords do not match');
+  const {error}=await sb.auth.updateUser({password:p});
+  if(error)return msg(error.message);
+  await sb.auth.signOut();recovering=false;history.replaceState(null,'',location.pathname);
+  lview('in');msg('Password changed. Sign in with your new password.',true);
+}
+
+function pwModal(){
+  openModal(`<h3>Change password</h3>${pwf('c1','New password (min 6 characters)')}${pwf('c2','Confirm new password')}
+  <div class="bar" style="margin-top:14px;justify-content:flex-end"><div style="flex:0"><button class="btn sec" onclick="closeModal()">Cancel</button></div><div style="flex:0"><button class="btn" onclick="changePw()">Save</button></div></div>`);
+}
+async function changePw(){
+  const p=$('#c1').value,p2=$('#c2').value;
+  if(p.length<6)return toast('Password must be at least 6 characters',true);
+  if(p!==p2)return toast('Passwords do not match',true);
+  const {error}=await sb.auth.updateUser({password:p});
+  if(error)return toast(error.message,true);
+  closeModal();toast('Password changed');
 }
 async function afterLogin(uid){
   const {data:pr}=await sb.from('profiles').select('*').eq('id',uid).maybeSingle();
-  if(!pr||!pr.active){await sb.auth.signOut();$('#lmsg').textContent='This account is disabled.';return}
+  if(!pr||!pr.active){await sb.auth.signOut();msg('Your account is waiting for admin approval, or it was disabled.');return}
   me=pr;
   const {data:st}=await sb.from('settings').select('*');
   settings={};(st||[]).forEach(r=>settings[r.key]=r.value);
@@ -420,24 +519,34 @@ function dotText(inv,ln,co,full){
 /* ---------------- Users (admin) ---------------- */
 PAGES.users=async()=>{
   const d=await run(sb.from('profiles').select('*').order('created_at'));
+  const pend=d.filter(u=>!u.active).length;
   $('#main').innerHTML=`<div class="top"><h2>Users</h2></div>
+  ${pend?`<div class="card" style="border-color:var(--warn)"><b>${pend} account(s) pending or disabled.</b> Click Approve to let them sign in.</div>`:''}
   <div class="card"><b>Add user</b><div class="bar" style="margin-top:8px">
-   <div><label>Username</label><input id="u_n"></div><div><label>Password (min 6)</label><input id="u_p" type="text"></div>
+   <div><label>Username</label><input id="u_n"></div>
+   <div><label>Email (optional)</label><input id="u_e" type="email"></div>
+   <div><label>Password (min 6)</label><div class="pw"><input id="u_p" type="password" autocomplete="new-password"><button type="button" class="eye" onclick="eye('u_p',this)" aria-label="Show or hide password">&#128065;</button></div></div>
    <div><label>Role</label><select id="u_r"><option value="user">User (limited)</option><option value="admin">Admin (full control)</option></select></div>
-   <div style="flex:0"><button class="btn" onclick="addUser()">Create</button></div></div></div>
-  <div class="tw"><table><thead><tr><th>Username</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>
-  ${d.map(u=>`<tr><td>${esc(u.username)}</td><td><select onchange="setRole('${u.id}',this.value)" ${u.id===me.id?'disabled':''}><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select></td>
-   <td><span class="tag ${u.active?'ok':'bad'}">${u.active?'Active':'Disabled'}</span></td>
-   <td>${u.id===me.id?'':`<button class="btn sec sm" onclick="setActive('${u.id}',${!u.active})">${u.active?'Disable':'Enable'}</button>`}</td></tr>`).join('')}</tbody></table></div>
-  <p class="mut">To reset a forgotten password: Supabase dashboard &gt; Authentication &gt; Users &gt; open the user &gt; set new password.</p>`;
+   <div style="flex:0"><button class="btn" onclick="addUser()">Create</button></div></div>
+   <div class="mut" style="margin-top:6px">Users added here are active straight away. Add a real email if they should be able to reset their own password.</div></div>
+  <div class="tw"><table><thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>
+  ${d.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.email)}</td><td><select onchange="setRole('${u.id}',this.value)" ${u.id===me.id?'disabled':''}><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select></td>
+   <td><span class="tag ${u.active?'ok':'warn'}">${u.active?'Active':'Pending / disabled'}</span></td>
+   <td>${u.id===me.id?'':`<button class="btn sec sm" onclick="setActive('${u.id}',${!u.active})">${u.active?'Disable':'Approve'}</button>`}</td></tr>`).join('')}</tbody></table></div>`;
 };
 async function addUser(){
   const n=$('#u_n').value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,''),pw=$('#u_p').value,role=$('#u_r').value;
+  const em=($('#u_e').value.trim().toLowerCase())||(n+EMAIL_DOMAIN);
   if(!n||pw.length<6)return toast('Username and a password of 6+ characters are required',true);
+  if(await emailFor(n))return toast('That username already exists',true);
   const sb2=supabase.createClient(CFG.url,CFG.key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
-  const {error}=await sb2.auth.signUp({email:n+EMAIL_DOMAIN,password:pw});
+  const {error}=await sb2.auth.signUp({email:em,password:pw,options:{data:{username:n}}});
   if(error)return toast(error.message,true);
-  if(role==='admin'){await new Promise(r=>setTimeout(r,500));await run(sb.from('profiles').update({role:'admin'}).eq('username',n))}
+  for(let k=0;k<10;k++){
+    const {data}=await sb.from('profiles').select('id').eq('username',n).maybeSingle();
+    if(data){await run(sb.from('profiles').update({role,active:true}).eq('id',data.id));break}
+    await sleep(400);
+  }
   toast('User created');go('users');
 }
 async function setRole(id,role){await run(sb.from('profiles').update({role}).eq('id',id));toast('Role updated')}
