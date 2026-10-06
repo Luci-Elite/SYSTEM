@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock & Invoice System</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root{--ink:#16222e;--mut:#5d6b79;--line:#d9dfe5;--bg:#eef1f4;--card:#fff;--nav:#17314a;--navt:#c9d6e2;--acc:#0b6e8a;--accd:#08556b;--ok:#18794e;--bad:#b42318;--warn:#a15c07}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 "Segoe UI",Tahoma,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+h1,h2,h3{margin:0}
+button{font:inherit;cursor:pointer}
+input,select,textarea{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink);width:100%}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+label{display:block;font-size:12.5px;color:var(--mut);margin-bottom:3px}
+.btn{background:var(--acc);color:#fff;border:0;border-radius:5px;padding:8px 14px;font-weight:600}
+.btn:hover{background:var(--accd)}
+.btn.sec{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.sec:hover{background:#f3f5f7}
+.btn.bad{background:var(--bad)}
+.btn.sm{padding:4px 9px;font-size:12.5px}
+#login{min-height:100vh;display:grid;place-items:center;padding:16px}
+.lbox{background:var(--card);width:340px;max-width:100%;padding:28px;border-radius:8px;border:1px solid var(--line)}
+.lbox h1{font-size:20px;margin-bottom:4px}
+.lbox p{color:var(--mut);margin:0 0 18px}
+.lbox .f{margin-bottom:12px}
+#app{display:none;min-height:100vh}
+#side{width:210px;background:var(--nav);color:var(--navt);position:fixed;inset:0 auto 0 0;display:flex;flex-direction:column}
+#side .brand{padding:16px;color:#fff;font-weight:700;font-size:15px;border-bottom:1px solid #284a68}
+#side .brand small{display:block;font-weight:400;color:var(--navt);font-size:12px}
+#side nav{flex:1;padding:8px 0;overflow:auto}
+#side a{display:block;padding:10px 16px;color:var(--navt);text-decoration:none;cursor:pointer;border-left:3px solid transparent}
+#side a:hover{background:#1f3f5e}
+#side a.on{background:#1f3f5e;color:#fff;border-left-color:#5cc8e6}
+#side .me{padding:12px 16px;border-top:1px solid #284a68;font-size:12.5px}
+#main{margin-left:210px;padding:20px;max-width:1250px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap}
+.top h2{font-size:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:7px;padding:14px;margin-bottom:14px}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+table{width:100%;border-collapse:collapse;background:#fff}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{background:#f4f6f8;font-size:12.5px;color:var(--mut);font-weight:600;white-space:nowrap}
+td.r,th.r{text-align:right}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:7px}
+.tw table{border:0}
+.tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}
+.tag.ok{background:#dcf3e7;color:var(--ok)}.tag.bad{background:#fde4e1;color:var(--bad)}.tag.warn{background:#fdf0d5;color:var(--warn)}
+.stat{background:#fff;border:1px solid var(--line);border-radius:7px;padding:12px}
+.stat b{display:block;font-size:22px}
+.stat span{color:var(--mut);font-size:12.5px}
+.mut{color:var(--mut)}
+.line{border:1px solid var(--line);border-radius:7px;padding:12px;margin-bottom:10px;background:#fbfcfd}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.bar>div{flex:1;min-width:130px}
+#modalBg{display:none;position:fixed;inset:0;background:rgba(10,20,30,.5);z-index:20;overflow:auto;padding:30px 12px}
+.modal{background:#fff;max-width:560px;margin:0 auto;border-radius:8px;padding:18px}
+.modal h3{margin-bottom:12px}
+.modal .row{margin-bottom:10px}
+#toast{position:fixed;right:16px;bottom:16px;background:var(--ink);color:#fff;padding:10px 16px;border-radius:6px;display:none;z-index:30;max-width:340px}
+#toast.err{background:var(--bad)}
+.tot{max-width:320px;margin-left:auto}
+.tot div{display:flex;justify-content:space-between;padding:4px 0}
+.tot .g{font-size:18px;font-weight:700;border-top:2px solid var(--ink);margin-top:4px;padding-top:6px}
+@media(max-width:760px){#side{position:static;width:auto}#side nav{display:flex;overflow:auto}#side a{white-space:nowrap;border-left:0;border-bottom:3px solid transparent}#side a.on{border-bottom-color:#5cc8e6}#main{margin:0;padding:12px}#app{display:none}}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="lbox">
+    <h1>Stock &amp; Invoice System</h1>
+    <p>Sign in with your username and password.</p>
+    <div class="f"><label>Username</label><input id="lu" autocomplete="username"></div>
+    <div class="f"><label>Password</label><input id="lp" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="btn" style="width:100%" onclick="doLogin()">Sign in</button>
+    <p id="lmsg" style="color:var(--bad);margin:12px 0 0"></p>
+  </div>
+</div>
+
+<div id="app">
+  <aside id="side">
+    <div class="brand"><span id="coName">Company</span><small>Stock &amp; Invoice</small></div>
+    <nav id="nav"></nav>
+    <div class="me"><div id="meName"></div><a onclick="logout()" style="padding:6px 0;cursor:pointer;color:#fff;border:0">Sign out</a></div>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<div id="modalBg"><div class="modal" id="modal"></div></div>
+<div id="toast"></div>
+
+<script>
+/* ===================== CONFIG: paste your Supabase values ===================== */
+const CFG = { url: 'https://ybevwcxgfnwfyadgbfdl.supabase.co', key: 'sb_publishable_n0qwxibzfTZ8NQFw08jbjg_9mBL7IAh' };
+const EMAIL_DOMAIN = '@laptopcare.app';   // usernames are stored as username@laptopcare.app
+/* ============================================================================== */
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => Number(n || 0).toLocaleString('en-LK', {minimumFractionDigits:2, maximumFractionDigits:2});
+const today = () => new Date().toISOString().slice(0,10);
+let sb, me, items = [], settings = {};
+const isAdmin = () => me && me.role === 'admin';
+
+function toast(msg, err){const t=$('#toast');t.textContent=msg;t.className=err?'err':'';t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',err?6000:2500)}
+function openModal(html){$('#modal').innerHTML=html;$('#modalBg').style.display='block'}
+function closeModal(){$('#modalBg').style.display='none'}
+function addMonths(d,m){const x=new Date(d);x.setMonth(x.getMonth()+Number(m||0));return x.toISOString().slice(0,10)}
+async function run(p){const r=await p;if(r.error){toast(r.error.message,true);throw r.error}return r.data}
+
+/* ---------------- Auth ---------------- */
+if (CFG.url.startsWith('YOUR')) {
+  $('#lmsg').textContent = 'Setup needed: put your Supabase URL and anon key at the top of index.html.';
+} else {
+  sb = supabase.createClient(CFG.url, CFG.key);
+  sb.auth.getSession().then(({data}) => { if (data.session) afterLogin(data.session.user.id); });
+}
+async function doLogin(){
+  const u=$('#lu').value.trim().toLowerCase(), p=$('#lp').value;
+  $('#lmsg').textContent='';
+  if(!sb) return;
+  const {data,error}=await sb.auth.signInWithPassword({email:u+EMAIL_DOMAIN,password:p});
+  if(error){$('#lmsg').textContent='Wrong username or password.';return}
+  afterLogin(data.user.id);
+}
+async function afterLogin(uid){
+  const {data:pr}=await sb.from('profiles').select('*').eq('id',uid).maybeSingle();
+  if(!pr||!pr.active){await sb.auth.signOut();$('#lmsg').textContent='This account is disabled.';return}
+  me=pr;
+  const {data:st}=await sb.from('settings').select('*');
+  settings={};(st||[]).forEach(r=>settings[r.key]=r.value);
+  $('#coName').textContent=settings.company_name||'Company';
+  $('#meName').textContent=me.username+' ('+me.role+')';
+  $('#login').style.display='none';$('#app').style.display='block';
+  const pages=[['dash','Dashboard'],['stock','Stock'],['invoice','New invoice'],['invoices','Invoices']];
+  if(isAdmin())pages.push(['items','Items'],['grn','GRN'],['users','Users'],['settings','Settings']);
+  $('#nav').innerHTML=pages.map(p=>`<a id="n_${p[0]}" onclick="go('${p[0]}')">${p[1]}</a>`).join('');
+  go('dash');
+}
+async function logout(){await sb.auth.signOut();location.reload()}
+
+const PAGES={};
+async function go(p){
+  document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
+  const n=$('#n_'+p);if(n)n.classList.add('on');
+  $('#main').innerHTML='<p class="mut">Loading…</p>';
+  try{await PAGES[p]()}catch(e){console.error(e)}
+}
+async function loadItems(){items=await run(sb.from('stock_view').select('*').order('name'))}
+
+/* ---------------- Dashboard ---------------- */
+PAGES.dash=async()=>{
+  await loadItems();
+  const inv=await run(sb.from('invoices').select('total,inv_date').eq('inv_date',today()));
+  const low=items.filter(i=>i.in_stock<=0).length;
+  const units=items.reduce((a,i)=>a+Number(i.in_stock),0);
+  const val=isAdmin()?items.reduce((a,i)=>a+Number(i.in_stock)*Number(i.cost),0):null;
+  $('#main').innerHTML=`<div class="top"><h2>Dashboard</h2></div>
+  <div class="grid">
+   <div class="stat"><b>${items.length}</b><span>Items</span></div>
+   <div class="stat"><b>${units}</b><span>Units in stock</span></div>
+   <div class="stat"><b>${low}</b><span>Items out of stock</span></div>
+   <div class="stat"><b>Rs. ${money(inv.reduce((a,r)=>a+Number(r.total),0))}</b><span>Sales today (${inv.length} invoices)</span></div>
+   ${val!==null?`<div class="stat"><b>Rs. ${money(val)}</b><span>Stock value at cost</span></div>`:''}
+  </div>
+  <div class="card" style="margin-top:14px"><b>Quick actions</b><div class="bar" style="margin-top:10px">
+   <div style="flex:0"><button class="btn" onclick="go('invoice')">New invoice</button></div>
+   ${isAdmin()?`<div style="flex:0"><button class="btn sec" onclick="go('grn')">New GRN</button></div>`:''}
+   <div style="flex:0"><button class="btn sec" onclick="go('stock')">Check stock / serial</button></div></div></div>`;
+};
+
+/* ---------------- Stock ---------------- */
+PAGES.stock=async()=>{
+  await loadItems();
+  $('#main').innerHTML=`<div class="top"><h2>Stock</h2></div>
+  <div class="card"><label>Search a serial number (stock, sold status, warranty)</label>
+   <div class="bar"><div><input id="sq" placeholder="Serial number" onkeydown="if(event.key==='Enter')serialSearch()"></div><div style="flex:0"><button class="btn" onclick="serialSearch()">Search</button></div></div>
+   <div id="sres" style="margin-top:10px"></div></div>
+  <div class="card"><input id="fq" placeholder="Filter items by code or name" oninput="stockTable()"></div>
+  <div class="tw"><table><thead><tr><th>Code</th><th>Item</th><th class="r">In stock</th>${isAdmin()?'<th class="r">Cost</th>':''}<th class="r">Selling price</th><th>Warranty</th></tr></thead><tbody id="stb"></tbody></table></div>`;
+  stockTable();
+};
+function stockTable(){
+  const q=($('#fq').value||'').toLowerCase();
+  $('#stb').innerHTML=items.filter(i=>(i.name+' '+(i.code||'')).toLowerCase().includes(q)).map(i=>`<tr><td>${esc(i.code)}</td><td><b>${esc(i.name)}</b><div class="mut">${esc(i.description)}</div></td>
+   <td class="r"><span class="tag ${i.in_stock>0?'ok':'bad'}">${i.in_stock}</span></td>${isAdmin()?`<td class="r">${money(i.cost)}</td>`:''}<td class="r">${money(i.price)}</td><td>${i.warranty_months} mo</td></tr>`).join('')||'<tr><td colspan="6" class="mut">No items.</td></tr>';
+}
+async function serialSearch(){
+  const q=$('#sq').value.trim();if(!q)return;
+  const d=await run(sb.from('serials').select('*, items(name,code), invoices(inv_no,customer_name,inv_date)').ilike('serial','%'+q+'%').limit(30));
+  $('#sres').innerHTML=d.length?`<div class="tw"><table><thead><tr><th>Serial</th><th>Item</th><th>Status</th><th>Sold to</th><th>Warranty until</th></tr></thead><tbody>${d.map(s=>`<tr><td>${esc(s.serial)}</td><td>${esc(s.items?.name)}</td>
+   <td><span class="tag ${s.status==='in_stock'?'ok':'warn'}">${s.status==='in_stock'?'In stock':'Sold'}</span></td>
+   <td>${s.invoices?esc(s.invoices.inv_no+' · '+(s.invoices.customer_name||'')+' · '+s.invoices.inv_date):'-'}</td>
+   <td>${s.status==='sold'&&s.sold_at?addMonths(s.sold_at,s.warranty_months):'-'}</td></tr>`).join('')}</tbody></table></div>`:'<span class="mut">No serial found.</span>';
+}
+
+/* ---------------- Items (admin) ---------------- */
+PAGES.items=async()=>{
+  await loadItems();
+  $('#main').innerHTML=`<div class="top"><h2>Items</h2><button class="btn" onclick="itemModal()">Add item</button></div>
+  <div class="tw"><table><thead><tr><th>Code</th><th>Item</th><th>Type</th><th class="r">Cost</th><th class="r">Price</th><th>Warranty</th><th></th></tr></thead><tbody>
+  ${items.map(i=>`<tr><td>${esc(i.code)}</td><td><b>${esc(i.name)}</b><div class="mut">${esc(i.description)}</div></td><td>${i.track_serial?'Serial':'Qty only'}</td><td class="r">${money(i.cost)}</td><td class="r">${money(i.price)}</td><td>${i.warranty_months} mo</td>
+  <td><button class="btn sec sm" onclick="itemModal(${i.id})">Edit</button></td></tr>`).join('')||'<tr><td colspan="7" class="mut">No items yet.</td></tr>'}</tbody></table></div>`;
+};
+function itemModal(id,after){
+  const i=items.find(x=>x.id===id)||{track_serial:true,warranty_months:0,cost:0,price:0};
+  window._itemAfter=after;
+  openModal(`<h3>${id?'Edit':'New'} item</h3>
+  <div class="row"><label>Code (optional)</label><input id="i_code" value="${esc(i.code)}"></div>
+  <div class="row"><label>Item name</label><input id="i_name" value="${esc(i.name)}"></div>
+  <div class="row"><label>Description</label><textarea id="i_desc" rows="2">${esc(i.description)}</textarea></div>
+  <div class="row"><label>Tracking</label><select id="i_ts"><option value="1" ${i.track_serial?'selected':''}>Serial number per unit</option><option value="0" ${!i.track_serial?'selected':''}>Quantity only (no serials)</option></select></div>
+  <div class="bar"><div><label>Default warranty (months)</label><input id="i_w" type="number" min="0" value="${i.warranty_months}"></div><div><label>Cost</label><input id="i_c" type="number" step="0.01" value="${i.cost}"></div><div><label>Selling price</label><input id="i_p" type="number" step="0.01" value="${i.price}"></div></div>
+  <div class="bar" style="margin-top:14px;justify-content:flex-end"><div style="flex:0"><button class="btn sec" onclick="closeModal()">Cancel</button></div><div style="flex:0"><button class="btn" onclick="saveItem(${id||0})">Save</button></div></div>`);
+}
+async function saveItem(id){
+  const row={code:$('#i_code').value.trim()||null,name:$('#i_name').value.trim(),description:$('#i_desc').value.trim(),track_serial:$('#i_ts').value==='1',
+    warranty_months:+$('#i_w').value||0,cost:+$('#i_c').value||0,price:+$('#i_p').value||0};
+  if(!row.name)return toast('Item name is required',true);
+  if(id)await run(sb.from('items').update(row).eq('id',id));else await run(sb.from('items').insert(row));
+  closeModal();toast('Item saved');
+  if(window._itemAfter){await window._itemAfter()}else go('items');
+}
+
+/* ---------------- GRN (admin) ---------------- */
+let G=[];
+PAGES.grn=async()=>{
+  await loadItems();G=[];
+  const list=await run(sb.from('grn').select('*').order('id',{ascending:false}).limit(30));
+  $('#main').innerHTML=`<div class="top"><h2>Goods received note (GRN)</h2></div>
+  <div class="card"><div class="bar">
+    <div><label>Date</label><input id="g_date" type="date" value="${today()}"></div>
+    <div><label>Supplier</label><input id="g_sup"></div>
+    <div><label>Supplier invoice / ref no</label><input id="g_ref"></div>
+    <div><label>Note</label><input id="g_note"></div></div></div>
+  <div id="gl"></div>
+  <div class="bar" style="margin-bottom:14px"><div style="flex:0"><button class="btn sec" onclick="grnAdd()">+ Add line</button></div><div style="flex:0"><button class="btn sec" onclick="itemModal(0,grnReloadItems)">+ New item</button></div>
+   <div style="text-align:right"><b id="gt"></b></div><div style="flex:0"><button class="btn" onclick="grnSave()">Save GRN</button></div></div>
+  <h3 style="margin:18px 0 8px">Recent GRNs</h3>
+  <div class="tw"><table><thead><tr><th>GRN</th><th>Date</th><th>Supplier</th><th>Ref</th><th class="r">Total cost</th></tr></thead><tbody>
+  ${list.map(g=>`<tr><td>${esc(g.grn_no)}</td><td>${g.grn_date}</td><td>${esc(g.supplier)}</td><td>${esc(g.ref_no)}</td><td class="r">${money(g.total)}</td></tr>`).join('')||'<tr><td colspan="5" class="mut">None yet.</td></tr>'}</tbody></table></div>`;
+  grnAdd();
+};
+async function grnReloadItems(){await loadItems();grnRender()}
+function grnAdd(){G.push({item_id:'',qty:1,cost:'',price:'',w:'',serials:''});grnRender()}
+function grnDel(i){G.splice(i,1);grnRender()}
+function serialList(t){return [...new Set(String(t||'').split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean))]}
+function grnRender(){
+  $('#gl').innerHTML=G.map((l,i)=>{
+    const it=items.find(x=>x.id==l.item_id);
+    return `<div class="line"><div class="bar">
+     <div style="flex:2"><label>Item</label><select onchange="grnPick(${i},this.value)"><option value="">Select item…</option>${items.map(x=>`<option value="${x.id}" ${x.id==l.item_id?'selected':''}>${esc((x.code?x.code+' - ':'')+x.name)}</option>`).join('')}</select></div>
+     <div><label>Cost (each)</label><input type="number" step="0.01" value="${l.cost}" oninput="G[${i}].cost=this.value;grnTotal()"></div>
+     <div><label>Selling price</label><input type="number" step="0.01" value="${l.price}" oninput="G[${i}].price=this.value"></div>
+     <div><label>Warranty (months)</label><input type="number" min="0" value="${l.w}" oninput="G[${i}].w=this.value"></div>
+     ${it&&!it.track_serial?`<div><label>Qty</label><input type="number" min="1" value="${l.qty}" oninput="G[${i}].qty=this.value;grnTotal()"></div>`:''}
+     <div style="flex:0"><button class="btn sec sm" onclick="grnDel(${i})">Remove</button></div></div>
+     ${it&&it.track_serial?`<div style="margin-top:8px"><label>Serial numbers - one per line (or scan one by one). Count: <b id="sc${i}">${serialList(l.serials).length}</b></label>
+       <textarea rows="4" oninput="G[${i}].serials=this.value;document.getElementById('sc${i}').textContent=serialList(this.value).length;grnTotal()">${esc(l.serials)}</textarea></div>`:''}
+     ${it&&it.description?`<div class="mut" style="margin-top:6px">${esc(it.description)}</div>`:''}</div>`}).join('');
+  grnTotal();
+}
+function grnPick(i,v){const it=items.find(x=>x.id==v);G[i].item_id=v;if(it){G[i].cost=it.cost;G[i].price=it.price;G[i].w=it.warranty_months}grnRender()}
+function grnQty(l){const it=items.find(x=>x.id==l.item_id);return it&&it.track_serial?serialList(l.serials).length:(+l.qty||0)}
+function grnTotal(){$('#gt').textContent='Total cost: Rs. '+money(G.reduce((a,l)=>a+grnQty(l)*(+l.cost||0),0))}
+async function grnSave(){
+  const lines=[];
+  for(const l of G){
+    const it=items.find(x=>x.id==l.item_id);
+    if(!it)return toast('Select an item on every line',true);
+    const q=grnQty(l);if(q<=0)return toast('Enter serial numbers / qty for '+it.name,true);
+    if(l.cost===''||l.price==='')return toast('Enter cost and selling price for '+it.name,true);
+    lines.push({item_id:it.id,qty:q,cost:+l.cost,price:+l.price,warranty_months:+l.w||0,serials:it.track_serial?serialList(l.serials):[]});
+  }
+  if(!lines.length)return toast('Add at least one line',true);
+  const id=await run(sb.rpc('create_grn',{p:{grn_date:$('#g_date').value,supplier:$('#g_sup').value,ref_no:$('#g_ref').value,note:$('#g_note').value,lines}}));
+  toast('GRN saved');go('grn');
+}
+
+/* ---------------- New invoice ---------------- */
+let L=[];
+PAGES.invoice=async()=>{
+  await loadItems();L=[];
+  $('#main').innerHTML=`<div class="top"><h2>New invoice</h2></div>
+  <div class="card"><div class="bar">
+   <div><label>Date</label><input id="v_date" type="date" value="${today()}"></div>
+   <div style="flex:2"><label>Customer name</label><input id="v_cn"></div>
+   <div><label>Phone</label><input id="v_ph"></div>
+   <div style="flex:2"><label>Address</label><input id="v_ad"></div></div></div>
+  <div class="card"><b>Add item</b><div class="bar" style="margin-top:8px">
+   <div style="flex:2"><label>Item</label><select id="a_item" onchange="invPick()"><option value="">Select item…</option>${items.filter(i=>i.in_stock>0).map(i=>`<option value="${i.id}">${esc((i.code?i.code+' - ':'')+i.name)} (${i.in_stock})</option>`).join('')}</select></div>
+   <div id="a_ser" style="flex:2;display:none"><label>Serial number (type / scan / choose)</label><input id="a_sn" list="a_dl" onkeydown="if(event.key==='Enter')invAdd()"><datalist id="a_dl"></datalist></div>
+   <div id="a_qtyw" style="display:none"><label>Qty</label><input id="a_qty" type="number" min="1" value="1"></div>
+   <div><label>Price</label><input id="a_pr" type="number" step="0.01" ${isAdmin()?'':'readonly'}></div>
+   <div style="flex:0"><button class="btn" onclick="invAdd()">Add</button></div></div>
+   <div class="mut" style="margin-top:6px">Tip: you can scan or type a serial number straight into the serial box and press Enter.</div></div>
+  <div class="tw"><table><thead><tr><th>#</th><th>Description</th><th>Serial</th><th>Warranty</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Amount</th><th></th></tr></thead><tbody id="vl"></tbody></table></div>
+  <div class="card" style="margin-top:14px"><div class="bar">
+   <div><label>Payment method</label><select id="v_pm"><option>Cash</option><option>Card</option><option>Bank transfer</option><option>Cheque</option><option>Credit</option></select></div>
+   <div style="flex:2"><label>Note</label><input id="v_nt"></div>
+   <div><label>Discount</label><input id="v_dc" type="number" step="0.01" value="0" oninput="invTotals()"></div></div>
+   <div class="tot" id="vt" style="margin-top:12px"></div></div>
+  <div class="bar" style="justify-content:flex-end"><div style="flex:0"><label>Print format</label><select id="v_fmt">${fmtOptions()}</select></div><div style="flex:0"><button class="btn" onclick="invSave()">Save &amp; print</button></div></div>`;
+  invRender();
+};
+function fmtOptions(){const cur=localStorage.getItem('fmt')||'a4';return [['a4','A4'],['a5','A5'],['th80','Thermal 80mm'],['dotf','Dot matrix - full page (9.5x11in)'],['doth','Dot matrix - half page (9.5x5.5in)']].map(f=>`<option value="${f[0]}" ${f[0]===cur?'selected':''}>${f[1]}</option>`).join('')}
+async function invPick(){
+  const it=items.find(x=>x.id==$('#a_item').value);
+  $('#a_ser').style.display=it&&it.track_serial?'block':'none';
+  $('#a_qtyw').style.display=it&&!it.track_serial?'block':'none';
+  $('#a_pr').value=it?it.price:'';$('#a_sn').value='';
+  if(it&&it.track_serial){
+    const d=await run(sb.from('serials').select('serial').eq('item_id',it.id).eq('status','in_stock').order('serial').limit(300));
+    $('#a_dl').innerHTML=d.map(s=>`<option value="${esc(s.serial)}">`).join('');
+  }
+}
+async function invAdd(){
+  let it=items.find(x=>x.id==$('#a_item').value);
+  const sn=$('#a_sn').value.trim();
+  if(!it&&sn){ // scan straight from serial
+    const d=await run(sb.from('serials').select('*').eq('serial',sn).eq('status','in_stock').maybeSingle());
+    if(!d)return toast('Serial not in stock',true);
+    it=items.find(x=>x.id==d.item_id);
+    if(L.some(l=>l.serial===sn))return toast('Already added',true);
+    L.push({item_id:it.id,description:it.name,serial:sn,qty:1,price:d.price||it.price,w:d.warranty_months});
+    $('#a_sn').value='';return invRender();
+  }
+  if(!it)return toast('Select an item',true);
+  const price=+$('#a_pr').value;
+  if(it.track_serial){
+    if(!sn)return toast('Enter the serial number',true);
+    if(L.some(l=>l.serial===sn))return toast('Already added',true);
+    const d=await run(sb.from('serials').select('*').eq('serial',sn).eq('item_id',it.id).eq('status','in_stock').maybeSingle());
+    if(!d)return toast('That serial is not in stock for this item',true);
+    L.push({item_id:it.id,description:it.name,serial:sn,qty:1,price:isAdmin()?price:(d.price||it.price),w:d.warranty_months});
+    $('#a_sn').value='';
+  }else{
+    const q=+$('#a_qty').value||1;
+    const have=L.filter(l=>l.item_id===it.id).reduce((a,l)=>a+l.qty,0);
+    if(have+q>it.in_stock)return toast('Only '+it.in_stock+' in stock',true);
+    L.push({item_id:it.id,description:it.name,serial:null,qty:q,price:isAdmin()?price:it.price,w:it.warranty_months});
+  }
+  invRender();
+}
+function invRender(){
+  $('#vl').innerHTML=L.map((l,i)=>`<tr><td>${i+1}</td><td>${esc(l.description)}</td><td>${esc(l.serial)}</td><td>${l.w} mo</td><td class="r">${l.qty}</td><td class="r">${money(l.price)}</td><td class="r">${money(l.qty*l.price)}</td><td><button class="btn sec sm" onclick="L.splice(${i},1);invRender()">x</button></td></tr>`).join('')||'<tr><td colspan="8" class="mut">No items added.</td></tr>';
+  invTotals();
+}
+function invTotals(){
+  const s=L.reduce((a,l)=>a+l.qty*l.price,0),d=+($('#v_dc')||{}).value||0;
+  $('#vt').innerHTML=`<div><span>Subtotal</span><span>${money(s)}</span></div><div><span>Discount</span><span>${money(d)}</span></div><div class="g"><span>Total (Rs.)</span><span>${money(s-d)}</span></div>`;
+}
+async function invSave(){
+  if(!L.length)return toast('Add at least one item',true);
+  const fmt=$('#v_fmt').value;localStorage.setItem('fmt',fmt);
+  const id=await run(sb.rpc('create_invoice',{p:{inv_date:$('#v_date').value,customer_name:$('#v_cn').value,phone:$('#v_ph').value,address:$('#v_ad').value,pay_method:$('#v_pm').value,note:$('#v_nt').value,discount:+$('#v_dc').value||0,
+    lines:L.map(l=>({item_id:l.item_id,description:l.description,serial:l.serial,qty:l.qty,unit_price:l.price,warranty_months:l.w}))}}));
+  toast('Invoice saved');
+  await printInvoice(id,fmt);
+  go('invoices');
+}
+
+/* ---------------- Invoice list ---------------- */
+PAGES.invoices=async()=>{
+  const d=await run(sb.from('invoices').select('*').order('id',{ascending:false}).limit(100));
+  $('#main').innerHTML=`<div class="top"><h2>Invoices</h2><div style="width:220px"><label>Reprint format</label><select id="p_fmt">${fmtOptions()}</select></div></div>
+  <div class="tw"><table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Payment</th><th class="r">Total</th><th></th></tr></thead><tbody>
+  ${d.map(v=>`<tr><td>${esc(v.inv_no)}</td><td>${v.inv_date}</td><td>${esc(v.customer_name)}<div class="mut">${esc(v.phone)}</div></td><td>${esc(v.pay_method)}</td><td class="r">${money(v.total)}</td>
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="printInvoice(${v.id},$('#p_fmt').value)">Print</button> ${isAdmin()?`<button class="btn sec sm" onclick="voidInv(${v.id},'${esc(v.inv_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">No invoices yet.</td></tr>'}</tbody></table></div>`;
+};
+async function voidInv(id,no){
+  if(!confirm('Delete '+no+'? Serials and stock will be returned to stock.'))return;
+  await run(sb.rpc('void_invoice',{inv:id}));toast('Invoice deleted');go('invoices');
+}
+
+/* ---------------- Printing ---------------- */
+async function printInvoice(id,fmt){
+  const inv=await run(sb.from('invoices').select('*').eq('id',id).single());
+  const ln=await run(sb.from('invoice_items').select('*').eq('invoice_id',id).order('id'));
+  const co={n:settings.company_name||'Company',a:settings.company_addr||'',p:settings.company_phone||'',f:settings.invoice_footer||'Thank you for your business.'};
+  let html,css;
+  if(fmt==='dotf'||fmt==='doth'){
+    html='<pre>'+esc(dotText(inv,ln,co,fmt==='dotf'))+'</pre>';
+    css=`@page{size:9.5in ${fmt==='dotf'?'11in':'5.5in'};margin:.2in .3in}body{margin:0}pre{font:12pt/1.2 "Courier New",monospace;margin:0}`;
+  }else{
+    const size={a4:'A4',a5:'A5',th80:'80mm auto'}[fmt]||'A4',th=fmt==='th80';
+    css=`@page{size:${size};margin:${th?'3mm':'12mm'}}body{font:${th?'11px':fmt==='a5'?'11px':'13px'}/1.4 Arial,sans-serif;color:#000;margin:0;${th?'width:72mm':''}}
+    h1{font-size:${th?'15px':'22px'};margin:0}table{width:100%;border-collapse:collapse;margin-top:8px}th,td{padding:${th?'2px':'5px 6px'};border-bottom:1px solid #999;text-align:left;vertical-align:top}th{border-top:1px solid #000;border-bottom:1px solid #000}
+    .r{text-align:right}.hd{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px}.c{text-align:center}.tt{margin-left:auto;width:${th?'100%':'45%'};margin-top:8px}.tt div{display:flex;justify-content:space-between;padding:2px 0}.tt .g{font-weight:700;font-size:1.15em;border-top:2px solid #000}.sg{display:flex;justify-content:space-between;margin-top:40px}.sg div{border-top:1px solid #000;padding-top:3px;width:30%;text-align:center}`;
+    html=`<div class="${th?'c':'hd'}"><div><h1>${esc(co.n)}</h1><div>${esc(co.a)}</div><div>${esc(co.p)}</div></div>
+      <div ${th?'':'style="text-align:right"'}><b>INVOICE</b><div>${esc(inv.inv_no)}</div><div>${inv.inv_date}</div></div></div>
+      <div><b>Customer:</b> ${esc(inv.customer_name)} ${esc(inv.phone)}<div>${esc(inv.address)}</div></div>
+      <table><thead><tr>${th?'':'<th>#</th>'}<th>Description</th>${th?'':'<th>Warranty</th>'}<th class="r">Qty</th><th class="r">Price</th><th class="r">Amount</th></tr></thead><tbody>
+      ${ln.map((l,i)=>`<tr>${th?'':`<td>${i+1}</td>`}<td>${esc(l.description)}${l.serial?`<div>S/N: ${esc(l.serial)}</div>`:''}${th&&l.warranty_months?`<div>Warranty: ${l.warranty_months} mo</div>`:''}</td>${th?'':`<td>${l.warranty_months?l.warranty_months+' months<div>until '+addMonths(inv.inv_date,l.warranty_months)+'</div>':'-'}</td>`}<td class="r">${l.qty}</td><td class="r">${money(l.unit_price)}</td><td class="r">${money(l.amount)}</td></tr>`).join('')}</tbody></table>
+      <div class="tt"><div><span>Subtotal</span><span>${money(inv.subtotal)}</span></div>${+inv.discount?`<div><span>Discount</span><span>${money(inv.discount)}</span></div>`:''}<div class="g"><span>Total</span><span>Rs. ${money(inv.total)}</span></div><div><span>Payment</span><span>${esc(inv.pay_method)}</span></div></div>
+      <p class="c" style="margin-top:14px">${esc(co.f)}</p>${th?'':'<div class="sg"><div>Prepared by</div><div>Customer signature</div></div>'}`;
+  }
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
+  f.contentDocument.open();f.contentDocument.write(`<html><head><title>${esc(inv.inv_no)}</title><style>${css}</style></head><body>${html}</body></html>`);f.contentDocument.close();
+  setTimeout(()=>{f.contentWindow.focus();f.contentWindow.print();setTimeout(()=>f.remove(),60000)},300);
+}
+function dotText(inv,ln,co,full){
+  const W=80,p=(s,n)=>String(s??'').slice(0,n).padEnd(n),r=(s,n)=>String(s??'').slice(0,n).padStart(n),c=s=>' '.repeat(Math.max(0,(W-s.length)>>1))+s,bar='-'.repeat(W);
+  let o=[c(co.n.toUpperCase()),c(co.a),c(co.p),bar,p('INVOICE: '+inv.inv_no,40)+r('Date: '+inv.inv_date,40),
+    p('Customer: '+(inv.customer_name||''),W),p('Phone: '+(inv.phone||''),W),p('Address: '+(inv.address||''),W),bar,
+    p('No',3)+' '+p('Description',40)+' '+r('Qty',4)+' '+r('Price',12)+' '+r('Amount',14),bar];
+  ln.forEach((l,i)=>{
+    o.push(p(i+1,3)+' '+p(l.description,40)+' '+r(l.qty,4)+' '+r(money(l.unit_price),12)+' '+r(money(l.amount),14));
+    if(l.serial||l.warranty_months)o.push('    '+(l.serial?'S/N: '+l.serial+'  ':'')+(l.warranty_months?'Warranty: '+l.warranty_months+' mo (until '+addMonths(inv.inv_date,l.warranty_months)+')':''));
+  });
+  o.push(bar,r('Subtotal: '+money(inv.subtotal),W));
+  if(+inv.discount)o.push(r('Discount: '+money(inv.discount),W));
+  o.push(r('TOTAL Rs.: '+money(inv.total),W),r('Payment: '+(inv.pay_method||''),W),bar,c(co.f));
+  if(full)o.push('','','Prepared by: ____________          Customer signature: ____________');
+  return o.join('\n');
+}
+
+/* ---------------- Users (admin) ---------------- */
+PAGES.users=async()=>{
+  const d=await run(sb.from('profiles').select('*').order('created_at'));
+  $('#main').innerHTML=`<div class="top"><h2>Users</h2></div>
+  <div class="card"><b>Add user</b><div class="bar" style="margin-top:8px">
+   <div><label>Username</label><input id="u_n"></div><div><label>Password (min 6)</label><input id="u_p" type="text"></div>
+   <div><label>Role</label><select id="u_r"><option value="user">User (limited)</option><option value="admin">Admin (full control)</option></select></div>
+   <div style="flex:0"><button class="btn" onclick="addUser()">Create</button></div></div></div>
+  <div class="tw"><table><thead><tr><th>Username</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>
+  ${d.map(u=>`<tr><td>${esc(u.username)}</td><td><select onchange="setRole('${u.id}',this.value)" ${u.id===me.id?'disabled':''}><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select></td>
+   <td><span class="tag ${u.active?'ok':'bad'}">${u.active?'Active':'Disabled'}</span></td>
+   <td>${u.id===me.id?'':`<button class="btn sec sm" onclick="setActive('${u.id}',${!u.active})">${u.active?'Disable':'Enable'}</button>`}</td></tr>`).join('')}</tbody></table></div>
+  <p class="mut">To reset a forgotten password: Supabase dashboard &gt; Authentication &gt; Users &gt; open the user &gt; set new password.</p>`;
+};
+async function addUser(){
+  const n=$('#u_n').value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,''),pw=$('#u_p').value,role=$('#u_r').value;
+  if(!n||pw.length<6)return toast('Username and a password of 6+ characters are required',true);
+  const sb2=supabase.createClient(CFG.url,CFG.key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+  const {error}=await sb2.auth.signUp({email:n+EMAIL_DOMAIN,password:pw});
+  if(error)return toast(error.message,true);
+  if(role==='admin'){await new Promise(r=>setTimeout(r,500));await run(sb.from('profiles').update({role:'admin'}).eq('username',n))}
+  toast('User created');go('users');
+}
+async function setRole(id,role){await run(sb.from('profiles').update({role}).eq('id',id));toast('Role updated')}
+async function setActive(id,a){await run(sb.from('profiles').update({active:a}).eq('id',id));go('users')}
+
+/* ---------------- Settings (admin) ---------------- */
+PAGES.settings=async()=>{
+  $('#main').innerHTML=`<div class="top"><h2>Settings</h2></div><div class="card" style="max-width:560px">
+   <div class="row" style="margin-bottom:10px"><label>Company name</label><input id="s_n" value="${esc(settings.company_name)}"></div>
+   <div class="row" style="margin-bottom:10px"><label>Address</label><input id="s_a" value="${esc(settings.company_addr)}"></div>
+   <div class="row" style="margin-bottom:10px"><label>Phone</label><input id="s_p" value="${esc(settings.company_phone)}"></div>
+   <div class="row" style="margin-bottom:12px"><label>Invoice footer</label><input id="s_f" value="${esc(settings.invoice_footer)}" placeholder="Warranty void if seal is broken…"></div>
+   <button class="btn" onclick="saveSettings()">Save settings</button></div>`;
+};
+async function saveSettings(){
+  const rows=[['company_name','#s_n'],['company_addr','#s_a'],['company_phone','#s_p'],['invoice_footer','#s_f']].map(([k,s])=>({key:k,value:$(s).value}));
+  await run(sb.from('settings').upsert(rows));rows.forEach(r=>settings[r.key]=r.value);
+  $('#coName').textContent=settings.company_name||'Company';toast('Settings saved');
+}
+</script>
+</body>
+</html>
