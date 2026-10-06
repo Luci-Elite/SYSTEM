@@ -309,86 +309,137 @@ async function serialSearch(){
    <td>${s.status==='sold'&&s.sold_at?addMonths(s.sold_at,s.warranty_months):'-'}</td></tr>`).join('')}</tbody></table></div>`:'<span class="mut">No serial found.</span>';
 }
 
-/* ---------------- Items (admin) ---------------- */
+/* ---------------- Items ---------------- */
+let G=[],CATS=[];
+async function loadCats(){CATS=await run(sb.from('categories').select('*').order('name'))}
 PAGES.items=async()=>{
-  await loadItems();
-  $('#main').innerHTML=`<div class="top"><h2>Items</h2><button class="btn" onclick="itemModal()">Add item</button></div>
-  <div class="tw"><table><thead><tr><th>Code</th><th>Item</th><th>Type</th><th class="r">Cost</th><th class="r">Price</th><th>Warranty</th><th></th></tr></thead><tbody>
-  ${items.map(i=>`<tr><td>${esc(i.code)}</td><td><b>${esc(i.name)}</b><div class="mut">${esc(i.description)}</div></td><td>${i.track_serial?'Serial':'Qty only'}</td><td class="r">${money(i.cost)}</td><td class="r">${money(i.price)}</td><td>${i.warranty_months} mo</td>
-  <td><button class="btn sec sm" onclick="itemModal(${i.id})">Edit</button></td></tr>`).join('')||'<tr><td colspan="7" class="mut">No items yet.</td></tr>'}</tbody></table></div>`;
+  await Promise.all([loadItems(),loadCats()]);
+  $('#main').innerHTML=`<div class="top"><h2>Items</h2><div class="bar"><div style="flex:0"><button class="btn sec" onclick="catModal()">Categories</button></div><div style="flex:0"><button class="btn" onclick="itemModal()">Add item</button></div></div></div>
+  <div class="tw"><table><thead><tr><th>Code</th><th>Item</th><th>Category</th><th>Type</th><th class="r">Cost</th><th class="r">Price</th><th>Warranty</th><th></th></tr></thead><tbody>
+  ${items.map(i=>`<tr><td>${esc(i.code)}</td><td><b>${esc(i.name)}</b><div class="mut" style="white-space:pre-line">${esc(i.description)}</div></td><td>${esc(i.category_name)}</td><td>${i.track_serial?'Serial':'Qty only'}</td><td class="r">${money(i.cost)}</td><td class="r">${money(i.price)}</td><td>${i.warranty_months} mo</td>
+  <td><button class="btn sec sm" onclick="itemModal(${i.id})">Edit</button></td></tr>`).join('')||'<tr><td colspan="8" class="mut">No items yet.</td></tr>'}</tbody></table></div>`;
 };
 function itemModal(id,after){
   const i=items.find(x=>x.id===id)||{track_serial:true,warranty_months:0,cost:0,price:0};
   window._itemAfter=after;
   openModal(`<h3>${id?'Edit':'New'} item</h3>
-  <div class="row"><label>Code (optional)</label><input id="i_code" value="${esc(i.code)}"></div>
-  <div class="row"><label>Item name</label><input id="i_name" value="${esc(i.name)}"></div>
-  <div class="row"><label>Description</label><textarea id="i_desc" rows="2">${esc(i.description)}</textarea></div>
+  <div class="bar"><div><label>Category</label><select id="i_cat"><option value="">- none -</option>${CATS.map(c=>`<option value="${c.id}" ${c.id==i.category_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+   <div><label>Code ${id?'':'(leave empty = auto from category)'}</label><input id="i_code" value="${esc(i.code)}"></div></div>
+  <div class="row" style="margin-top:8px"><label>Item name</label><input id="i_name" value="${esc(i.name)}"></div>
+  <div class="row"><label>Description / specs (printed on invoice, one detail per line)</label><textarea id="i_desc" rows="3">${esc(i.description)}</textarea></div>
   <div class="row"><label>Tracking</label><select id="i_ts"><option value="1" ${i.track_serial?'selected':''}>Serial number per unit</option><option value="0" ${!i.track_serial?'selected':''}>Quantity only (no serials)</option></select></div>
   <div class="bar"><div><label>Default warranty (months)</label><input id="i_w" type="number" min="0" value="${i.warranty_months}"></div><div><label>Cost</label><input id="i_c" type="number" step="0.01" value="${i.cost}"></div><div><label>Selling price</label><input id="i_p" type="number" step="0.01" value="${i.price}"></div></div>
   <div class="bar" style="margin-top:14px;justify-content:flex-end"><div style="flex:0"><button class="btn sec" onclick="closeModal()">Cancel</button></div><div style="flex:0"><button class="btn" onclick="saveItem(${id||0})">Save</button></div></div>`);
 }
 async function saveItem(id){
-  const row={code:$('#i_code').value.trim()||null,name:$('#i_name').value.trim(),description:$('#i_desc').value.trim(),track_serial:$('#i_ts').value==='1',
+  const row={code:$('#i_code').value.trim()||null,name:$('#i_name').value.trim(),description:$('#i_desc').value.trim(),track_serial:$('#i_ts').value==='1',category_id:+$('#i_cat').value||null,
     warranty_months:+$('#i_w').value||0,cost:+$('#i_c').value||0,price:+$('#i_p').value||0};
   if(!row.name)return toast('Item name is required',true);
-  if(id)await run(sb.from('items').update(row).eq('id',id));else await run(sb.from('items').insert(row));
+  if(id){if(!row.code)delete row.code;await run(sb.from('items').update(row).eq('id',id))}else await run(sb.from('items').insert(row));
   closeModal();toast('Item saved');
   if(window._itemAfter){await window._itemAfter()}else go('items');
 }
+function catModal(){
+  openModal(`<h3>Categories</h3><div class="tw"><table><thead><tr><th>Name</th><th>Code prefix</th><th>Next code</th></tr></thead><tbody>${CATS.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.prefix)}</td><td>${esc(c.prefix)}-${String(c.next_no).padStart(4,'0')}</td></tr>`).join('')}</tbody></table></div>
+  <div class="bar" style="margin-top:12px"><div><label>New category</label><input id="c_n"></div><div><label>Code prefix (e.g. MOU)</label><input id="c_p" maxlength="5"></div><div style="flex:0"><button class="btn" onclick="saveCat()">Add</button></div></div>
+  <div style="margin-top:12px;text-align:right"><button class="btn sec" onclick="closeModal()">Close</button></div>`);
+}
+async function saveCat(){
+  const name=$('#c_n').value.trim(),prefix=$('#c_p').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(!name||!prefix)return toast('Enter a name and a code prefix',true);
+  await run(sb.from('categories').insert({name,prefix}));await loadCats();toast('Category added');catModal();
+  if($('#gl'))grnRender();
+}
 
-/* ---------------- GRN (admin) ---------------- */
-let G=[];
+/* ---------------- GRN ---------------- */
 PAGES.grn=async()=>{
-  await loadItems();G=[];
+  await Promise.all([loadItems(),loadCats()]);G=[];
   const list=await run(sb.from('grn').select('*').order('id',{ascending:false}).limit(30));
-  $('#main').innerHTML=`<div class="top"><h2>Goods received note (GRN)</h2></div>
+  $('#main').innerHTML=`<div class="top"><h2>Goods received note (GRN)</h2>${hasP('items')?'<button class="btn sec" onclick="catModal()">Categories</button>':''}</div>
   <div class="card"><div class="bar">
     <div><label>Date</label><input id="g_date" type="date" value="${today()}"></div>
     <div><label>Supplier</label><input id="g_sup"></div>
     <div><label>Supplier invoice / ref no</label><input id="g_ref"></div>
     <div><label>Note</label><input id="g_note"></div></div></div>
   <div id="gl"></div>
-  <div class="bar" style="margin-bottom:14px"><div style="flex:0"><button class="btn sec" onclick="grnAdd()">+ Add line</button></div>${hasP('items')?`<div style="flex:0"><button class="btn sec" onclick="itemModal(0,grnReloadItems)">+ New item</button></div>`:''}
+  <div class="bar" style="margin-bottom:14px"><div style="flex:0"><button class="btn sec" onclick="grnAdd()">+ Add line</button></div>
    <div style="text-align:right"><b id="gt"></b></div><div style="flex:0"><button class="btn" onclick="grnSave()">Save GRN</button></div></div>
   <h3 style="margin:18px 0 8px">Recent GRNs</h3>
   <div class="tw"><table><thead><tr><th>GRN</th><th>Date</th><th>Supplier</th><th>Ref</th><th class="r">Total cost</th></tr></thead><tbody>
   ${list.map(g=>`<tr><td>${esc(g.grn_no)}</td><td>${g.grn_date}</td><td>${esc(g.supplier)}</td><td>${esc(g.ref_no)}</td><td class="r">${money(g.total)}</td></tr>`).join('')||'<tr><td colspan="5" class="mut">None yet.</td></tr>'}</tbody></table></div>`;
   grnAdd();
 };
-async function grnReloadItems(){await loadItems();grnRender()}
-function grnAdd(){G.push({item_id:'',qty:1,cost:'',price:'',w:'',serials:''});grnRender()}
+function grnAdd(){G.push({cat:'',item_id:'',isNew:false,nw:{name:'',ts:true},qty:1,cost:'',price:'',w:'',details:'',serials:[]});grnRender()}
 function grnDel(i){G.splice(i,1);grnRender()}
-function serialList(t){return [...new Set(String(t||'').split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean))]}
+function grnCat(i,v){G[i].cat=v;G[i].item_id='';G[i].isNew=false;grnRender()}
+function grnItem(i,v){
+  const l=G[i];
+  if(v==='__new'){l.isNew=true;l.item_id=''}
+  else{l.isNew=false;l.item_id=v;const it=items.find(x=>x.id==v);if(it){l.cost=it.cost;l.price=it.price;l.w=it.warranty_months;l.details=it.description||''}}
+  grnRender();
+}
+function grnCode(i){
+  const c=CATS.find(x=>x.id==G[i].cat);if(!c)return 'Choose a category first';
+  let n=c.next_no;for(let j=0;j<i;j++)if(G[j].isNew&&G[j].cat==G[i].cat)n++;
+  return c.prefix+'-'+String(n).padStart(4,'0');
+}
+function grnTracks(l){if(l.isNew)return l.nw.ts;const it=items.find(x=>x.id==l.item_id);return it?it.track_serial:true}
+function srHtml(i){
+  const l=G[i];
+  return Array.from({length:l.qty},(_,k)=>`<input id="s_${i}_${k}" placeholder="Serial ${k+1}" value="${esc(l.serials[k]||'')}" oninput="G[${i}].serials[${k}]=this.value" onkeydown="srKey(event,${i},${k})" onpaste="srPaste(event,${i},${k})">`).join('');
+}
+function srKey(e,i,k){if(e.key==='Enter'){e.preventDefault();const nx=$('#s_'+i+'_'+(k+1));if(nx)nx.focus()}}
+function srPaste(e,i,k){
+  const t=(e.clipboardData||window.clipboardData).getData('text');
+  const parts=t.split(/[\n\r,;\t]+/).map(x=>x.trim()).filter(Boolean);
+  if(parts.length<2)return;
+  e.preventDefault();
+  const l=G[i];l.qty=Math.min(500,Math.max(l.qty,k+parts.length));
+  parts.forEach((x,j)=>{l.serials[k+j]=x});grnRender();
+}
+function grnQty(i,v){
+  const n=Math.min(500,Math.max(1,parseInt(v)||1));G[i].qty=n;if(G[i].serials.length>n)G[i].serials.length=n;
+  const sr=$('#sr'+i);if(sr)sr.innerHTML=srHtml(i);const sc=$('#sc'+i);if(sc)sc.textContent=n;grnTotal();
+}
 function grnRender(){
   $('#gl').innerHTML=G.map((l,i)=>{
-    const it=items.find(x=>x.id==l.item_id);
+    const ts=grnTracks(l),list=items.filter(x=>!l.cat||x.category_id==l.cat);
     return `<div class="line"><div class="bar">
-     <div style="flex:2"><label>Item</label><select onchange="grnPick(${i},this.value)"><option value="">Select item…</option>${items.map(x=>`<option value="${x.id}" ${x.id==l.item_id?'selected':''}>${esc((x.code?x.code+' - ':'')+x.name)}</option>`).join('')}</select></div>
-     <div><label>Cost (each)</label><input type="number" step="0.01" value="${l.cost}" oninput="G[${i}].cost=this.value;grnTotal()"></div>
-     <div><label>Selling price</label><input type="number" step="0.01" value="${l.price}" oninput="G[${i}].price=this.value"></div>
-     <div><label>Warranty (months)</label><input type="number" min="0" value="${l.w}" oninput="G[${i}].w=this.value"></div>
-     ${it&&!it.track_serial?`<div><label>Qty</label><input type="number" min="1" value="${l.qty}" oninput="G[${i}].qty=this.value;grnTotal()"></div>`:''}
+     <div><label>Category</label><select onchange="grnCat(${i},this.value)"><option value="">- all / none -</option>${CATS.map(c=>`<option value="${c.id}" ${c.id==l.cat?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+     <div style="flex:2"><label>Item</label><select onchange="grnItem(${i},this.value)"><option value="">Select item…</option><option value="__new" ${l.isNew?'selected':''}>+ New item</option>${list.map(x=>`<option value="${x.id}" ${x.id==l.item_id&&!l.isNew?'selected':''}>${esc((x.code?x.code+' - ':'')+x.name)}</option>`).join('')}</select></div>
      <div style="flex:0"><button class="btn sec sm" onclick="grnDel(${i})">Remove</button></div></div>
-     ${it&&it.track_serial?`<div style="margin-top:8px"><label>Serial numbers - one per line (or scan one by one). Count: <b id="sc${i}">${serialList(l.serials).length}</b></label>
-       <textarea rows="4" oninput="G[${i}].serials=this.value;document.getElementById('sc${i}').textContent=serialList(this.value).length;grnTotal()">${esc(l.serials)}</textarea></div>`:''}
-     ${it&&it.description?`<div class="mut" style="margin-top:6px">${esc(it.description)}</div>`:''}</div>`}).join('');
+     ${l.isNew?`<div class="bar" style="margin-top:8px"><div style="flex:2"><label>New item name</label><input value="${esc(l.nw.name)}" oninput="G[${i}].nw.name=this.value"></div>
+       <div><label>Tracking</label><select onchange="G[${i}].nw.ts=this.value==='1';grnRender()"><option value="1" ${l.nw.ts?'selected':''}>Serial number per unit</option><option value="0" ${!l.nw.ts?'selected':''}>Quantity only</option></select></div>
+       <div><label>Auto code</label><input readonly value="${esc(grnCode(i))}"></div></div>`:''}
+     <div class="bar" style="margin-top:8px">
+      <div><label>Quantity</label><input type="number" min="1" max="500" value="${l.qty}" oninput="grnQty(${i},this.value)"></div>
+      <div><label>Cost (each)</label><input type="number" step="0.01" value="${l.cost}" oninput="G[${i}].cost=this.value;grnTotal()"></div>
+      <div><label>Selling price</label><input type="number" step="0.01" value="${l.price}" oninput="G[${i}].price=this.value"></div>
+      <div><label>Warranty (months)</label><input type="number" min="0" value="${l.w}" oninput="G[${i}].w=this.value"></div></div>
+     <div style="margin-top:8px"><label>Description / specs (printed on the invoice, one detail per line)</label><textarea rows="3" oninput="G[${i}].details=this.value">${esc(l.details)}</textarea></div>
+     ${ts?`<div style="margin-top:8px"><label>Serial numbers: <b id="sc${i}">${l.qty}</b> needed. Type or scan one by one, press Enter for the next box.</label>
+       <div id="sr${i}" style="display:grid;gap:6px;grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">${srHtml(i)}</div></div>`:''}</div>`}).join('');
   grnTotal();
 }
-function grnPick(i,v){const it=items.find(x=>x.id==v);G[i].item_id=v;if(it){G[i].cost=it.cost;G[i].price=it.price;G[i].w=it.warranty_months}grnRender()}
-function grnQty(l){const it=items.find(x=>x.id==l.item_id);return it&&it.track_serial?serialList(l.serials).length:(+l.qty||0)}
-function grnTotal(){$('#gt').textContent='Total cost: Rs. '+money(G.reduce((a,l)=>a+grnQty(l)*(+l.cost||0),0))}
+function grnTotal(){$('#gt').textContent='Total cost: Rs. '+money(G.reduce((a,l)=>a+(+l.qty||0)*(+l.cost||0),0))}
 async function grnSave(){
   const lines=[];
-  for(const l of G){
-    const it=items.find(x=>x.id==l.item_id);
-    if(!it)return toast('Select an item on every line',true);
-    const q=grnQty(l);if(q<=0)return toast('Enter serial numbers / qty for '+it.name,true);
-    if(l.cost===''||l.price==='')return toast('Enter cost and selling price for '+it.name,true);
-    lines.push({item_id:it.id,qty:q,cost:+l.cost,price:+l.price,warranty_months:+l.w||0,serials:it.track_serial?serialList(l.serials):[]});
+  for(let i=0;i<G.length;i++){
+    const l=G[i],ts=grnTracks(l);
+    let nm='';
+    if(l.isNew){nm=l.nw.name.trim();if(!nm)return toast('Enter the new item name on line '+(i+1),true)}
+    else{const it=items.find(x=>x.id==l.item_id);if(!it)return toast('Select an item on line '+(i+1),true);nm=it.name}
+    if(l.cost===''||l.price==='')return toast('Enter cost and selling price for '+nm,true);
+    let serials=[];
+    if(ts){
+      serials=Array.from({length:l.qty},(_,k)=>String(l.serials[k]||'').trim());
+      if(serials.some(x=>!x))return toast('Fill all '+l.qty+' serial numbers for '+nm,true);
+      if(new Set(serials).size!==serials.length)return toast('Duplicate serial number on line '+(i+1),true);
+    }
+    lines.push({item_id:l.isNew?null:+l.item_id,new_item:l.isNew?{name:nm,category_id:l.cat||'',track_serial:l.nw.ts}:null,qty:l.qty,cost:+l.cost,price:+l.price,warranty_months:+l.w||0,details:l.details.trim(),serials});
   }
   if(!lines.length)return toast('Add at least one line',true);
-  const id=await run(sb.rpc('create_grn',{p:{grn_date:$('#g_date').value,supplier:$('#g_sup').value,ref_no:$('#g_ref').value,note:$('#g_note').value,lines}}));
+  await run(sb.rpc('create_grn',{p:{grn_date:$('#g_date').value,supplier:$('#g_sup').value,ref_no:$('#g_ref').value,note:$('#g_note').value,lines}}));
   toast('GRN saved');go('grn');
 }
 
@@ -437,7 +488,7 @@ async function invAdd(){
     if(!d)return toast('Serial not in stock',true);
     it=items.find(x=>x.id==d.item_id);
     if(L.some(l=>l.serial===sn))return toast('Already added',true);
-    L.push({item_id:it.id,description:it.name,serial:sn,qty:1,price:d.price||it.price,w:d.warranty_months});
+    L.push({item_id:it.id,description:it.name,details:d.details||it.description||'',serial:sn,qty:1,price:d.price||it.price,w:d.warranty_months});
     $('#a_sn').value='';return invRender();
   }
   if(!it)return toast('Select an item',true);
@@ -447,18 +498,18 @@ async function invAdd(){
     if(L.some(l=>l.serial===sn))return toast('Already added',true);
     const d=await run(sb.from('serials').select('*').eq('serial',sn).eq('item_id',it.id).eq('status','in_stock').maybeSingle());
     if(!d)return toast('That serial is not in stock for this item',true);
-    L.push({item_id:it.id,description:it.name,serial:sn,qty:1,price:hasP('price')?price:(d.price||it.price),w:d.warranty_months});
+    L.push({item_id:it.id,description:it.name,details:d.details||it.description||'',serial:sn,qty:1,price:hasP('price')?price:(d.price||it.price),w:d.warranty_months});
     $('#a_sn').value='';
   }else{
     const q=+$('#a_qty').value||1;
     const have=L.filter(l=>l.item_id===it.id).reduce((a,l)=>a+l.qty,0);
     if(have+q>it.in_stock)return toast('Only '+it.in_stock+' in stock',true);
-    L.push({item_id:it.id,description:it.name,serial:null,qty:q,price:hasP('price')?price:it.price,w:it.warranty_months});
+    L.push({item_id:it.id,description:it.name,details:it.description||'',serial:null,qty:q,price:hasP('price')?price:it.price,w:it.warranty_months});
   }
   invRender();
 }
 function invRender(){
-  $('#vl').innerHTML=L.map((l,i)=>`<tr><td>${i+1}</td><td>${esc(l.description)}</td><td>${esc(l.serial)}</td><td>${l.w} mo</td><td class="r">${l.qty}</td><td class="r">${money(l.price)}</td><td class="r">${money(l.qty*l.price)}</td><td><button class="btn sec sm" onclick="L.splice(${i},1);invRender()">x</button></td></tr>`).join('')||'<tr><td colspan="8" class="mut">No items added.</td></tr>';
+  $('#vl').innerHTML=L.map((l,i)=>`<tr><td>${i+1}</td><td><b>${esc(l.description)}</b><div class="mut" style="white-space:pre-line">${esc(l.details)}</div></td><td>${esc(l.serial)}</td><td>${l.w} mo</td><td class="r">${l.qty}</td><td class="r">${money(l.price)}</td><td class="r">${money(l.qty*l.price)}</td><td><button class="btn sec sm" onclick="L.splice(${i},1);invRender()">x</button></td></tr>`).join('')||'<tr><td colspan="8" class="mut">No items added.</td></tr>';
   invTotals();
 }
 function invTotals(){
@@ -469,7 +520,7 @@ async function invSave(){
   if(!L.length)return toast('Add at least one item',true);
   const fmt=$('#v_fmt').value;localStorage.setItem('fmt',fmt);
   const id=await run(sb.rpc('create_invoice',{p:{inv_date:$('#v_date').value,customer_name:$('#v_cn').value,phone:$('#v_ph').value,address:$('#v_ad').value,pay_method:$('#v_pm').value,note:$('#v_nt').value,discount:+$('#v_dc').value||0,
-    lines:L.map(l=>({item_id:l.item_id,description:l.description,serial:l.serial,qty:l.qty,unit_price:l.price,warranty_months:l.w}))}}));
+    lines:L.map(l=>({item_id:l.item_id,description:l.description,details:l.details,serial:l.serial,qty:l.qty,unit_price:l.price,warranty_months:l.w}))}}));
   toast('Invoice saved');
   await printInvoice(id,fmt);
   go(hasP('invoices')?'invoices':'invoice');
@@ -489,7 +540,7 @@ async function voidInv(id,no){
 }
 
 /* ---------------- Printing ---------------- */
-const LY_DEF={logo:'',logoH:60,align:'left',title:'INVOICE',email:'',web:'',showSerial:true,showWarranty:true,showUntil:true,termsTitle:'Warranty terms',terms:'',footer:'Thank you for your business.',showSig:true,sigL:'Prepared by',sigM:'',sigR:'Customer signature',fontSize:0,fmt:'a4'};
+const LY_DEF={logo:'',logoH:70,align:'left',title:'INVOICE',titleSize:30,nameSize:24,email:'',web:'',showSerial:true,showWarranty:true,showUntil:true,termsTitle:'Warranty terms',terms:'',footer:'Thank you for your business.',showSig:true,sigL:'Prepared by',sigM:'',sigR:'Customer signature',fontSize:0,fmt:'a4',off:{}};
 function getLY(){let o={};try{o=JSON.parse(settings.invoice_layout||'{}')}catch(e){}
   return {...LY_DEF,...o,footer:(o.footer!==undefined?o.footer:(settings.invoice_footer||LY_DEF.footer))}}
 function coInfo(){return {n:settings.company_name||'Company',a:settings.company_addr||'',p:settings.company_phone||''}}
@@ -504,36 +555,40 @@ async function printInvoice(id,fmt){
 }
 
 function invDoc(inv,ln,fmt,co,ly,pv){
-  let html,css;
+  let html,css,extra='';
   if(fmt==='dotf'||fmt==='doth'){
     html='<pre>'+esc(dotText(inv,ln,co,ly,fmt==='dotf'))+'</pre>';
     css=`@page{size:9.5in ${fmt==='dotf'?'11in':'5.5in'};margin:.2in .3in}body{margin:0;${pv?'padding:12px;':''}}pre{font:12pt/1.2 "Courier New",monospace;margin:0}`;
   }else{
     const th=fmt==='th80',a5=fmt==='a5',fs=+ly.fontSize||(th||a5?11:13),size={a4:'A4',a5:'A5',th80:'80mm auto'}[fmt]||'A4',center=th||ly.align==='center';
-    const logo=ly.logo?`<img src="${ly.logo}" style="height:${th?Math.min(ly.logoH,50):ly.logoH}px;max-width:100%;display:block${center?';margin:0 auto 4px':''}">`:'';
-    const addr=esc(co.a).replace(/\n/g,'<br>');
-    const contact=[co.p,ly.email,ly.web].filter(Boolean).map(esc).join(' &nbsp;|&nbsp; ');
-    const meta=`<b>${esc(ly.title)}</b><div>${esc(inv.inv_no)}</div><div>${inv.inv_date}</div>`;
-    const comp=`<div><h1>${esc(co.n)}</h1><div>${addr}</div><div>${contact}</div></div>`;
-    const head=center?`<div class="c">${logo}${comp}<div style="margin-top:6px">${meta}</div></div>`:`<div class="hd"><div class="co">${logo}${comp}</div><div style="text-align:right">${meta}</div></div>`;
+    const nameSz=th?Math.min(ly.nameSize,16):ly.nameSize,titleSz=th?Math.min(ly.titleSize,16):ly.titleSize;
+    const bk=(n,inner)=>{const o=(ly.off||{})[n];return `<div class="bk" data-b="${n}"${o&&(o[0]||o[1])?` style="position:relative;left:${o[0]}px;top:${o[1]}px"`:''}>${inner}</div>`};
+    const logo=ly.logo?bk('logo',`<img src="${ly.logo}" style="height:${th?Math.min(ly.logoH,50):ly.logoH}px;max-width:100%;display:block${center?';margin:0 auto 4px':''}">`):'';
+    const line=x=>x?`<div>${esc(x)}</div>`:'';
+    const comp=bk('company',`<div class="nm">${esc(co.n)}</div>${String(co.a||'').split('\n').filter(Boolean).map(line).join('')}${line(co.p)}${line(ly.email)}${line(ly.web)}`);
+    const meta=bk('title',`<div class="ti">${esc(ly.title)}</div><div>${esc(inv.inv_no)}</div><div>${inv.inv_date}</div>`);
+    const head=center?`<div class="c">${logo}${comp}${meta}</div>`:`<div class="hd"><div class="co">${logo}${comp}</div><div style="text-align:right">${meta}</div></div>`;
     const wcell=l=>l.warranty_months?l.warranty_months+' months'+(ly.showUntil?'<div>until '+addMonths(inv.inv_date,l.warranty_months)+'</div>':''):'-';
     const showW=ly.showWarranty&&!th;
-    const rows=ln.map((l,i)=>`<tr>${th?'':`<td>${i+1}</td>`}<td>${esc(l.description)}${ly.showSerial&&l.serial?`<div>S/N: ${esc(l.serial)}</div>`:''}${th&&ly.showWarranty&&l.warranty_months?`<div>Warranty: ${l.warranty_months} mo</div>`:''}</td>${showW?`<td>${wcell(l)}</td>`:''}<td class="r">${l.qty}</td><td class="r">${money(l.unit_price)}</td><td class="r">${money(l.amount)}</td></tr>`).join('');
-    const terms=ly.terms?`<div class="terms"><b>${esc(ly.termsTitle)}</b><div>${esc(ly.terms).replace(/\n/g,'<br>')}</div></div>`:'';
+    const rows=ln.map((l,i)=>`<tr>${th?'':`<td>${i+1}</td>`}<td><b>${esc(l.description)}</b>${l.details?`<div class="dt">${esc(l.details).replace(/\n/g,'<br>')}</div>`:''}${ly.showSerial&&l.serial?`<div>S/N: ${esc(l.serial)}</div>`:''}${th&&ly.showWarranty&&l.warranty_months?`<div>Warranty: ${l.warranty_months} mo</div>`:''}</td>${showW?`<td>${wcell(l)}</td>`:''}<td class="r">${l.qty}</td><td class="r">${money(l.unit_price)}</td><td class="r">${money(l.amount)}</td></tr>`).join('');
+    const terms=ly.terms?bk('terms',`<div class="terms"><b>${esc(ly.termsTitle)}</b><div>${esc(ly.terms).replace(/\n/g,'<br>')}</div></div>`):'';
     const labels=[ly.sigL,ly.sigM,ly.sigR].filter(Boolean);
-    const sig=ly.showSig&&!th&&labels.length?`<div class="sg">${labels.map(x=>`<div>${esc(x)}</div>`).join('')}</div>`:'';
+    const sig=ly.showSig&&!th&&labels.length?bk('sig',`<div class="sg">${labels.map(x=>`<div>${esc(x)}</div>`).join('')}</div>`):'';
     css=`@page{size:${size};margin:${th?'3mm':'12mm'}}body{font:${fs}px/1.4 Arial,sans-serif;color:#000;margin:0;${th?'width:72mm;':''}${pv?'padding:16px;':''}}
-    h1{font-size:${Math.round(fs*(th?1.3:1.7))}px;margin:0}table{width:100%;border-collapse:collapse;margin-top:8px}th,td{padding:${th?'2px':'5px 6px'};border-bottom:1px solid #999;text-align:left;vertical-align:top}th{border-top:1px solid #000;border-bottom:1px solid #000}
-    .r{text-align:right}.hd{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px}.co{display:flex;gap:12px;align-items:center}.c{text-align:center;margin-bottom:6px}
+    .nm{font-size:${nameSz}px;font-weight:700;line-height:1.2;margin-bottom:2px}.ti{font-size:${titleSz}px;font-weight:700;letter-spacing:1px;line-height:1.1}
+    table{width:100%;border-collapse:collapse;margin-top:8px}th,td{padding:${th?'2px':'5px 6px'};border-bottom:1px solid #999;text-align:left;vertical-align:top}th{border-top:1px solid #000;border-bottom:1px solid #000}
+    .dt{font-size:.88em;color:#333;margin:2px 0}.r{text-align:right}.hd{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px}.co{display:flex;gap:14px;align-items:flex-start}.c{text-align:center;margin-bottom:6px}
     .tt{margin-left:auto;width:${th?'100%':'45%'};margin-top:8px}.tt div{display:flex;justify-content:space-between;padding:2px 0}.tt .g{font-weight:700;font-size:1.15em;border-top:2px solid #000}
-    .terms{margin-top:12px;border:1px solid #999;padding:6px 8px;font-size:.9em}.sg{display:flex;justify-content:space-between;gap:20px;margin-top:44px}.sg div{border-top:1px solid #000;padding-top:3px;flex:1;text-align:center}`;
+    .terms{margin-top:12px;border:1px solid #999;padding:6px 8px;font-size:.9em}.sg{display:flex;justify-content:space-between;gap:20px;margin-top:44px}.sg div{border-top:1px solid #000;padding-top:3px;flex:1;text-align:center}
+    ${pv?'.bk{cursor:move}.bk:hover{outline:1px dashed #0b6e8a;outline-offset:2px}':''}`;
     html=`${head}
-      <div style="margin-top:8px"><b>Customer:</b> ${esc(inv.customer_name)} ${esc(inv.phone)}<div>${esc(inv.address)}</div></div>
+      ${bk('customer',`<div style="margin-top:8px"><b>Customer:</b> ${esc(inv.customer_name)} ${esc(inv.phone)}<div>${esc(inv.address)}</div></div>`)}
       <table><thead><tr>${th?'':'<th>#</th>'}<th>Description</th>${showW?'<th>Warranty</th>':''}<th class="r">Qty</th><th class="r">Price</th><th class="r">Amount</th></tr></thead><tbody>${rows}</tbody></table>
-      <div class="tt"><div><span>Subtotal</span><span>${money(inv.subtotal)}</span></div>${+inv.discount?`<div><span>Discount</span><span>${money(inv.discount)}</span></div>`:''}<div class="g"><span>Total</span><span>Rs. ${money(inv.total)}</span></div><div><span>Payment</span><span>${esc(inv.pay_method)}</span></div></div>
-      ${terms}<p class="c" style="margin-top:14px">${esc(ly.footer)}</p>${sig}`;
+      ${bk('totals',`<div class="tt"><div><span>Subtotal</span><span>${money(inv.subtotal)}</span></div>${+inv.discount?`<div><span>Discount</span><span>${money(inv.discount)}</span></div>`:''}<div class="g"><span>Total</span><span>Rs. ${money(inv.total)}</span></div><div><span>Payment</span><span>${esc(inv.pay_method)}</span></div></div>`)}
+      ${terms}${bk('footer',`<p class="c" style="margin-top:14px">${esc(ly.footer)}</p>`)}${sig}`;
+    if(pv)extra=`<script>(function(){var cur=null,sx,sy,ox,oy;document.addEventListener('mousedown',function(e){var b=e.target.closest('.bk');if(!b)return;cur=b;sx=e.clientX;sy=e.clientY;ox=parseFloat(b.style.left)||0;oy=parseFloat(b.style.top)||0;e.preventDefault()});document.addEventListener('mousemove',function(e){if(!cur)return;cur.style.position='relative';cur.style.left=(ox+e.clientX-sx)+'px';cur.style.top=(oy+e.clientY-sy)+'px'});document.addEventListener('mouseup',function(){if(!cur)return;parent.postMessage({edrag:cur.dataset.b,x:parseFloat(cur.style.left)||0,y:parseFloat(cur.style.top)||0},'*');cur=null})})();<\/script>`;
   }
-  return `<html><head><meta charset="utf-8"><title>${esc(inv.inv_no)}</title><style>${css}</style></head><body>${html}</body></html>`;
+  return `<html><head><meta charset="utf-8"><title>${esc(inv.inv_no)}</title><style>${css}</style></head><body>${html}${extra}</body></html>`;
 }
 
 function wrapTxt(t,w){const out=[];String(t||'').split('\n').forEach(par=>{let line='';par.split(' ').forEach(wd=>{if((line+' '+wd).trim().length>w){out.push(line);line=wd}else line=(line+' '+wd).trim()});out.push(line)});return out}
@@ -545,6 +600,7 @@ function dotText(inv,ln,co,ly,full){
     p('No',3)+' '+p('Description',40)+' '+r('Qty',4)+' '+r('Price',12)+' '+r('Amount',14),bar];
   ln.forEach((l,i)=>{
     o.push(p(i+1,3)+' '+p(l.description,40)+' '+r(l.qty,4)+' '+r(money(l.unit_price),12)+' '+r(money(l.amount),14));
+    if(l.details)wrapTxt(l.details,70).forEach(x=>o.push('    '+x));
     const x=[];if(ly.showSerial&&l.serial)x.push('S/N: '+l.serial);
     if(ly.showWarranty&&l.warranty_months)x.push('Warranty: '+l.warranty_months+' mo'+(ly.showUntil?' (until '+addMonths(inv.inv_date,l.warranty_months)+')':''));
     if(x.length)o.push('    '+x.join('  '));
@@ -609,11 +665,12 @@ async function setRole(id,role){await run(sb.from('profiles').update({role}).eq(
 async function setActive(id,a){await run(sb.from('profiles').update({active:a}).eq('id',id));go('users')}
 
 /* ---------------- Invoice editor (admin) ---------------- */
-let EDLOGO='';
+let EDLOGO='',EDOFF={};
+window.addEventListener('message',e=>{if(e.data&&e.data.edrag){EDOFF[e.data.edrag]=[Math.round(e.data.x),Math.round(e.data.y)]}});
 PAGES.settings=async()=>{
-  const ly=getLY(),co=coInfo();EDLOGO=ly.logo||'';
+  const ly=getLY(),co=coInfo();EDLOGO=ly.logo||'';EDOFF=JSON.parse(JSON.stringify(ly.off||{}));
   const ck=(id,v,l)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''} onchange="edPrev()"> ${l}</label>`;
-  const fm=(sel)=>[['a4','A4'],['a5','A5'],['th80','Thermal 80mm'],['dotf','Dot matrix - full page'],['doth','Dot matrix - half page']].map(f=>`<option value="${f[0]}" ${f[0]===sel?'selected':''}>${f[1]}</option>`).join('');
+  const fm=sel=>[['a4','A4'],['a5','A5'],['th80','Thermal 80mm'],['dotf','Dot matrix - full page'],['doth','Dot matrix - half page']].map(f=>`<option value="${f[0]}" ${f[0]===sel?'selected':''}>${f[1]}</option>`).join('');
   $('#main').innerHTML=`<div class="top"><h2>Invoice editor</h2><div class="bar"><div style="width:220px"><label>Preview format</label><select id="e_fmt" onchange="edPrev()">${fm(ly.fmt)}</select></div><div style="flex:0"><button class="btn" onclick="edSave()">Save</button></div></div></div>
   <div class="edgrid"><div>
    <div class="card"><b>Shop details</b>
@@ -621,13 +678,17 @@ PAGES.settings=async()=>{
     <div class="row" style="margin-top:8px"><label>Address (each line on a new line)</label><textarea id="e_a" rows="3" oninput="edPrev()">${esc(co.a)}</textarea></div>
     <div class="bar" style="margin-top:8px"><div><label>Phone</label><input id="e_p" value="${esc(co.p)}" oninput="edPrev()"></div><div><label>Email</label><input id="e_em" value="${esc(ly.email)}" oninput="edPrev()"></div></div>
     <div class="row" style="margin-top:8px"><label>Website</label><input id="e_web" value="${esc(ly.web)}" oninput="edPrev()"></div></div>
-   <div class="card"><b>Logo and header</b>
+   <div class="card"><b>Logo, header and sizes</b>
     <div class="row" style="margin-top:8px"><label>Logo image (PNG or JPG)</label><input id="e_lf" type="file" accept="image/*" onchange="edLogo(this)"></div>
     <img id="e_lt" src="${esc(EDLOGO)}" style="max-height:60px;margin-top:8px;display:${EDLOGO?'block':'none'}">
-    <div class="bar" style="margin-top:8px"><div><label>Logo height (px)</label><input id="e_lh" type="number" min="20" max="160" value="${ly.logoH}" oninput="edPrev()"></div>
-     <div><label>Header layout</label><select id="e_al" onchange="edPrev()"><option value="left" ${ly.align==='left'?'selected':''}>Left (logo + name, invoice no. right)</option><option value="center" ${ly.align==='center'?'selected':''}>Centered</option></select></div></div>
     <div style="margin-top:8px"><button class="btn sec sm" onclick="edLogoClear()">Remove logo</button></div>
-    <div class="row" style="margin-top:8px"><label>Invoice title</label><input id="e_t" value="${esc(ly.title)}" oninput="edPrev()"></div></div>
+    <div class="bar" style="margin-top:8px"><div><label>Logo height (px)</label><input id="e_lh" type="number" min="20" max="200" value="${ly.logoH}" oninput="edPrev()"></div>
+     <div><label>Shop name size (px)</label><input id="e_ns" type="number" min="12" max="60" value="${ly.nameSize}" oninput="edPrev()"></div>
+     <div><label>Invoice word size (px)</label><input id="e_ts" type="number" min="12" max="80" value="${ly.titleSize}" oninput="edPrev()"></div></div>
+    <div class="bar" style="margin-top:8px"><div><label>Header layout</label><select id="e_al" onchange="edPrev()"><option value="left" ${ly.align==='left'?'selected':''}>Logo left, name beside it, INVOICE on right</option><option value="center" ${ly.align==='center'?'selected':''}>Centered</option></select></div>
+     <div><label>Invoice title</label><input id="e_t" value="${esc(ly.title)}" oninput="edPrev()"></div></div>
+    <div class="mut" style="margin-top:8px">Tip: drag any block in the preview (logo, shop name, INVOICE, customer, totals, rules, footer, signatures) to move it.</div>
+    <div style="margin-top:8px"><button class="btn sec sm" onclick="EDOFF={};edPrev()">Reset positions</button></div></div>
    <div class="card"><b>Table columns</b>
     ${ck('e_ss',ly.showSerial,'Show serial number')}${ck('e_sw',ly.showWarranty,'Show warranty period')}${ck('e_su',ly.showUntil,'Show warranty end date')}</div>
    <div class="card"><b>Warranty rules and footer</b>
@@ -637,24 +698,26 @@ PAGES.settings=async()=>{
    <div class="card"><b>Signatures and font</b>
     ${ck('e_sg',ly.showSig,'Show signature lines')}
     <div class="bar"><div><label>Left label</label><input id="e_s1" value="${esc(ly.sigL)}" oninput="edPrev()"></div><div><label>Middle label (optional)</label><input id="e_s2" value="${esc(ly.sigM)}" oninput="edPrev()"></div><div><label>Right label</label><input id="e_s3" value="${esc(ly.sigR)}" oninput="edPrev()"></div></div>
-    <div class="bar" style="margin-top:8px"><div><label>Font size</label><select id="e_fs" onchange="edPrev()">${[0,10,11,12,13,14,15].map(n=>`<option value="${n}" ${+ly.fontSize===n?'selected':''}>${n?n+' px':'Auto'}</option>`).join('')}</select></div>
+    <div class="bar" style="margin-top:8px"><div><label>Base font size</label><select id="e_fs" onchange="edPrev()">${[0,10,11,12,13,14,15].map(n=>`<option value="${n}" ${+ly.fontSize===n?'selected':''}>${n?n+' px':'Auto'}</option>`).join('')}</select></div>
      <div><label>Default print format</label><select id="e_df">${fm(ly.fmt)}</select></div></div></div>
   </div>
-  <div class="card"><b>Live preview</b><div class="mut" style="margin-bottom:8px">Sample data. The logo does not print on dot matrix.</div><iframe id="e_pv" style="width:100%;height:700px;border:1px solid var(--line);background:#fff"></iframe></div></div>`;
+  <div class="card"><b>Live preview</b><div class="mut" style="margin-bottom:8px">Sample data. The logo and dragging do not apply to dot matrix.</div><div style="overflow:auto"><iframe id="e_pv" style="width:794px;height:760px;border:1px solid var(--line);background:#fff"></iframe></div></div></div>`;
   edPrev();
 };
 function edRead(){
   const g=id=>$('#'+id);
   return {co:{n:g('e_n').value,a:g('e_a').value,p:g('e_p').value},
-   ly:{logo:EDLOGO,logoH:+g('e_lh').value||60,align:g('e_al').value,title:g('e_t').value||'INVOICE',email:g('e_em').value,web:g('e_web').value,
+   ly:{logo:EDLOGO,logoH:+g('e_lh').value||70,nameSize:+g('e_ns').value||24,titleSize:+g('e_ts').value||30,align:g('e_al').value,title:g('e_t').value||'INVOICE',email:g('e_em').value,web:g('e_web').value,
     showSerial:g('e_ss').checked,showWarranty:g('e_sw').checked,showUntil:g('e_su').checked,termsTitle:g('e_tt').value,terms:g('e_tm').value,footer:g('e_f').value,
-    showSig:g('e_sg').checked,sigL:g('e_s1').value,sigM:g('e_s2').value,sigR:g('e_s3').value,fontSize:+g('e_fs').value||0,fmt:g('e_df').value}};
+    showSig:g('e_sg').checked,sigL:g('e_s1').value,sigM:g('e_s2').value,sigR:g('e_s3').value,fontSize:+g('e_fs').value||0,fmt:g('e_df').value,off:EDOFF}};
 }
 function edPrev(){
   const {co,ly}=edRead();
   const inv={inv_no:'INV-00001',inv_date:today(),customer_name:'Sample Customer',phone:'0771234567',address:'No 1, Sample Road, Kandy',subtotal:210000,discount:0,total:210000,pay_method:'Cash'};
-  const ln=[{description:'Asus Vivobook X1504VA',serial:'SN1234567890',qty:1,unit_price:210000,warranty_months:12,amount:210000}];
-  $('#e_pv').srcdoc=invDoc(inv,ln,$('#e_fmt').value,{n:co.n||'Company',a:co.a,p:co.p},ly,true);
+  const ln=[{description:'Asus Vivobook X1504VA',details:'Intel Core i5 13th Gen\n16GB RAM, 512GB SSD\n15.6 inch FHD Display',serial:'SN1234567890',qty:1,unit_price:210000,warranty_months:12,amount:210000}];
+  const fmt=$('#e_fmt').value;
+  $('#e_pv').style.width={a4:'794px',a5:'560px',th80:'300px',dotf:'760px',doth:'760px'}[fmt];
+  $('#e_pv').srcdoc=invDoc(inv,ln,fmt,{n:co.n||'Company',a:co.a,p:co.p},ly,true);
 }
 function edLogo(inp){
   const f=inp.files[0];if(!f)return;
