@@ -601,7 +601,7 @@ async function grnDel2(id,no){
 }
 async function grnEdit(id){
   const g=await run(sb.from('grn').select('*').eq('id',id).single());
-  const gi=await run(sb.from('grn_items').select('*, items(name,code,track_serial)').eq('grn_id',id).order('id'));
+  const gi=await run(sb.from('grn_items').select('*, items(name,code,track_serial,category_id)').eq('grn_id',id).order('id'));
   const sr=await allRows(()=>sb.from('serials').select('*').eq('grn_id',id).order('id'));
   window._ge={g,gi,sr};const shown=new Set();
   openModal(`<h3>Edit ${esc(g.grn_no)}</h3>
@@ -610,7 +610,7 @@ async function grnEdit(id){
    <div style="margin-top:10px">${gi.map((l,k)=>{
      const first=!shown.has(l.item_id);shown.add(l.item_id);
      return `<div class="line"><b>${esc(l.items?.code?l.items.code+' - ':'')}${esc(l.items?.name)}</b> <span class="mut">(${l.qty} units)</span>
-      <div class="bar" style="margin-top:6px"><div><label>Cost (each)</label><input id="gl_c${k}" type="number" step="0.01" value="${l.cost}"></div><div><label>Selling price</label><input id="gl_p${k}" type="number" step="0.01" value="${l.price}"></div><div><label>Warranty</label><select id="gl_w${k}" onchange="wPick(this)">${wOpts(l.warranty_months)}</select></div></div>
+      <div class="bar" style="margin-top:6px"><div><label>Category</label><select id="gl_k${k}"><option value="">- none -</option>${CATS.map(c=>`<option value="${c.id}" ${c.id==l.items?.category_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div><label>Cost (each)</label><input id="gl_c${k}" type="number" step="0.01" value="${l.cost}"></div><div><label>Selling price</label><input id="gl_p${k}" type="number" step="0.01" value="${l.price}"></div><div><label>Warranty</label><select id="gl_w${k}" onchange="wPick(this)">${wOpts(l.warranty_months)}</select></div></div>
       <div style="margin-top:6px"><label>Description / specs</label><textarea id="gl_d${k}" rows="2">${esc(l.details)}</textarea></div>
       ${l.items?.track_serial&&first?`<label style="margin-top:6px">Serial numbers (sold ones cannot be changed)</label><div style="display:grid;gap:6px;grid-template-columns:repeat(auto-fill,minmax(190px,1fr))">${sr.filter(s=>s.item_id===l.item_id).map(s=>`<input id="gs_${s.id}" value="${esc(s.serial)}" ${s.status==='sold'?'disabled':''}>`).join('')}</div>`:''}</div>`}).join('')}</div>
    <div class="bar" style="margin-top:10px;justify-content:flex-end"><div style="flex:0"><button class="btn sec" onclick="closeModal()">Cancel</button></div><div style="flex:0"><button class="btn" onclick="grnEditSave()">Save changes</button></div></div>`,'860px');
@@ -622,6 +622,7 @@ async function grnEditSave(){
   for(let k=0;k<gi.length;k++){
     const l=gi[k],c=+$('#gl_c'+k).value||0,p=+$('#gl_p'+k).value||0,w=+$('#gl_w'+k).value||0,dt=$('#gl_d'+k).value.trim()||null;
     await run(sb.from('grn_items').update({cost:c,price:p,warranty_months:w,details:dt}).eq('id',l.id));
+    const ck=$('#gl_k'+k).value;if((+ck||null)!==(l.items?.category_id||null))await run(sb.from('items').update({category_id:+ck||null}).eq('id',l.item_id));
     tot+=l.qty*c;
     await run(sb.from('serials').update({cost:c,price:p,warranty_months:w,details:dt}).eq('grn_id',g.id).eq('item_id',l.item_id).eq('status','in_stock'));
   }
@@ -631,24 +632,26 @@ async function grnEditSave(){
 }
 
 /* ---------------- New invoice / edit invoice ---------------- */
-let L=[],CUST={id:null,code:''},EDITING=null,CS_LIST=[],CS_T;
+let L=[],PAY=[],CUST={id:null,code:''},EDITING=null,CS_LIST=[],CS_T;
+const PAYM=['Cash','Card','Bank transfer','Cheque'];
 PAGES.invoice=async()=>{
   await Promise.all([loadItems(),loadReps()]);
   const eid=window._editInv||null;window._editInv=null;EDITING=eid;
-  L=[];CUST={id:null,code:''};
+  L=[];PAY=[{m:'Cash',amt:'',auto:true}];CUST={id:null,code:''};
   let inv={inv_no:'',inv_date:today(),pay_method:'Cash',customer_name:'',phone:'',address:'',po_no:'',rep_name:localStorage.getItem('rep')||'',note:'',discount:0};
   if(eid){
     inv=await run(sb.from('invoices').select('*').eq('id',eid).single());
     const ln=await run(sb.from('invoice_items').select('*').eq('invoice_id',eid).order('id'));
     CUST={id:inv.customer_id,code:inv.customer_code||''};
-    L=ln.map(l=>({item_id:l.item_id,description:l.description,details:l.details||'',code:l.code||'',serial:l.serial,qty:l.qty,price:Number(l.unit_price),w:l.warranty_months}));
+    L=ln.map(l=>({item_id:l.item_id,description:l.description,details:l.details||'',code:l.code||'',serial:l.serial,qty:l.qty,orig:l.serial?0:l.qty,price:Number(l.unit_price),w:l.warranty_months}));
+    if(Array.isArray(inv.payments)&&inv.payments.length)PAY=inv.payments.map(p=>({m:p.method,amt:String(p.amount),auto:false,last4:p.last4||'',holder:p.holder||'',ref:p.ref||'',chq_no:p.chq_no||'',chq_bank:p.chq_bank||'',chq_date:p.chq_date||''}));
+    else if(inv.pay_method&&inv.pay_method!=='Credit')PAY=[{m:PAYM.includes(inv.pay_method)?inv.pay_method:'Cash',amt:String(inv.total),auto:false}];
+    else PAY=[];
   }
-  const terms=['Cash','Credit','Card','Bank transfer','Cheque'];if(inv.pay_method&&!terms.includes(inv.pay_method))terms.push(inv.pay_method);
   const reps=REPS.map(r=>r.name);if(inv.rep_name&&!reps.includes(inv.rep_name))reps.push(inv.rep_name);
   $('#main').innerHTML=`<div class="top"><h2>${eid?'Edit invoice '+esc(inv.inv_no):'New invoice'}</h2></div>
   <div class="card"><div class="bar">
    <div><label>Date${hasP('backdate')?'':' (today only)'}</label><input id="v_date" type="date" value="${inv.inv_date}" ${hasP('backdate')?'':'disabled'}></div>
-   <div><label>Terms</label><select id="v_pm">${terms.map(t=>`<option ${t===inv.pay_method?'selected':''}>${esc(t)}</option>`).join('')}</select></div>
    <div><label>PO No</label><input id="v_po" value="${esc(inv.po_no)}"></div>
    <div><label>Sales rep</label><select id="v_rep"><option value="">-</option>${reps.map(r=>`<option ${r===inv.rep_name?'selected':''}>${esc(r)}</option>`).join('')}</select></div></div></div>
   <div class="card"><b>Customer</b>
@@ -657,7 +660,7 @@ PAGES.invoice=async()=>{
     <div><label>Phone</label><input id="v_ph" value="${esc(inv.phone)}"></div><div style="flex:2"><label>Address</label><input id="v_ad" value="${esc(inv.address)}"></div></div>
    <div style="margin-top:8px">${hasP('customers')?'<button class="btn sec sm" onclick="customerModal(0,custFill)">+ New customer</button> ':''}<button class="btn sec sm" onclick="custClear()">Clear customer</button></div></div>
   <div class="card"><b>Add item</b><div class="bar" style="margin-top:8px">
-   <div style="flex:2"><label>Item</label><select id="a_item" onchange="invPick()"><option value="">Select item…</option>${items.filter(i=>i.in_stock>0).map(i=>`<option value="${i.id}">${esc((i.code?i.code+' - ':'')+i.name)}${hasP('stock')?' ('+i.in_stock+')':''}</option>`).join('')}</select></div>
+   <div style="flex:2"><label>Item</label><select id="a_item" onchange="invPick()"><option value="">Select item…</option>${items.filter(i=>i.in_stock>0||L.some(l=>l.item_id===i.id)).map(i=>`<option value="${i.id}">${esc((i.code?i.code+' - ':'')+i.name)}${hasP('stock')?' ('+i.in_stock+')':''}</option>`).join('')}</select></div>
    <div id="a_ser" style="flex:2;display:none"><label>Serial number (type / scan / choose)</label><input id="a_sn" list="a_dl" onkeydown="if(event.key==='Enter')invAdd()"><datalist id="a_dl"></datalist></div>
    <div id="a_qtyw" style="display:none"><label>Qty</label><input id="a_qty" type="number" min="1" value="1"></div>
    <div><label>Price</label><input id="a_pr" type="number" step="0.01" ${hasP('price')?'':'readonly'}></div>
@@ -665,9 +668,12 @@ PAGES.invoice=async()=>{
    <div class="mut" style="margin-top:6px">Tip: scan or type a serial number into the serial box and press Enter. You can also scan a serial without choosing an item.</div></div>
   <div class="tw"><table><thead><tr><th>#</th><th>Code</th><th>Description</th><th>Serial</th><th>Warranty</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Amount</th><th></th></tr></thead><tbody id="vl"></tbody></table></div>
   <div class="card" style="margin-top:14px"><div class="bar">
-   <div style="flex:2"><label>Note</label><input id="v_nt" value="${esc(inv.note)}"></div>
+   <div style="flex:2"><label>Note / remark</label><input id="v_nt" value="${esc(inv.note)}"></div>
    <div><label>Discount</label><input id="v_dc" type="number" step="0.01" value="${inv.discount||0}" oninput="invTotals()"></div></div>
    <div class="tot" id="vt" style="margin-top:12px"></div></div>
+  <div class="card"><b>Payment</b> <span class="mut">(add more than one if the customer pays in parts)</span>
+   <div id="paybox" style="margin-top:8px"></div>
+   <div class="bar" style="margin-top:6px"><div style="flex:0"><button class="btn sec sm" onclick="payAdd()">+ Add payment</button></div><div id="paysum" style="text-align:right"></div></div></div>
   <div class="bar" style="justify-content:flex-end"><div style="flex:0"><label>Print format</label><select id="v_fmt">${fmtOptions()}</select></div><div style="flex:0"><button class="btn" onclick="invSave()">${eid?'Update &amp; print':'Save &amp; print'}</button></div></div>`;
   invRender();
 };
@@ -700,6 +706,7 @@ async function findSerial(sn,itemId){
   if(!d||!(d.status==='in_stock'||(EDITING&&d.invoice_id===EDITING)))return null;
   return d;
 }
+const availFor=id=>{const it=items.find(x=>x.id===id);return (it?Number(it.in_stock):0)+L.filter(l=>l.item_id===id).reduce((a,l)=>a+(l.orig||0),0)};
 async function invAdd(){
   let it=items.find(x=>x.id==$('#a_item').value);
   const sn=$('#a_sn').value.trim();
@@ -722,24 +729,60 @@ async function invAdd(){
     $('#a_sn').value='';
   }else{
     const q=+$('#a_qty').value||1,have=L.filter(l=>l.item_id===it.id).reduce((a,l)=>a+l.qty,0);
-    if(have+q>it.in_stock)return toast('Only '+it.in_stock+' in stock',true);
-    L.push({item_id:it.id,description:it.name,details:it.description||'',code:it.code||'',serial:null,qty:q,price:hasP('price')?price:Number(it.price),w:it.warranty_months});
+    if(have+q>availFor(it.id))return toast('Only '+availFor(it.id)+' in stock',true);
+    L.push({item_id:it.id,description:it.name,details:it.description||'',code:it.code||'',serial:null,qty:q,orig:0,price:hasP('price')?price:Number(it.price),w:it.warranty_months});
   }
   invRender();
 }
+function invQty(i,v){
+  const q=Math.max(1,parseInt(v)||1),l=L[i],others=L.filter((x,k)=>k!==i&&x.item_id===l.item_id).reduce((a,x)=>a+x.qty,0);
+  if(q+others>availFor(l.item_id)){toast('Only '+availFor(l.item_id)+' in stock',true);return invRender()}
+  l.qty=q;invRender();
+}
 function invRender(){
-  $('#vl').innerHTML=L.map((l,i)=>`<tr><td>${i+1}</td><td>${esc(l.code)}</td><td><b>${esc(l.description)}</b><div class="mut" style="white-space:pre-line">${esc(l.details)}</div></td><td>${esc(l.serial)}</td><td>${wtyText(l.w)||'-'}</td><td class="r">${l.qty}</td>
+  $('#vl').innerHTML=L.map((l,i)=>`<tr><td>${i+1}</td><td>${esc(l.code)}</td><td><b>${esc(l.description)}</b><div class="mut" style="white-space:pre-line">${esc(l.details)}</div></td><td>${esc(l.serial)}</td><td>${wtyText(l.w)||'-'}</td>
+   <td class="r">${l.serial?l.qty:`<input type="number" min="1" value="${l.qty}" style="width:76px;text-align:right" onchange="invQty(${i},this.value)">`}</td>
    <td class="r">${hasP('price')?`<input type="number" step="0.01" value="${l.price}" style="width:110px;text-align:right" onchange="L[${i}].price=+this.value;invRender()">`:money(l.price)}</td><td class="r">${money(l.qty*l.price)}</td><td><button class="btn sec sm" onclick="L.splice(${i},1);invRender()">x</button></td></tr>`).join('')||'<tr><td colspan="9" class="mut">No items added.</td></tr>';
   invTotals();
 }
+const invTotal=()=>L.reduce((a,l)=>a+l.qty*l.price,0)-(+(($('#v_dc')||{}).value)||0);
 function invTotals(){
   const s=L.reduce((a,l)=>a+l.qty*l.price,0),d=+($('#v_dc')||{}).value||0;
   $('#vt').innerHTML=`<div><span>Subtotal</span><span>${money(s)}</span></div><div><span>Discount</span><span>${money(d)}</span></div><div class="g"><span>Total (Rs.)</span><span>${money(s-d)}</span></div>`;
+  payRender();
 }
+
+/* ----- payments (cash / card / bank transfer / cheque, more than one) ----- */
+function payRender(){
+  const t=invTotal();
+  if(PAY.length===1&&PAY[0].auto)PAY[0].amt=t>0?String(Math.round(t*100)/100):'';
+  $('#paybox').innerHTML=PAY.map((p,i)=>`<div class="line" style="padding:8px"><div class="bar">
+    <div style="flex:0 0 150px"><label>Method</label><select onchange="payM(${i},this.value)">${PAYM.map(m=>`<option ${m===p.m?'selected':''}>${m}</option>`).join('')}</select></div>
+    <div><label>Amount</label><input type="number" step="0.01" value="${esc(p.amt)}" oninput="payA(${i},this.value)"></div>
+    ${p.m==='Card'?`<div style="flex:0 0 120px"><label>Card last 4 digits</label><input maxlength="4" inputmode="numeric" value="${esc(p.last4||'')}" oninput="this.value=this.value.replace(/\\D/g,'').slice(0,4);PAY[${i}].last4=this.value"></div><div><label>Card holder name</label><input value="${esc(p.holder||'')}" oninput="PAY[${i}].holder=this.value"></div>`:''}
+    ${p.m==='Bank transfer'?`<div style="flex:2"><label>Bank / reference (optional)</label><input value="${esc(p.ref||'')}" oninput="PAY[${i}].ref=this.value"></div>`:''}
+    ${p.m==='Cheque'?`<div><label>Cheque no</label><input value="${esc(p.chq_no||'')}" oninput="PAY[${i}].chq_no=this.value"></div><div><label>Bank</label><input value="${esc(p.chq_bank||'')}" oninput="PAY[${i}].chq_bank=this.value"></div><div><label>Cheque date</label><input type="date" value="${esc(p.chq_date||'')}" oninput="PAY[${i}].chq_date=this.value"></div>`:''}
+    <div style="flex:0"><button class="btn sec sm" onclick="payDel(${i})">x</button></div></div></div>`).join('')||'<div class="mut">No payment entered: the whole amount stays on credit.</div>';
+  paySum();
+}
+function paySum(){
+  const t=invTotal(),paid=PAY.reduce((a,p)=>a+(+p.amt||0),0),b=t-paid;
+  $('#paysum').innerHTML=`Paid: <b>${money(paid)}</b> &nbsp; ${b>0.005?`Balance on credit: <b style="color:var(--bad)">${money(b)}</b>`:(b<-0.005?`<b style="color:var(--bad)">Payments are ${money(-b)} more than the total</b>`:'<b style="color:var(--ok)">Fully paid</b>')}`;
+}
+function payAdd(){const rem=invTotal()-PAY.reduce((a,p)=>a+(+p.amt||0),0);PAY.forEach(p=>p.auto=false);PAY.push({m:'Cash',amt:rem>0?String(Math.round(rem*100)/100):'',auto:false});payRender()}
+function payM(i,m){PAY[i].m=m;payRender()}
+function payA(i,v){PAY[i].amt=v;PAY[i].auto=false;paySum()}
+function payDel(i){PAY.splice(i,1);payRender()}
+
 async function invSave(){
   if(!L.length)return toast('Add at least one item',true);
+  const total=invTotal(),pays=PAY.filter(p=>+p.amt>0).map(p=>({method:p.m,amount:+p.amt,last4:p.last4||'',holder:p.holder||'',ref:p.ref||'',chq_no:p.chq_no||'',chq_bank:p.chq_bank||'',chq_date:p.chq_date||''}));
+  const paid=pays.reduce((a,p)=>a+p.amount,0);
+  if(paid>total+0.005)return toast('Payments are more than the invoice total',true);
+  if(pays.some(p=>p.method==='Card'&&p.last4&&p.last4.length!==4))return toast('Card last digits must be exactly 4 numbers',true);
+  const methods=[...new Set(pays.map(p=>p.method))];if(total-paid>0.005)methods.push('Credit');
   const fmt=$('#v_fmt').value;localStorage.setItem('fmt',fmt);localStorage.setItem('rep',$('#v_rep').value);
-  const p={inv_date:$('#v_date').value,customer_id:CUST.id||'',customer_code:CUST.code||'',customer_name:$('#v_cn').value,phone:$('#v_ph').value,address:$('#v_ad').value,pay_method:$('#v_pm').value,po_no:$('#v_po').value,rep_name:$('#v_rep').value,note:$('#v_nt').value,discount:+$('#v_dc').value||0,
+  const p={inv_date:$('#v_date').value,customer_id:CUST.id||'',customer_code:CUST.code||'',customer_name:$('#v_cn').value,phone:$('#v_ph').value,address:$('#v_ad').value,pay_method:methods.join(' + ')||'Credit',payments:pays,po_no:$('#v_po').value,rep_name:$('#v_rep').value,note:$('#v_nt').value,discount:+$('#v_dc').value||0,
     lines:L.map(l=>({item_id:l.item_id,description:l.description,details:l.details,serial:l.serial,qty:l.qty,unit_price:l.price,warranty_months:+l.w||0}))};
   let id;
   if(EDITING){await run(sb.rpc('update_invoice',{inv:EDITING,p}));id=EDITING}else id=await run(sb.rpc('create_invoice',{p}));
@@ -753,7 +796,7 @@ PAGES.invoices=async()=>{
   $('#main').innerHTML=`<div class="top"><h2>Invoices</h2><div style="width:230px"><label>Print format</label><select id="p_fmt">${fmtOptions()}</select></div></div>
   <div class="card"><div class="bar"><div><label>From</label><input id="iv_f" type="date"></div><div><label>To</label><input id="iv_t" type="date"></div>
    <div style="flex:2"><label>Search (invoice no, customer name or code)</label><input id="iv_q" onkeydown="if(event.key==='Enter')invList()"></div><div style="flex:0"><button class="btn" onclick="invList()">Search</button></div></div></div>
-  <div class="tw"><table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Rep</th><th>Terms</th><th class="r">Total</th><th></th></tr></thead><tbody id="ivt"></tbody></table></div>`;
+  <div class="tw"><table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Rep</th><th>Payment</th><th class="r">Total</th><th></th></tr></thead><tbody id="ivt"></tbody></table></div>`;
   invList();
 };
 async function invList(){
@@ -772,10 +815,23 @@ async function voidInv(id,no){
 }
 
 /* ---------------- Printing ---------------- */
-const LY_DEF={logo:'',logoH:80,align:'right',title:'INVOICE',titleSize:26,nameSize:26,email:'',web:'',showCode:true,showSerial:true,showWarranty:true,showUntil:false,termsTitle:'TERMS & CONDITIONS',terms:'',footer:'Thank you for your business.',showSig:true,sigL:'Prepared by',sigM:'',sigR:'Customer signature',fontSize:0,fmt:'a4',off:{},margin:10,border:true,bw:1.5,tblH:110};
+const LY_DEF={logo:'',logoH:80,align:'right',title:'INVOICE',titleSize:26,nameSize:26,email:'',web:'',showCode:true,showSerial:true,showWarranty:true,showUntil:false,termsTitle:'TERMS & CONDITIONS',terms:'',footer:'Thank you for your business.',showSig:true,sigL:'Prepared by',sigM:'',sigR:'Customer signature',fontSize:0,fmt:'a4',off:{},txt:{},margin:10,border:true,bw:1.5,tblH:110};
 function getLY(){let o={};try{o=JSON.parse(settings.invoice_layout||'{}')}catch(e){}
-  return {...LY_DEF,...o,footer:(o.footer!==undefined?o.footer:(settings.invoice_footer||LY_DEF.footer))}}
+  const ly={...LY_DEF,...o,footer:(o.footer!==undefined?o.footer:(settings.invoice_footer||LY_DEF.footer))};
+  ly.off=JSON.parse(JSON.stringify(ly.off||{}));
+  Object.keys(ly.off).forEach(k=>{const v=ly.off[k]||[];ly.off[k]=v.length===3?[v[0],v[1],null,null]:[v[0]||0,v[1]||0,v[2]||null,v[3]||null]});
+  ly.txt=ly.txt||{};
+  return ly}
 function coInfo(){return {n:settings.company_name||'Company',a:settings.company_addr||'',p:settings.company_phone||''}}
+
+function payInfo(inv){const pays=Array.isArray(inv.payments)?inv.payments:[];const paid=pays.reduce((a,p)=>a+(Number(p.amount)||0),0);return {has:Array.isArray(inv.payments)&&pays.length>0,pays,paid,bal:Math.max(0,Number(inv.total)-paid)}}
+function payLbl(p){
+  let s=p.method;
+  if(p.method==='Card'){const x=[p.last4?'**** '+p.last4:'',p.holder||''].filter(Boolean).join(' ');if(x)s+=' ('+x+')'}
+  else if(p.method==='Bank transfer'){if(p.ref)s+=' ('+p.ref+')'}
+  else if(p.method==='Cheque'){const x=[p.chq_no?'#'+p.chq_no:'',p.chq_bank||''].filter(Boolean).join(' ');if(x)s+=' ('+x+')'}
+  return s;
+}
 
 async function printInvoice(id,fmt){
   const inv=await run(sb.from('invoices').select('*').eq('id',id).single());
@@ -788,7 +844,7 @@ async function printInvoice(id,fmt){
 function docWrap(inv,html,css,extra){return `<html><head><meta charset="utf-8"><title>${esc(inv.inv_no)}</title><style>${css}</style></head><body>${html}${extra}</body></html>`}
 
 function thHtml(inv,ln,co,ly){
-  const L1=x=>x?`<div>${esc(x)}</div>`:'';
+  const L1=x=>x?`<div>${esc(x)}</div>`:'',pi=payInfo(inv);
   return `<div class="c"><div class="nm">${esc(co.n)}</div>${String(co.a||'').split('\n').filter(Boolean).map(L1).join('')}${L1(co.p)}${L1(ly.email)}</div>
   <div class="ln c"><b>${esc(ly.title)}</b></div>
   <div>No: ${esc(inv.inv_no)}</div><div>Date: ${inv.inv_date}</div>${inv.customer_name?`<div>Customer: ${esc(inv.customer_name)} ${esc(inv.customer_code)}</div>`:''}${inv.rep_name?`<div>Rep: ${esc(inv.rep_name)}</div>`:''}
@@ -796,7 +852,8 @@ function thHtml(inv,ln,co,ly){
   ${ln.map(l=>`<div style="margin:3px 0"><b>${esc(l.description)}</b>${l.details?`<div>${esc(l.details).replace(/\n/g,'<br>')}</div>`:''}${ly.showSerial&&l.serial?`<div>S/N: ${esc(l.serial)}</div>`:''}${ly.showWarranty&&l.warranty_months?`<div>Warranty: ${wtyText(l.warranty_months)}</div>`:''}<div class="rw"><span>${l.qty} x ${money(l.unit_price)}</span><span>${money(l.amount)}</span></div></div>`).join('')}
   <div class="ln"></div>
   ${+inv.discount?`<div class="rw"><span>Subtotal</span><span>${money(inv.subtotal)}</span></div><div class="rw"><span>Discount</span><span>${money(inv.discount)}</span></div>`:''}
-  <div class="rw"><b>Total</b><b>Rs. ${money(inv.total)}</b></div><div class="rw"><span>Terms</span><span>${esc(inv.pay_method)}</span></div>
+  <div class="rw"><b>Total</b><b>Rs. ${money(inv.total)}</b></div>
+  ${pi.has?pi.pays.map(p=>`<div class="rw"><span>${esc(payLbl(p))}</span><span>${money(p.amount)}</span></div>`).join('')+(pi.bal>0.005?`<div class="rw"><span>Balance</span><span>${money(pi.bal)}</span></div>`:''):`<div class="rw"><span>Terms</span><span>${esc(inv.pay_method)}</span></div>`}
   ${ly.terms?`<div class="ln"></div><div><b>${esc(ly.termsTitle)}</b><br>${esc(ly.terms).replace(/\n/g,'<br>')}</div>`:''}<p class="c">${esc(ly.footer)}</p>`;
 }
 
@@ -807,36 +864,45 @@ function invDoc(inv,ln,fmt,co,ly,pv){
     return docWrap(inv,thHtml(inv,ln,co,ly),`@page{size:80mm auto;margin:3mm}body{width:72mm;margin:0;${pv?'padding:8px;':''}font:11px/1.35 Arial,sans-serif;color:#000}.c{text-align:center}.nm{font-size:16px;font-weight:700}.ln{border-bottom:1px dashed #000;padding:3px 0;margin-bottom:3px}.rw{display:flex;justify-content:space-between}`,'');
 
   const a5=fmt==='a5',M=Math.max(0,+ly.margin||0),fs=+ly.fontSize||(a5?10:12),W=a5?148:210,H=a5?210:297;
-  const bk=(n,inner)=>{const o=(ly.off||{})[n]||[0,0,1];
-    const st=(o[0]||o[1])?` style="left:${o[0]}px;top:${o[1]}px"`:'';
-    const z=o[2]&&o[2]!==1?` style="zoom:${o[2]}"`:'';
-    return `<div class="bk" data-b="${n}"${st}><div class="zm"${z}>${inner}</div></div>`};
+  const ov=n=>(ly.txt&&typeof ly.txt[n]==='string')?ly.txt[n]:null;
+  const bk=(n,inner,edit)=>{const o=(ly.off||{})[n]||[];let st='';
+    if(o[0]||o[1])st+=`left:${o[0]||0}px;top:${o[1]||0}px;`;if(o[2])st+=`width:${o[2]}px;`;if(o[3])st+=`height:${o[3]}px;`;
+    return `<div class="bk" data-b="${n}"${edit?' data-edit="1"':''}${st?` style="${st}"`:''}><div class="zm">${inner}</div></div>`};
   const cl=x=>x?`<div>${esc(x)}</div>`:'';
   const contact=[co.p?'Mob : '+co.p:'',ly.email?'Email : '+ly.email:'',ly.web?'Website : '+ly.web:''].filter(Boolean).map(esc).join('&nbsp;&nbsp;&nbsp;');
-  const comp=bk('company',`<div class="nm">${esc(co.n)}</div>${String(co.a||'').split('\n').filter(Boolean).map(cl).join('')}${contact?`<div>${contact}</div>`:''}`);
-  const logo=ly.logo?bk('logo',`<img src="${ly.logo}" style="height:${ly.logoH}px;display:block">`):'';
+  const cOv=ov('company');
+  const comp=bk('company',cOv!==null?`<div class="nm pt">${esc(cOv.split('\n')[0])}</div><div class="pt">${esc(cOv.split('\n').slice(1).join('\n'))}</div>`
+    :`<div class="nm">${esc(co.n)}</div>${String(co.a||'').split('\n').filter(Boolean).map(cl).join('')}${contact?`<div>${contact}</div>`:''}`,true);
+  const lo=(ly.off||{}).logo||[];
+  const logo=ly.logo?bk('logo',`<img src="${ly.logo}" style="height:${lo[3]?'100%':(lo[2]?'auto':ly.logoH+'px')};width:${lo[2]?'100%':'auto'};display:block">`):'';
   const head=ly.align==='center'?`<div class="c">${logo}${comp}</div>`:ly.align==='left'?`<div class="hd"><div class="co">${logo}${comp}</div></div>`:`<div class="hd"><div>${comp}</div><div>${logo}</div></div>`;
   const cust=bk('customer',`<div class="cbox"><div class="cr"><span>Customer :</span><span>${esc(inv.customer_code)}</span></div><div class="cn">${esc(inv.customer_name)}</div><div>${esc(inv.address).replace(/\n/g,'<br>')}</div>${inv.phone?`<div>${esc(inv.phone)}</div>`:''}</div>`);
   const meta=bk('meta',`<table class="mt"><tr><th>Invoice #</th><td>${esc(inv.inv_no)}</td></tr><tr><th>Date</th><td>${inv.inv_date}</td></tr><tr><th>Terms</th><td>${esc(inv.pay_method)}</td></tr><tr><th>PO No</th><td>${esc(inv.po_no)}</td></tr><tr><th>Rep Code</th><td>${esc(inv.rep_name)}</td></tr></table>`);
   const showC=ly.showCode,showW=ly.showWarranty,cols=4+(showC?1:0)+(showW?1:0);
   const rows=ln.map(l=>`<tr>${showC?`<td>${esc(l.code)}</td>`:''}<td>${esc(l.description)}${l.details?`<div class="dt">${esc(l.details).replace(/\n/g,'<br>')}</div>`:''}${ly.showSerial&&l.serial?`<div>${esc(l.serial)}</div>`:''}</td>${showW?`<td style="text-align:center;white-space:nowrap">${wtyText(l.warranty_months)}${ly.showUntil&&l.warranty_months?`<div>until ${addMonths(inv.inv_date,l.warranty_months)}</div>`:''}</td>`:''}<td class="r">${l.qty}</td><td class="r">${money(l.unit_price)}</td><td class="r">${money(l.amount)}</td></tr>`).join('');
   const fill=`<tr class="fl">${'<td></td>'.repeat(cols)}</tr>`;
-  const termsBlk=ly.terms?bk('terms',`<div><b><u>${esc(ly.termsTitle)}</u></b><div>${esc(ly.terms).replace(/\n/g,'<br>')}</div></div>`):'';
-  const tot=bk('totals',`<table class="tt">${+inv.discount?`<tr><td>Subtotal</td><td>${money(inv.subtotal)}</td></tr><tr><td>Discount</td><td>${money(inv.discount)}</td></tr>`:''}<tr class="g"><td>Total</td><td>${money(inv.total)}</td></tr></table>`);
-  const foot=ly.footer?bk('footer',`<p class="c" style="margin:12px 0 0">${esc(ly.footer)}</p>`):'';
+  const tOv=ov('terms');
+  const termsInner=tOv!==null?`<div class="pt"><b><u>${esc(tOv.split('\n')[0])}</u></b>\n${esc(tOv.split('\n').slice(1).join('\n'))}</div>`:`<div><b><u>${esc(ly.termsTitle)}</u></b><div>${esc(ly.terms).replace(/\n/g,'<br>')}</div></div>`;
+  const termsBlk=(ly.terms||tOv!==null||pv)?bk('terms',termsInner,true):'';
+  const pi=payInfo(inv);
+  const payRows=pi.has?pi.pays.map(p=>`<tr class="pr"><td>${esc(payLbl(p))}</td><td>${money(p.amount)}</td></tr>`).join('')+(pi.bal>0.005?`<tr class="pr"><td>Balance</td><td>${money(pi.bal)}</td></tr>`:''):'';
+  const tot=bk('totals',`<table class="tt">${+inv.discount?`<tr><td>Subtotal</td><td>${money(inv.subtotal)}</td></tr><tr><td>Discount</td><td>${money(inv.discount)}</td></tr>`:''}<tr class="g"><td>Total</td><td>${money(inv.total)}</td></tr>${payRows}</table>`);
+  const fOv=ov('footer');
+  const foot=(ly.footer||fOv!==null||pv)?bk('footer',`<p class="c pt" style="margin:12px 0 0">${esc(fOv!==null?fOv:ly.footer)}</p>`,true):'';
   const labels=[ly.sigL,ly.sigM,ly.sigR].filter(Boolean);
   const sig=ly.showSig&&labels.length?bk('sig',`<div class="sg">${labels.map(x=>`<div>${esc(x)}</div>`).join('')}</div>`):'';
+  const tiOv=ov('title');
   const css=`@page{size:${a5?'A5':'A4'};margin:${M}mm}
 *{box-sizing:border-box}
 body{margin:0;font:${fs}px/1.4 Arial,sans-serif;color:#000;${pv?'background:#dfe3e8;':''}}
 .sheet{${pv?`width:${W}mm;padding:${M}mm;background:#fff;margin:0 auto;`:''}}
 .pg{${ly.border?`border:${ly.bw}px solid #000;padding:4mm;min-height:${H-2*M-2}mm;`:''}}
-.bk{position:relative}
+.bk{position:relative}.zm{height:100%}.pt{white-space:pre-wrap;tab-size:4}
 .nm{font-size:${ly.nameSize}px;font-weight:700;line-height:1.15;margin-bottom:2px}
 .ti{font-size:${ly.titleSize}px;text-align:center;text-decoration:underline;margin:6px 0 4px;letter-spacing:1px}
 .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.co{display:flex;gap:14px;align-items:flex-start}.c{text-align:center}
 .mrow{display:flex;gap:16px;align-items:flex-start;margin-top:6px}.mrow>.cw{flex:1}.mrow>.mw{width:40%}
-.cbox{border:1.5px solid #000;border-radius:14px;padding:6px 12px;min-height:26mm}.cr{display:flex;justify-content:space-between}.cn{margin-top:4px;font-weight:600}
+.cbox{border:1.5px solid #000;border-radius:14px;padding:6px 12px;min-height:26mm;height:100%}.cr{display:flex;justify-content:space-between}.cn{margin-top:4px;font-weight:600}
 .mt{border-collapse:collapse;width:100%}.mt th{text-align:left;padding:3px 8px 3px 0;white-space:nowrap}.mt td{padding:3px 0}
 .it{width:100%;border-collapse:collapse;border:1.5px solid #000;margin-top:10px;height:${ly.tblH}mm}
 .it th{border:1px solid #000;border-bottom:1.5px solid #000;padding:4px 6px;text-align:center}
@@ -844,27 +910,43 @@ body{margin:0;font:${fs}px/1.4 Arial,sans-serif;color:#000;${pv?'background:#dfe
 .it tr.fl td{height:100%;padding:0}
 .r{text-align:right}.dt{font-size:.9em}
 .btm{display:flex;justify-content:space-between;gap:12px;margin-top:6px;align-items:flex-start}.btm>.tw2{flex:1}.btm>.tt2{width:44%}
-.tt{border-collapse:collapse;width:100%}.tt td{border:1.5px solid #000;padding:4px 8px}.tt td:last-child{text-align:right}.tt tr.g td{font-weight:700}
+.tt{border-collapse:collapse;width:100%}.tt td{border:1.5px solid #000;padding:4px 8px}.tt td:last-child{text-align:right}.tt tr.g td{font-weight:700}.tt tr.pr td{font-size:.92em;padding:2px 8px}
 .sg{display:flex;justify-content:space-between;gap:20px;margin-top:40px}.sg div{border-top:1px solid #000;padding-top:3px;flex:1;text-align:center}
-${pv?'.bk:hover{outline:1px dashed #0b6e8a;outline-offset:2px;cursor:move}.bk.sel{outline:2px solid #0b6e8a}.hdl{position:absolute;right:-7px;bottom:-7px;width:13px;height:13px;background:#0b6e8a;border:2px solid #fff;cursor:nwse-resize;z-index:9}':''}`;
-  const html=`<div class="sheet"><div class="pg">${head}${bk('title',`<div class="ti">${esc(ly.title)}</div>`)}
+${pv?'.bk:hover{outline:1px dashed #0b6e8a;outline-offset:2px;cursor:move}.bk.sel{outline:2px solid #0b6e8a}.zm.ed{outline:2px solid #e67e22;background:#fffbe6;cursor:text}.hdl{position:absolute;width:11px;height:11px;background:#0b6e8a;border:2px solid #fff;z-index:9}.hdl.hr{right:-7px;top:calc(50% - 6px);cursor:ew-resize}.hdl.hb{bottom:-7px;left:calc(50% - 6px);cursor:ns-resize}.hdl.hc{right:-7px;bottom:-7px;cursor:nwse-resize}':''}`;
+  const html=`<div class="sheet"><div class="pg">${head}${bk('title',`<div class="ti pt">${esc(tiOv!==null?tiOv:ly.title)}</div>`,true)}
   <div class="mrow"><div class="cw">${cust}</div><div class="mw">${meta}</div></div>
   <table class="it"><thead><tr>${showC?'<th style="width:13%">Code</th>':''}<th>Item Description</th>${showW?'<th style="width:10%">Wty</th>':''}<th style="width:6%">Qty</th><th style="width:14%">Unit Price</th><th style="width:15%">Amount</th></tr></thead><tbody>${rows}${fill}</tbody></table>
   <div class="btm"><div class="tw2">${termsBlk}</div><div class="tt2">${tot}</div></div>${foot}${sig}</div></div>`;
-  const extra=pv?`<script>(function(){var cur=null,mode=null,sx,sy,ox,oy,s0,w0,h0,sel=null,hd=null;
-function pick(b){if(sel)sel.classList.remove('sel');if(hd){hd.remove();hd=null}sel=b;if(!b)return;b.classList.add('sel');hd=document.createElement('div');hd.className='hdl';hd.setAttribute('data-h','1');b.appendChild(hd)}
-function clamp(b){var r=b.getBoundingClientRect(),p=document.querySelector('.pg').getBoundingClientRect(),dx=0,dy=0;if(r.left<p.left)dx=p.left-r.left;else if(r.right>p.right)dx=p.right-r.right;if(r.top<p.top)dy=p.top-r.top;else if(r.bottom>p.bottom)dy=p.bottom-r.bottom;b.style.left=((parseFloat(b.style.left)||0)+dx)+'px';b.style.top=((parseFloat(b.style.top)||0)+dy)+'px'}
-document.addEventListener('mousedown',function(e){var b=e.target.closest('.bk');if(!b){pick(null);return}e.preventDefault();pick(b);cur=b;sx=e.clientX;sy=e.clientY;ox=parseFloat(b.style.left)||0;oy=parseFloat(b.style.top)||0;var z=b.querySelector('.zm');s0=parseFloat(z.style.zoom)||1;var r=b.getBoundingClientRect();w0=Math.max(r.width,1);h0=Math.max(r.height,1);mode=e.target.getAttribute&&e.target.getAttribute('data-h')?'size':'move'});
-document.addEventListener('mousemove',function(e){if(!cur)return;if(mode==='move'){cur.style.left=(ox+e.clientX-sx)+'px';cur.style.top=(oy+e.clientY-sy)+'px';clamp(cur)}else{var k=1+((e.clientX-sx)/w0+(e.clientY-sy)/h0)/2;k=Math.max(.3,Math.min(4,k));cur.querySelector('.zm').style.zoom=(s0*k).toFixed(3);clamp(cur)}});
-document.addEventListener('mouseup',function(){if(!cur)return;var z=cur.querySelector('.zm');parent.postMessage({edrag:cur.getAttribute('data-b'),x:parseFloat(cur.style.left)||0,y:parseFloat(cur.style.top)||0,s:parseFloat(z.style.zoom)||1},'*');cur=null;mode=null})})();<\/script>`:'';
+  const extra=pv?`<script>(function(){var cur=null,mode=null,sx,sy,ox,oy,w0,h0,sel=null,hs=[],editing=null;
+function clear(){if(sel)sel.classList.remove('sel');hs.forEach(function(h){h.remove()});hs=[]}
+function pick(b){clear();sel=b;if(!b)return;b.classList.add('sel');['r','b','c'].forEach(function(k){var h=document.createElement('div');h.className='hdl h'+k;h.setAttribute('data-h',k);b.appendChild(h);hs.push(h)})}
+function box(){return document.querySelector('.pg').getBoundingClientRect()}
+function clampMove(b){var r=b.getBoundingClientRect(),p=box(),dx=0,dy=0;if(r.left<p.left)dx=p.left-r.left;else if(r.right>p.right)dx=p.right-r.right;if(r.top<p.top)dy=p.top-r.top;else if(r.bottom>p.bottom)dy=p.bottom-r.bottom;b.style.left=((parseFloat(b.style.left)||0)+dx)+'px';b.style.top=((parseFloat(b.style.top)||0)+dy)+'px'}
+function clampSize(b){var r=b.getBoundingClientRect(),p=box();if(r.right>p.right)b.style.width=Math.max(20,r.width-(r.right-p.right))+'px';if(r.bottom>p.bottom)b.style.height=Math.max(12,r.height-(r.bottom-p.bottom))+'px'}
+function finish(){if(!editing)return;var z=editing;editing=null;z.removeAttribute('contenteditable');z.classList.remove('ed');var t=z.innerText.replace(/\\u00a0/g,' ').replace(/\\n+$/,'');parent.postMessage({edtext:z.parentNode.getAttribute('data-b'),text:t},'*')}
+document.addEventListener('mousedown',function(e){
+ if(editing&&editing.contains(e.target))return;
+ if(editing)finish();
+ var b=e.target.closest('.bk');if(!b){pick(null);return}
+ e.preventDefault();pick(b);cur=b;sx=e.clientX;sy=e.clientY;ox=parseFloat(b.style.left)||0;oy=parseFloat(b.style.top)||0;
+ var r=b.getBoundingClientRect();w0=r.width;h0=r.height;var h=e.target.getAttribute&&e.target.getAttribute('data-h');mode=h?h:'move'});
+document.addEventListener('mousemove',function(e){if(!cur)return;var dx=e.clientX-sx,dy=e.clientY-sy;
+ if(mode==='move'){cur.style.left=(ox+dx)+'px';cur.style.top=(oy+dy)+'px';clampMove(cur)}
+ else{if(mode==='r'||mode==='c')cur.style.width=Math.max(20,w0+dx)+'px';if(mode==='b'||mode==='c')cur.style.height=Math.max(12,h0+dy)+'px';clampSize(cur)}});
+document.addEventListener('mouseup',function(){if(!cur)return;parent.postMessage({edrag:cur.getAttribute('data-b'),x:parseFloat(cur.style.left)||0,y:parseFloat(cur.style.top)||0,w:cur.style.width?parseFloat(cur.style.width):null,h:cur.style.height?parseFloat(cur.style.height):null},'*');cur=null;mode=null});
+document.addEventListener('dblclick',function(e){var b=e.target.closest('.bk[data-edit]');if(!b)return;var z=b.querySelector('.zm');editing=z;z.setAttribute('contenteditable','true');z.classList.add('ed');z.focus()});
+document.addEventListener('keydown',function(e){if(!editing)return;if(e.key==='Tab'){e.preventDefault();document.execCommand('insertText',false,'\\t')}else if(e.key==='Escape'){finish()}});
+})();<\/script>`:'';
   return docWrap(inv,html,css,extra);
 }
 
 function wrapTxt(t,w){const out=[];String(t||'').split('\n').forEach(par=>{let line='';par.split(' ').forEach(wd=>{if((line+' '+wd).trim().length>w){out.push(line);line=wd}else line=(line+' '+wd).trim()});out.push(line)});return out}
 function dotText(inv,ln,co,ly,full){
   const W=80,p=(s,n)=>String(s??'').slice(0,n).padEnd(n),r=(s,n)=>String(s??'').slice(0,n).padStart(n),c=s=>' '.repeat(Math.max(0,(W-s.length)>>1))+s,bar='-'.repeat(W);
-  let o=[c(co.n.toUpperCase()),...String(co.a||'').split('\n').filter(Boolean).map(x=>c(x)),c([co.p,ly.email,ly.web].filter(Boolean).join('  ')),bar,
-    p(ly.title+': '+inv.inv_no,40)+r('Date: '+inv.inv_date,40),
+  const ov=n=>(ly.txt&&typeof ly.txt[n]==='string')?ly.txt[n]:null,pi=payInfo(inv);
+  const head=ov('company')!==null?ov('company').split('\n').filter(Boolean).map((x,i)=>c(i?x:x.toUpperCase())):[c(co.n.toUpperCase()),...String(co.a||'').split('\n').filter(Boolean).map(x=>c(x)),c([co.p,ly.email,ly.web].filter(Boolean).join('  '))];
+  let o=[...head,bar,
+    p((ov('title')!==null?ov('title'):ly.title)+': '+inv.inv_no,40)+r('Date: '+inv.inv_date,40),
     p('Customer: '+(inv.customer_name||'')+(inv.customer_code?' ('+inv.customer_code+')':''),W),p('Phone: '+(inv.phone||''),W),p('Address: '+(inv.address||''),W),
     p('Terms: '+(inv.pay_method||''),40)+r('Rep: '+(inv.rep_name||''),40),bar,
     p('No',3)+' '+p('Code',10)+' '+p('Description',30)+' '+r('Qty',4)+' '+r('Price',12)+' '+r('Amount',14),bar];
@@ -877,12 +959,16 @@ function dotText(inv,ln,co,ly,full){
   });
   o.push(bar,r('Subtotal: '+money(inv.subtotal),W));
   if(+inv.discount)o.push(r('Discount: '+money(inv.discount),W));
-  o.push(r('TOTAL Rs.: '+money(inv.total),W),bar);
-  if(ly.terms){o.push(ly.termsTitle+':');wrapTxt(ly.terms,W).forEach(x=>o.push(x));o.push(bar)}
-  o.push(c(ly.footer));
+  o.push(r('TOTAL Rs.: '+money(inv.total),W));
+  if(pi.has){pi.pays.forEach(x=>o.push(r(payLbl(x)+': '+money(x.amount),W)));if(pi.bal>0.005)o.push(r('Balance: '+money(pi.bal),W))}
+  o.push(bar);
+  const tOv=ov('terms');
+  if(tOv!==null){wrapTxt(tOv,W).forEach(x=>o.push(x));o.push(bar)}
+  else if(ly.terms){o.push(ly.termsTitle+':');wrapTxt(ly.terms,W).forEach(x=>o.push(x));o.push(bar)}
+  o.push(c(ov('footer')!==null?ov('footer'):ly.footer));
   const labels=[ly.sigL,ly.sigM,ly.sigR].filter(Boolean);
   if(full&&ly.showSig&&labels.length){const cw=Math.floor(W/labels.length);o.push('','');o.push(labels.map(()=>p('_'.repeat(cw-4),cw)).join(''));o.push(labels.map(x=>p(x,cw)).join(''))}
-  return o.join('\n');
+  return o.join('\n').replace(/\t/g,'    ');
 }
 
 /* ---------------- Users (admin) ---------------- */
@@ -935,10 +1021,14 @@ async function setRole(id,role){await run(sb.from('profiles').update({role}).eq(
 async function setActive(id,a){await run(sb.from('profiles').update({active:a}).eq('id',id));go('users')}
 
 /* ---------------- Invoice editor (admin) ---------------- */
-let EDLOGO='',EDOFF={};
-window.addEventListener('message',e=>{if(e.data&&e.data.edrag){EDOFF[e.data.edrag]=[Math.round(e.data.x),Math.round(e.data.y),e.data.s||1]}});
+let EDLOGO='',EDOFF={},EDTXT={};
+window.addEventListener('message',e=>{
+  if(!e.data)return;
+  if(e.data.edrag){EDOFF[e.data.edrag]=[Math.round(e.data.x),Math.round(e.data.y),e.data.w?Math.round(e.data.w):null,e.data.h?Math.round(e.data.h):null]}
+  if(e.data.edtext!==undefined&&e.data.edrag===undefined&&$('#e_pv')){EDTXT[e.data.edtext]=e.data.text;edPrev()}
+});
 PAGES.settings=async()=>{
-  const ly=getLY(),co=coInfo();EDLOGO=ly.logo||'';EDOFF=JSON.parse(JSON.stringify(ly.off||{}));
+  const ly=getLY(),co=coInfo();EDLOGO=ly.logo||'';EDOFF=JSON.parse(JSON.stringify(ly.off||{}));EDTXT=JSON.parse(JSON.stringify(ly.txt||{}));
   const ck=(id,v,l)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''} onchange="edPrev()"> ${l}</label>`;
   const fm=sel=>[['a4','A4'],['a5','A5'],['th80','Thermal 80mm'],['dotf','Dot matrix - full page'],['doth','Dot matrix - half page']].map(f=>`<option value="${f[0]}" ${f[0]===sel?'selected':''}>${f[1]}</option>`).join('');
   $('#main').innerHTML=`<div class="top"><h2>Invoice editor</h2><div class="bar"><div style="width:220px"><label>Preview format</label><select id="e_fmt" onchange="edPrev()">${fm(ly.fmt)}</select></div><div style="flex:0"><button class="btn" onclick="edSave()">Save</button></div></div></div>
@@ -962,8 +1052,9 @@ PAGES.settings=async()=>{
      <div><label>Border thickness (px)</label><input id="e_bw" type="number" min="0.5" max="6" step="0.5" value="${ly.bw}" oninput="edPrev()"></div>
      <div><label>Item table height (mm)</label><input id="e_th" type="number" min="40" max="220" value="${ly.tblH}" oninput="edPrev()"></div></div>
     ${ck('e_bd',ly.border,'Draw a border around the whole page (inside the margin)')}
-    <div class="mut" style="margin-top:6px"><b>Click</b> a block in the preview to select it, <b>drag</b> to move it, and drag the <b>blue square</b> at its corner to resize it. Blocks cannot leave the page margin.</div>
-    <div style="margin-top:8px"><button class="btn sec sm" onclick="EDOFF={};edPrev()">Reset positions and sizes</button></div></div>
+    <div class="mut" style="margin-top:6px"><b>Click</b> a block in the preview to select it and <b>drag</b> to move it. Drag the blue squares on the <b>right side</b> (wider/narrower), the <b>bottom</b> (taller/shorter) or the <b>corner</b> (both) to stretch it. Blocks cannot leave the page margin.</div>
+    <div class="mut" style="margin-top:6px"><b>Double-click</b> the shop name block, INVOICE title, terms or footer to type inside it. <b>Enter</b> = new line, <b>Tab</b> = move text to the right, click outside to finish.</div>
+    <div style="margin-top:8px"><button class="btn sec sm" onclick="EDOFF={};edPrev()">Reset positions and sizes</button> <button class="btn sec sm" onclick="EDTXT={};edPrev()">Clear typed text (use the form fields again)</button></div></div>
    <div class="card"><b>Table columns</b>
     ${ck('e_sc',ly.showCode,'Show item code')}${ck('e_ss',ly.showSerial,'Show serial number')}${ck('e_sw',ly.showWarranty,'Show warranty column')}${ck('e_su',ly.showUntil,'Show warranty end date')}</div>
    <div class="card"><b>Terms and footer</b>
@@ -985,11 +1076,11 @@ function edRead(){
    ly:{logo:EDLOGO,logoH:+g('e_lh').value||80,nameSize:+g('e_ns').value||26,titleSize:+g('e_ts').value||26,align:g('e_al').value,title:g('e_t').value||'INVOICE',email:g('e_em').value,web:g('e_web').value,
     margin:+g('e_mg').value||0,border:g('e_bd').checked,bw:+g('e_bw').value||1.5,tblH:+g('e_th').value||110,
     showCode:g('e_sc').checked,showSerial:g('e_ss').checked,showWarranty:g('e_sw').checked,showUntil:g('e_su').checked,termsTitle:g('e_tt').value,terms:g('e_tm').value,footer:g('e_f').value,
-    showSig:g('e_sg').checked,sigL:g('e_s1').value,sigM:g('e_s2').value,sigR:g('e_s3').value,fontSize:+g('e_fs').value||0,fmt:g('e_df').value,off:EDOFF}};
+    showSig:g('e_sg').checked,sigL:g('e_s1').value,sigM:g('e_s2').value,sigR:g('e_s3').value,fontSize:+g('e_fs').value||0,fmt:g('e_df').value,off:EDOFF,txt:EDTXT}};
 }
 function edPrev(){
   const {co,ly}=edRead();
-  const inv={inv_no:'INV-00001',inv_date:today(),customer_code:'CUS-0001',customer_name:'Sample Customer',phone:'0771234567',address:'No 1, Sample Road, Kandy',subtotal:222500,discount:0,total:222500,pay_method:'Cash',po_no:'',rep_name:'Sample Rep'};
+  const inv={inv_no:'INV-00001',inv_date:today(),customer_code:'CUS-0001',customer_name:'Sample Customer',phone:'0771234567',address:'No 1, Sample Road, Kandy',subtotal:222500,discount:0,total:222500,pay_method:'Cash + Card',po_no:'',rep_name:'Sample Rep',payments:[{method:'Cash',amount:100000},{method:'Card',amount:100000,last4:'1234',holder:'K Perera'}]};
   const ln=[{code:'LAP-0001',description:'Asus Vivobook X1504VA',details:'Intel Core i5 13th Gen\n16GB RAM, 512GB SSD\n15.6 inch FHD Display',serial:'SN1234567890',qty:1,unit_price:210000,warranty_months:12,amount:210000},
             {code:'ACC-0007',description:'Wireless Mouse',details:'',serial:'',qty:5,unit_price:2500,warranty_months:6,amount:12500}];
   const fmt=$('#e_fmt').value,f=$('#e_pv');
@@ -1013,49 +1104,86 @@ async function edSave(){
   $('#coName').textContent=settings.company_name||'Company';toast('Invoice layout saved');
 }
 
-/* ---------------- Sales report ---------------- */
+/* ---------------- Daily sales (grid report) ---------------- */
+const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 PAGES.reports=async()=>{
   const d=today();
-  $('#main').innerHTML=`<div class="top"><h2>Sales report</h2><button class="btn sec" onclick="repPrint()">Print</button></div>
+  $('#main').innerHTML=`<div class="top"><h2>Daily sales</h2><button class="btn sec" onclick="repPrint()">Print</button></div>
   <div class="card"><div class="bar">
-   <div><label>Report</label><select id="r_m" onchange="repMode()"><option value="d">Daily</option><option value="m">Monthly (day by day)</option><option value="y">Yearly (month by month)</option><option value="r">Date range</option></select></div>
-   <div id="r_d"><label>Date</label><input id="r_dd" type="date" value="${d}"></div>
-   <div id="r_mo" style="display:none"><label>Month</label><input id="r_mm" type="month" value="${d.slice(0,7)}"></div>
-   <div id="r_y" style="display:none"><label>Year</label><input id="r_yy" type="number" min="2000" max="2100" value="${d.slice(0,4)}"></div>
-   <div id="r_f" style="display:none"><label>From</label><input id="r_ff" type="date" value="${d.slice(0,8)}01"></div>
-   <div id="r_t" style="display:none"><label>To</label><input id="r_tt" type="date" value="${d}"></div>
-   <div style="flex:0"><button class="btn" onclick="repRun()">Show</button></div></div></div>
-  <div id="r_out"></div>`;
+   <div><label>Date range from</label><input id="r_f" type="date" value="${d}"></div>
+   <div><label>To</label><input id="r_t" type="date" value="${d}"></div>
+   <div style="flex:2"><label>Report</label><select id="r_m" onchange="repRun()">
+    <option value="inv">Invoice list (every invoice)</option><option value="date">Date wise summary</option><option value="month">Month wise summary</option><option value="item">Item wise</option><option value="cust">Customer wise</option></select></div>
+   <div style="flex:0"><button class="btn" onclick="repRun()">Show</button></div>
+   ${hasP('cost')?'<div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="repBuy()">Show purchase</button></div>':''}</div>
+   <div class="bar" style="margin-top:8px"><div style="flex:0"><button class="btn sec sm" onclick="repQuick('today')">Today</button></div><div style="flex:0"><button class="btn sec sm" onclick="repQuick('yest')">Yesterday</button></div><div style="flex:0;white-space:nowrap"><button class="btn sec sm" onclick="repQuick('month')">This month</button></div><div style="flex:0;white-space:nowrap"><button class="btn sec sm" onclick="repQuick('last')">Last month</button></div><div style="flex:0;white-space:nowrap"><button class="btn sec sm" onclick="repQuick('year')">This year</button></div></div></div>
+  <div id="r_out"></div><div id="r_buy"></div>`;
   repRun();
 };
-function repMode(){const m=$('#r_m').value;$('#r_d').style.display=m==='d'?'block':'none';$('#r_mo').style.display=m==='m'?'block':'none';$('#r_y').style.display=m==='y'?'block':'none';$('#r_f').style.display=$('#r_t').style.display=m==='r'?'block':'none'}
-const rtb=(h,rows,foot)=>`<div class="tw" style="margin-bottom:14px"><table><thead><tr>${h.map(x=>`<th class="${x[1]?'r':''}">${x[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td class="${h[i][1]?'r':''}">${c}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${h.length}" class="mut">No data.</td></tr>`}</tbody>${foot?`<tfoot><tr>${foot.map((c,i)=>`<th class="${h[i][1]?'r':''}">${c}</th>`).join('')}</tr></tfoot>`:''}</table></div>`;
-async function repRun(){
-  const m=$('#r_m').value;let from,to,title;
-  if(m==='d'){from=to=$('#r_dd').value;title='Daily sales '+from}
-  else if(m==='m'){const v=$('#r_mm').value;if(!v)return;const [y,mo]=v.split('-').map(Number);from=v+'-01';to=v+'-'+String(new Date(y,mo,0).getDate()).padStart(2,'0');title='Monthly sales '+v}
-  else if(m==='y'){const y=$('#r_yy').value;from=y+'-01-01';to=y+'-12-31';title='Yearly sales '+y}
-  else{from=$('#r_ff').value;to=$('#r_tt').value;title='Sales '+from+' to '+to}
-  if(!from||!to)return;
-  $('#r_out').innerHTML='<p class="mut">Loading…</p>';
-  const inv=await allRows(()=>sb.from('invoices').select('*').gte('inv_date',from).lte('inv_date',to).order('inv_date').order('id'));
-  const its=await allRows(()=>sb.from('invoice_items').select('description,qty,amount,invoices!inner(inv_date)').gte('invoices.inv_date',from).lte('invoices.inv_date',to).order('id'));
-  const sum=k=>inv.reduce((a,v)=>a+Number(v[k]||0),0),net=sum('total');
-  const grp=(keyf)=>{const o={};inv.forEach(v=>{const k=keyf(v)||'-';(o[k]=o[k]||{n:0,t:0});o[k].n++;o[k].t+=Number(v.total)});return o};
-  const grpRows=o=>Object.keys(o).sort().map(k=>[esc(k),o[k].n,money(o[k].t)]);
-  const hs=`<div class="grid" style="margin-bottom:14px"><div class="stat"><b>${inv.length}</b><span>Invoices</span></div><div class="stat"><b>Rs. ${money(sum('subtotal'))}</b><span>Gross sales</span></div><div class="stat"><b>Rs. ${money(sum('discount'))}</b><span>Discounts</span></div><div class="stat"><b>Rs. ${money(net)}</b><span>Net sales</span></div></div>`;
-  let h='';
-  if(m==='y')h+='<h3>By month</h3>'+rtb([['Month'],['Invoices',1],['Sales (Rs.)',1]],Object.entries(grp(v=>v.inv_date.slice(0,7))).sort().map(([k,x])=>[k,x.n,money(x.t)]),['Total',inv.length,money(net)]);
-  if(m==='m'||m==='r')h+='<h3>By day</h3>'+rtb([['Date'],['Invoices',1],['Sales (Rs.)',1]],Object.entries(grp(v=>v.inv_date)).sort().map(([k,x])=>[k,x.n,money(x.t)]),['Total',inv.length,money(net)]);
-  if(m==='d'||m==='r'||m==='m')h+='<h3>Invoices</h3>'+rtb([['Invoice'],['Date'],['Customer'],['Rep'],['Terms'],['Total (Rs.)',1]],inv.map(v=>[esc(v.inv_no),v.inv_date,esc((v.customer_code?v.customer_code+' ':'')+(v.customer_name||'')),esc(v.rep_name),esc(v.pay_method),money(v.total)]),['','','','','Total',money(net)]);
-  h+='<h3>By terms (payment)</h3>'+rtb([['Terms'],['Invoices',1],['Sales (Rs.)',1]],grpRows(grp(v=>v.pay_method)));
-  h+='<h3>By sales rep</h3>'+rtb([['Rep'],['Invoices',1],['Sales (Rs.)',1]],grpRows(grp(v=>v.rep_name)));
-  const io={};its.forEach(x=>{const k=x.description||'-';(io[k]=io[k]||{q:0,a:0});io[k].q+=Number(x.qty);io[k].a+=Number(x.amount)});
-  h+='<h3>Items sold</h3>'+rtb([['Item'],['Qty',1],['Amount (Rs.)',1]],Object.keys(io).sort().map(k=>[esc(k),io[k].q,money(io[k].a)]));
-  window._rep={title,html:h,sum:`Invoices: ${inv.length} | Gross: Rs. ${money(sum('subtotal'))} | Discounts: Rs. ${money(sum('discount'))} | Net sales: Rs. ${money(net)}`};
-  $('#r_out').innerHTML=hs+h;
+function repQuick(k){
+  const n=new Date(),y=n.getFullYear(),m=n.getMonth();let a,b;
+  if(k==='today')a=b=n;
+  else if(k==='yest'){a=b=new Date(y,m,n.getDate()-1)}
+  else if(k==='month'){a=new Date(y,m,1);b=new Date(y,m+1,0)}
+  else if(k==='last'){a=new Date(y,m-1,1);b=new Date(y,m,0)}
+  else{a=new Date(y,0,1);b=new Date(y,11,31)}
+  $('#r_f').value=ymd(a);$('#r_t').value=ymd(b);repRun();
 }
-function repPrint(){if(!window._rep)return;printHtml(window._rep.title,`<h2>${esc(window._rep.title)}</h2><div>${esc(settings.company_name||'')}</div><p><b>${window._rep.sum}</b></p>${window._rep.html}`)}
+function payCols(v){
+  const o={cash:0,bank:0,cheque:0,card:0,credit:0},t=Number(v.total)||0;
+  if(Array.isArray(v.payments)&&v.payments.length){
+    v.payments.forEach(p=>{const a=Number(p.amount)||0,m=String(p.method).toLowerCase();if(m==='cash')o.cash+=a;else if(m.startsWith('bank'))o.bank+=a;else if(m==='cheque')o.cheque+=a;else if(m==='card')o.card+=a});
+    o.credit=Math.max(0,t-(o.cash+o.bank+o.cheque+o.card));
+  }else{
+    const m=String(v.pay_method||'').toLowerCase();
+    if(m==='cash')o.cash=t;else if(m.startsWith('bank'))o.bank=t;else if(m==='cheque')o.cheque=t;else if(m==='card')o.card=t;else o.credit=t;
+  }
+  return o;
+}
+async function repRun(){
+  const from=$('#r_f').value,to=$('#r_t').value,mode=$('#r_m').value;
+  if(!from||!to)return;
+  $('#r_out').innerHTML='<p class="mut">Loading…</p>';$('#r_buy').innerHTML='';
+  const inv=await allRows(()=>sb.from('invoices').select('*').gte('inv_date',from).lte('inv_date',to).order('inv_date').order('id'));
+  const its=await allRows(()=>sb.from('invoice_items').select('invoice_id,description,qty,amount,cost,invoices!inner(inv_date)').gte('invoices.inv_date',from).lte('invoices.inv_date',to).order('id'));
+  const cost=hasP('cost'),costBy={};
+  its.forEach(x=>{costBy[x.invoice_id]=(costBy[x.invoice_id]||0)+Number(x.cost||0)*Number(x.qty)});
+  const rows=inv.map(v=>({v,...payCols(v),total:Number(v.total),profit:Number(v.total)-(costBy[v.id]||0)}));
+  const z=()=>({n:0,cash:0,bank:0,cheque:0,card:0,credit:0,total:0,profit:0});
+  const add=(a,r)=>{a.n++;['cash','bank','cheque','card','credit','total','profit'].forEach(k=>a[k]+=r[k])};
+  const all=z();rows.forEach(r=>add(all,r));
+  const m=x=>x?money(x):'0.00';
+  const head=(first)=>[...first,['Cash',1],['Bank',1],['Cheque',1],['Credit Card',1],['Credit',1],['Total Sales',1],...(cost?[['Total Profit',1]]:[])];
+  const cells=r=>[m(r.cash),m(r.bank),m(r.cheque),m(r.card),m(r.credit),money(r.total),...(cost?[money(r.profit)]:[])];
+  let h='';
+  if(mode==='inv'){
+    h=rgrid(head([['Date'],['Inv No'],['Customer'],['Remark']]),rows.map(r=>[r.v.inv_date,esc(r.v.inv_no),esc((r.v.customer_code?r.v.customer_code+' ':'')+(r.v.customer_name||'')),esc(r.v.note),...cells(r)]),['','','','',...cells(all)]);
+  }else if(mode==='date'||mode==='month'){
+    const g={};rows.forEach(r=>{const k=mode==='date'?r.v.inv_date:r.v.inv_date.slice(0,7);(g[k]=g[k]||z());add(g[k],r)});
+    h=rgrid(head([[mode==='date'?'Date':'Month'],['Invoices',1]]),Object.keys(g).sort().map(k=>[k,g[k].n,...cells(g[k])]),['Total',all.n,...cells(all)]);
+  }else if(mode==='cust'){
+    const g={};rows.forEach(r=>{const k=(r.v.customer_code?r.v.customer_code+' ':'')+(r.v.customer_name||'Walk-in');(g[k]=g[k]||z());add(g[k],r)});
+    h=rgrid(head([['Customer'],['Invoices',1]]),Object.keys(g).sort().map(k=>[esc(k),g[k].n,...cells(g[k])]),['Total',all.n,...cells(all)]);
+  }else{
+    const g={};its.forEach(x=>{const k=x.description||'-';(g[k]=g[k]||{q:0,a:0,c:0});g[k].q+=Number(x.qty);g[k].a+=Number(x.amount);g[k].c+=Number(x.cost||0)*Number(x.qty)});
+    const ks=Object.keys(g).sort(),tq=ks.reduce((a,k)=>a+g[k].q,0),ta=ks.reduce((a,k)=>a+g[k].a,0),tc=ks.reduce((a,k)=>a+g[k].c,0);
+    h=rgrid([['Item'],['Qty',1],['Amount',1],...(cost?[['Cost',1],['Profit',1]]:[])],ks.map(k=>[esc(k),g[k].q,money(g[k].a),...(cost?[money(g[k].c),money(g[k].a-g[k].c)]:[])]),['Total',tq,money(ta),...(cost?[money(tc),money(ta-tc)]:[])]);
+  }
+  const sum=`<div class="bar" style="justify-content:flex-end;margin-top:6px"><div style="flex:0 0 150px"><label>No of Inv</label><input readonly value="${all.n}" style="background:#fff7a8;font-weight:700;text-align:right"></div><div style="flex:0 0 190px"><label>Net Sales</label><input readonly value="${money(all.total)}" style="background:#fff7a8;font-weight:700;text-align:right"></div>${cost?`<div style="flex:0 0 190px"><label>Net Profit</label><input readonly value="${money(all.profit)}" style="background:#fff7a8;font-weight:700;text-align:right"></div>`:''}</div>`;
+  window._rep={title:'Sales '+from+(from===to?'':' to '+to),html:h,sum:`No of invoices: ${all.n} | Net sales: Rs. ${money(all.total)}${cost?' | Net profit: Rs. '+money(all.profit):''}`};
+  $('#r_out').innerHTML=h+sum;
+}
+function rgrid(h,rows,foot){
+  return `<div class="tw"><table><thead><tr>${h.map(x=>`<th class="${x[1]?'r':''}">${x[0]}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td class="${h[i]&&h[i][1]?'r':''}">${c}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${h.length}" class="mut">No sales in this period.</td></tr>`}</tbody><tfoot><tr>${foot.map((c,i)=>`<th class="${h[i]&&h[i][1]?'r':''}" style="background:#fff7a8;color:#a40000">${c}</th>`).join('')}</tr></tfoot></table></div>`;
+}
+async function repBuy(){
+  const from=$('#r_f').value,to=$('#r_t').value;
+  const d=await allRows(()=>sb.from('grn').select('*').gte('grn_date',from).lte('grn_date',to).order('grn_date').order('id'));
+  const t=d.reduce((a,g)=>a+Number(g.total),0);
+  $('#r_buy').innerHTML='<h3 style="margin:14px 0 8px">Purchases (GRN)</h3>'+rgrid([['Date'],['GRN No'],['Supplier'],['Ref'],['Total cost',1]],d.map(g=>[g.grn_date,esc(g.grn_no),esc(g.supplier),esc(g.ref_no),money(g.total)]),['','','','',money(t)]);
+  window._rep.html+=$('#r_buy').innerHTML;
+}
+function repPrint(){if(!window._rep)return;printHtml(window._rep.title,`<h2>${esc(window._rep.title)}</h2><div>${esc(settings.company_name||'')}</div><p><b>${window._rep.sum}</b></p>${window._rep.html}`,'@page{size:A4 landscape;margin:10mm}th,td{font-size:11px}')}
 </script>
 </body>
 </html>
