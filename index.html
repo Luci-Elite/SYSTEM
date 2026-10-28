@@ -1147,10 +1147,12 @@ function repPrint(){if(!window._rep)return;printHtml(window._rep.title,`<h2>${es
 const JT={warranty:'Warranty',repair:'Repair',service:'Service'};
 const JSTAT=['Received','In progress','Waiting parts','Completed','Delivered'];
 const JL_DEF={useInvLogo:true,logo:'',logoH:60,accent:'#e8731a',title:'JOB NOTE',subtitle:'SERVICE INTAKE / REPAIR RECORD',contact:'',email:'',footer:'',margin:7,fontSize:0,
+  issueColor:'#d00000',remarksColor:'#d00000',technicianColor:'#111111',receivedColor:'#111111',
   products:['Laptop','Desktop','Printer','Monitor','Other'],services:['Chargeable','Service warranty','Warranty'],accessories:['Adapter','Power cord','Bag','USB cable','Other'],works:['Diagnosis','Repair','Upgrade','Other'],
+  technicians:[],
   rules:'A hard disk or operating system failure may require formatting and cause data loss. Please back up important data and programs before handing over any device. LAPTOPCARE WILL NOT BE RESPONSIBLE FOR LOSS OF DATA. Customers will be informed when repairs are complete and are requested to collect items within 14 days. Items uncollected after 30 days may incur storage charges; the original collection and disposal conditions apply.',
   auth:'I agree to the conditions stated above and authorize inspection / repair.',delivery:'I received the above item(s) in good condition.',
-  showAcc:true,showRemarks:true,showRules:true,showAuth:true,showDel:true,showFoot:true};
+  showAcc:true,showRemarks:true,showRules:true,showAuth:true,showDel:true,showFoot:true,showTechnician:true,showReceivedSignature:true};
 function getJL(){let o={};try{o=JSON.parse(settings.job_layout||'{}')}catch(e){}return {...JL_DEF,...o}}
 const jobLogo=jl=>jl.useInvLogo?getLY().logo:jl.logo;
 const toLocalDT=iso=>{const d=iso?new Date(iso):new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'T'+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
@@ -1188,12 +1190,14 @@ function jobEdit(id){window._jobId=id;go('jobform')}
 
 /* ----- the form ----- */
 let JF=null,JCS_LIST=[],JCS_T;
+const jobRichStyle=document.createElement('style');jobRichStyle.textContent=`.jobrt{border:1px solid var(--line);border-radius:7px;overflow:hidden}.jobrtbar{display:flex;align-items:center;gap:8px;padding:6px 8px;background:#f6f7f9;border-bottom:1px solid var(--line);font-size:12px}.jobrtbar input{width:36px;height:28px;padding:2px}.jobrich{min-height:105px;padding:9px 10px;outline:none;white-space:pre-wrap;line-height:1.45}.sigpadwrap{border:1px dashed #aaa;border-radius:6px;padding:6px;background:#fafafa}.sigpadwrap canvas{display:block;width:100%;height:150px;background:#fff;border:1px solid #ddd;touch-action:none}`;document.head.appendChild(jobRichStyle);
 PAGES.jobform=async()=>{
   const jl=getJL(),id=window._jobId||null,nt=window._jobNew||'repair';window._jobId=null;window._jobNew=null;
   let j={job_type:nt,job_date:new Date().toISOString(),customer_id:null,customer_code:'',customer_name:'',mobile:'',whatsapp:'',email:'',brand_model:'',item_ref:'',serial_no:'',product_id:'',issue:'',remarks:'',status:'Received',job_no:'',checks:{}};
   if(id)j=await run(sb.from('job_notes').select('*').eq('id',id).single());
   else{j.checks={service:nt==='warranty'?['Warranty']:nt==='service'?['Chargeable']:[],work:nt==='repair'?['Repair']:nt==='service'?['Diagnosis']:[]}}
-  JF={...j,id,checks:{product:[],service:[],accessories:[],work:[],product_other:'',accessories_other:'',work_other:'',...(j.checks||{})}};
+  JF={...j,id,checks:{product:[],service:[],accessories:[],work:[],technician:[],product_other:'',accessories_other:'',work_other:'',received_by:'',received_signature:'',...(j.checks||{})}};
+  if(!Array.isArray(JF.checks.technician))JF.checks.technician=[];
   const inp=(i,l,v,ex='')=>`<div><label>${l}</label><input id="${i}" value="${esc(v)}" ${ex}></div>`;
   $('#main').innerHTML=`<div class="top"><h2>${id?'Edit job note '+esc(j.job_no):'New '+JT[nt].toLowerCase()+' job note'}</h2><button class="btn sec" onclick="go('job_${JF.job_type}')">Back to list</button></div>
   <div class="card"><b>Customer profile</b>
@@ -1207,16 +1211,37 @@ PAGES.jobform=async()=>{
   <div class="card"><b>Product profile</b>
    <div style="margin-top:8px"><label>Product</label><div class="chkrow">${jcb('product',jl.products)}${jother('product',jl.products)}</div></div>
    <div class="bar" style="margin-top:10px">${inp('j_bm','Brand / model',JF.brand_model)}${inp('j_ir','Item / reference',JF.item_ref)}${inp('j_sn','Serial no',JF.serial_no)}${inp('j_pi','Product ID',JF.product_id)}</div>
-   <div style="margin-top:10px"><label>Issue reported</label><textarea id="j_is" rows="5">${esc(JF.issue)}</textarea></div>
+   <div style="margin-top:10px"><label>Issue reported</label>
+    <div class="jobrt"><div class="jobrtbar"><span>Text colour</span><input id="j_is_color" type="color" value="${esc(jl.issueColor||'#d00000')}" oninput="$('#j_is').style.color=this.value"></div>
+    <div id="j_is" class="jobrich" contenteditable="true" style="color:${esc(jl.issueColor||'#d00000')}">${richDisplay(JF.issue)}</div></div></div>
    <div style="margin-top:10px"><label>Service type</label><div class="chkrow">${jcb('service',jl.services)}</div></div>
    ${jl.showAcc?`<div style="margin-top:10px"><label>Accessories received</label><div class="chkrow">${jcb('accessories',jl.accessories)}${jother('accessories',jl.accessories)}</div></div>`:''}
-   <div style="margin-top:10px"><label>Work type</label><div class="chkrow">${jcb('work',jl.works)}${jother('work',jl.works)}</div></div></div>
-  ${jl.showRemarks?`<div class="card"><b>Remarks / condition notes</b><div style="margin-top:8px"><textarea id="j_rm" rows="4">${esc(JF.remarks)}</textarea></div></div>`:''}
+   <div style="margin-top:10px"><label>Work type</label><div class="chkrow">${jcb('work',jl.works)}${jother('work',jl.works)}</div></div>
+   ${jl.showTechnician?`<div style="margin-top:10px"><label>Technician / Handler</label><div class="chkrow">${jcb('technician',jl.technicians||[])}</div></div>`:''}
+   </div>
+  ${jl.showRemarks?`<div class="card"><b>Remarks / condition notes</b><div style="margin-top:8px"><div class="jobrt"><div class="jobrtbar"><span>Text colour</span><input id="j_rm_color" type="color" value="${esc(jl.remarksColor||'#d00000')}" oninput="$('#j_rm').style.color=this.value"><span class="mut">Default red</span></div><div id="j_rm" class="jobrich" contenteditable="true" style="color:${esc(jl.remarksColor||'#d00000')}">${richDisplay(JF.remarks)}</div></div></div></div>`:''}
+  ${jl.showReceivedSignature?`<div class="card"><b>Received person</b><div class="bar" style="margin-top:8px"><div><label>Received by</label><input id="j_received" value="${esc(JF.checks.received_by||'')}"></div></div>
+   <label style="margin-top:8px">Received person signature</label><div class="sigpadwrap"><canvas id="j_sig" width="650" height="170"></canvas><div class="bar" style="justify-content:flex-end;margin-top:5px"><div style="flex:0"><button class="btn sec sm" type="button" onclick="clearJobSignature()">Clear signature</button></div></div></div></div>`:''}
   <div class="bar" style="justify-content:flex-end"><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="jobSave(false)">Save</button></div><div style="flex:0;white-space:nowrap"><button class="btn" onclick="jobSave(true)">Save &amp; print</button></div></div>`;
+  initJobSignature();
 };
-const JKEY={product:'products',service:'services',accessories:'accessories',work:'works'};
+const JKEY={product:'products',service:'services',accessories:'accessories',work:'works',technician:'technicians'};
 const jcb=(g,list)=>list.map((x,i)=>`<label class="chk jchk"><input type="checkbox" ${JF.checks[g].includes(x)?'checked':''} onchange="jobTick('${g}',${i},this.checked)"> ${esc(x)}</label>`).join('');
 const jother=(g,list)=>list.some(x=>/other/i.test(x))?`<input style="max-width:220px" placeholder="Other - specify" value="${esc(JF.checks[g+'_other']||'')}" oninput="JF.checks['${g}_other']=this.value">`:'';
+const richDisplay=v=>String(v||'').replace(/\n/g,'<br>');
+const richTextHtml=v=>{const d=document.createElement('div');d.innerHTML=String(v||'');d.querySelectorAll('script,style,iframe,object,embed,link,meta').forEach(x=>x.remove());d.querySelectorAll('*').forEach(x=>{[...x.attributes].forEach(a=>{if(/^on/i.test(a.name)||a.name==='href'||a.name==='src')x.removeAttribute(a.name)});});return d.innerHTML};
+function initJobSignature(){
+  const c=$('#j_sig');if(!c)return;const ctx=c.getContext('2d');ctx.lineWidth=2;ctx.lineCap='round';ctx.strokeStyle='#111';let drawing=false;
+  const pos=e=>{const r=c.getBoundingClientRect(),p=e.touches?e.touches[0]:e;return {x:(p.clientX-r.left)*c.width/r.width,y:(p.clientY-r.top)*c.height/r.height}};
+  const down=e=>{e.preventDefault();drawing=true;const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y)};
+  const move=e=>{if(!drawing)return;e.preventDefault();const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke()};
+  const up=e=>{if(!drawing)return;drawing=false;JF.checks.received_signature=c.toDataURL('image/png')};
+  ['mousedown','touchstart'].forEach(x=>c.addEventListener(x,down,{passive:false}));
+  ['mousemove','touchmove'].forEach(x=>c.addEventListener(x,move,{passive:false}));
+  ['mouseup','mouseleave','touchend','touchcancel'].forEach(x=>c.addEventListener(x,up,{passive:false}));
+  if(JF.checks.received_signature){const im=new Image();im.onload=()=>ctx.drawImage(im,0,0,c.width,c.height);im.src=JF.checks.received_signature}
+}
+function clearJobSignature(){const c=$('#j_sig');if(!c)return;c.getContext('2d').clearRect(0,0,c.width,c.height);JF.checks.received_signature=''}
 function jobTick(g,i,on){const x=getJL()[JKEY[g]][i],a=JF.checks[g],k=a.indexOf(x);if(on&&k<0)a.push(x);if(!on&&k>=0)a.splice(k,1)}
 function jobCustSearch(v){
   clearTimeout(JCS_T);
@@ -1230,8 +1255,12 @@ function jobCustSearch(v){
 function jobCustFill(c){JF.customer_id=c.id;JF.customer_code=c.code;$('#j_cc').value=c.code||'';$('#j_cn').value=c.name||'';$('#j_mo').value=c.phone||'';$('#j_em').value=c.email||'';$('#jcs').value='';$('#jcs_res').innerHTML=''}
 function jobCustClear(){JF.customer_id=null;JF.customer_code='';['j_cc','j_cn','j_mo','j_wa','j_em','jcs'].forEach(x=>$('#'+x).value='');$('#jcs_res').innerHTML=''}
 async function jobSave(print){
+  const issueEl=$('#j_is'),remarksEl=$('#j_rm');
+  if(issueEl)JF.issue=richTextHtml(issueEl.innerHTML);
+  if(remarksEl)JF.remarks=richTextHtml(remarksEl.innerHTML);
+  if($('#j_received'))JF.checks.received_by=$('#j_received').value.trim();
   const row={job_type:$('#j_ty').value,customer_id:JF.customer_id||null,customer_code:JF.customer_code||'',customer_name:$('#j_cn').value.trim(),mobile:$('#j_mo').value.trim(),whatsapp:$('#j_wa').value.trim(),email:$('#j_em').value.trim(),
-    brand_model:$('#j_bm').value.trim(),item_ref:$('#j_ir').value.trim(),serial_no:$('#j_sn').value.trim(),product_id:$('#j_pi').value.trim(),issue:$('#j_is').value,remarks:($('#j_rm')||{value:JF.remarks}).value,status:$('#j_st').value,checks:JF.checks};
+    brand_model:$('#j_bm').value.trim(),item_ref:$('#j_ir').value.trim(),serial_no:$('#j_sn').value.trim(),product_id:$('#j_pi').value.trim(),issue:JF.issue||'',remarks:JF.remarks||'',status:$('#j_st').value,checks:JF.checks};
   if(hasP('backdate'))row.job_date=new Date($('#j_dt').value).toISOString();
   if(!row.customer_name)return toast('Enter the customer name',true);
   const rec=JF.id?await run(sb.from('job_notes').update(row).eq('id',JF.id).select().single()):await run(sb.from('job_notes').insert(row).select().single());
@@ -1248,6 +1277,16 @@ function jobPrintDoc(j){
   const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
   f.contentDocument.open();f.contentDocument.write(doc);f.contentDocument.close();
   setTimeout(()=>{f.contentWindow.focus();f.contentWindow.print();setTimeout(()=>f.remove(),60000)},500);
+}
+function isSafeSig(v){return typeof v==='string' && /^data:image\/png;base64,/.test(v)}
+function safeRich(v,defaultColor){
+  const s=String(v||'');if(!s)return '';
+  if(!/<[a-z][\s\S]*>/i.test(s))return esc(s).replace(/\n/g,'<br>');
+  const d=document.createElement('div');d.innerHTML=s;
+  d.querySelectorAll('script,style,iframe,object,embed,link,meta').forEach(x=>x.remove());
+  d.querySelectorAll('*').forEach(x=>{[...x.attributes].forEach(a=>{if(/^on/i.test(a.name)||a.name==='href'||a.name==='src')x.removeAttribute(a.name)});});
+  if(defaultColor)d.style.color=defaultColor;
+  return d.innerHTML;
 }
 function jobDoc(j,jl,co,pv){
   const A=jl.accent||'#e8731a',M=+jl.margin>=0?+jl.margin:7,fs=+jl.fontSize||10.5,W=210-2*M,H=297-2*M;
@@ -1269,7 +1308,7 @@ html,body{margin:0}body{font:${fs}px/1.3 Arial,Helvetica,sans-serif;color:#111;$
 .v{flex:1;border-bottom:1px solid #c4c4c4;min-height:4.6mm;padding:0 1mm;overflow-wrap:anywhere}
 .chk2{display:flex;align-items:center;gap:6mm;flex-wrap:wrap;padding:1.2mm 3mm;border-bottom:1px solid #6a6a6a;min-height:8mm}.chk2:last-child{border-bottom:0}.chk2>b{min-width:25mm;font-size:${fs*.92}px}
 .ci{display:inline-flex;align-items:center;gap:1.8mm;margin-right:4mm}.cb{display:inline-block;width:4.2mm;height:4.2mm;border:1.2px solid #444;text-align:center;line-height:3.6mm;font-style:normal;font-weight:700;font-size:${fs*1.1}px;font-family:'Segoe UI Symbol','DejaVu Sans',Arial,sans-serif}
-.is{display:flex;border-bottom:1px solid #6a6a6a}.is>b{width:31mm;padding:1.5mm 3mm;border-right:1px solid #6a6a6a;font-size:${fs*.92}px}
+.is{display:flex;border-bottom:1px solid #6a6a6a}.is>b{width:31mm;padding:1.5mm 3mm;border-right:1px solid #6a6a6a;font-size:${fs*.92}px}\n  .rich{white-space:normal}.rich p{margin:0}.rich ul,.rich ol{margin:0 0 0 5mm;padding:0}.rich img{max-width:100%}.techrow{padding:1.5mm 3mm;border-bottom:1px solid #6a6a6a}.sigbox{padding:1.5mm 3mm;display:flex;justify-content:space-between;gap:8mm;align-items:flex-end}.sigbox .received{flex:1}.sigbox img{max-width:55mm;max-height:20mm;display:block}.sigline{border-top:1px solid #444;min-width:48mm;text-align:center;padding-top:.5mm;font-size:${fs*.72}px}
 .ruled{flex:1;line-height:6.4mm;min-height:32mm;padding:0 3mm;white-space:pre-wrap;background-image:linear-gradient(to bottom,transparent calc(6.4mm - 1px),#c9c9c9 calc(6.4mm - 1px));background-size:100% 6.4mm}
 .txt{padding:1.6mm 3mm;font-size:${fs*.82}px;line-height:1.35}
 .sigrow{display:flex;justify-content:flex-end;gap:10mm;align-items:flex-end;padding:0 3mm 1.5mm}.sigrow div{border-top:1px solid #444;font-size:${fs*.72}px;text-align:center;padding-top:.5mm;min-width:48mm}
@@ -1281,12 +1320,12 @@ html,body{margin:0}body{font:${fs}px/1.3 Arial,Helvetica,sans-serif;color:#111;$
   <div class="jc"><div><b>${esc(co.n)}</b><div>${esc(addr)}</div>${(jl.email||getLY().email)?`<div>Email: ${esc(jl.email||getLY().email)}</div>`:''}</div><div class="ct">${esc(contact)}</div></div>
   ${sec('CUSTOMER PROFILE',`<div class="gr">${cell('DATE / TIME',fmtDT(j.job_date),1)}${cell('JOB NO',j.job_no||'',1)}</div><div class="gr">${cell('CUSTOMER',(j.customer_name||'')+(j.customer_code?'  ('+j.customer_code+')':''),1)}${cell('MOBILE',j.mobile||'',1)}</div><div class="gr">${cell('EMAIL',j.email||'',1)}${cell('WHATSAPP',j.whatsapp||'',1)}</div>`)}
   ${sec('PRODUCT PROFILE',`<div class="chk2"><b>PRODUCT</b>${ci('product',jl.products,'product_other')}</div><div class="gr">${cell('BRAND / MODEL',j.brand_model||'',1)}${cell('ITEM / REFERENCE',j.item_ref||'',1)}</div><div class="gr">${cell('SERIAL NO.',j.serial_no||'',1)}${cell('PRODUCT ID',j.product_id||'',1)}</div>
-   <div class="is"><b>ISSUE REPORTED</b><div class="ruled">${esc(j.issue||'').replace(/\n/g,'<br>')}</div></div>
-   <div class="chk2"><b>SERVICE TYPE</b>${ci('service',jl.services,'service_other')}</div>${jl.showAcc?`<div class="chk2"><b>ACCESSORIES</b>${ci('accessories',jl.accessories,'accessories_other')}</div>`:''}<div class="chk2"><b>WORK TYPE</b>${ci('work',jl.works,'work_other')}</div>`)}
-  ${jl.showRemarks?sec('REMARKS / CONDITION NOTES',`<div class="ruled" style="min-height:26mm;padding-top:0">${esc(j.remarks||'').replace(/\n/g,'<br>')}</div>`):''}
+   <div class="is"><b>ISSUE REPORTED</b><div class="ruled rich" style="color:${esc(jl.issueColor||'#d00000')}">${safeRich(j.issue||'',jl.issueColor||'#d00000')}</div></div>
+   <div class="chk2"><b>SERVICE TYPE</b>${ci('service',jl.services,'service_other')}</div>${jl.showAcc?`<div class="chk2"><b>ACCESSORIES</b>${ci('accessories',jl.accessories,'accessories_other')}</div>`:''}<div class="chk2"><b>WORK TYPE</b>${ci('work',jl.works,'work_other')}</div>${jl.showTechnician?`<div class="techrow"><b>TECHNICIAN / HANDLER:</b> ${ci('technician',jl.technicians||[],'technician_other')}</div>`:''}`)}
+   ${jl.showRemarks?sec('REMARKS / CONDITION NOTES',`<div class="ruled rich" style="min-height:26mm;padding-top:0;color:${esc(jl.remarksColor||'#d00000')}">${safeRich(j.remarks||'',jl.remarksColor||'#d00000')}</div>`):''}
   ${jl.showRules?sec('RULES &amp; REGULATIONS',`<div class="txt">${esc(jl.rules).replace(/\n/g,'<br>')}</div>`):''}
   ${jl.showAuth?sec('CUSTOMER AUTHORIZATION',`<div class="txt" style="display:flex;justify-content:space-between;gap:8mm;align-items:flex-end"><span>${esc(jl.auth)}</span><span class="sigrow" style="padding:0"><div>CUSTOMER SIGNATURE</div></span></div>`,'sgs'):''}
-  ${jl.showDel?sec('DELIVERY ACKNOWLEDGEMENT',`<div class="txt" style="display:flex;justify-content:space-between;gap:8mm;align-items:flex-end"><span>${esc(jl.delivery)}</span><span class="sigrow" style="padding:0"><div style="min-width:34mm">DATE</div><div>CUSTOMER SIGNATURE</div></span></div>`,'sgs'):''}
+   ${jl.showDel?sec('DELIVERY ACKNOWLEDGEMENT',`<div class="txt">${esc(jl.delivery)}</div>${jl.showReceivedSignature?`<div class="sigbox"><div class="received"><b style="color:${esc(jl.receivedColor||'#111')}">RECEIVED BY:</b> ${esc(ch.received_by||'')}</div>${isSafeSig(ch.received_signature)?`<div><img src="${esc(ch.received_signature)}"><div class="sigline" style="color:${esc(jl.receivedColor||'#111')}">RECEIVED PERSON SIGNATURE</div></div>`:`<div class="sigline" style="color:${esc(jl.receivedColor||'#111')}">RECEIVED PERSON SIGNATURE</div>`}<div class="sigline">DATE</div></div>`:''}`,'sgs'):''}
   ${jl.showFoot?`<div class="spacer"></div><div class="foot"><span>${esc(foot)}</span></div>`:''}
   </div></div>`;
   return `<html><head><meta charset="utf-8"><title>${esc(j.job_no||'Job note')}</title><style>${css}</style></head><body>${html}</body></html>`;
@@ -1312,9 +1351,12 @@ PAGES.jobeditor=async()=>{
     <div class="bar" style="margin-top:8px">${tx('je_t1','Title',jl.title)}${tx('je_t2','Sub title',jl.subtitle)}</div></div>
    <div class="card"><b>Tick-box lists (one per line)</b>
     ${ta('je_pl','Product',jl.products.join('\n'),5)}${ta('je_sl','Service type',jl.services.join('\n'),3)}${ta('je_al','Accessories',jl.accessories.join('\n'),5)}${ta('je_wl','Work type',jl.works.join('\n'),4)}
-    <div class="mut" style="margin-top:6px">A line named "Other" gets a small text box on the form.</div></div>
+   <div class="card"><b>Tick-box lists (one per line)</b>
+    ${ta('je_pl','Product',jl.products.join('\n'),5)}${ta('je_sl','Service type',jl.services.join('\n'),3)}${ta('je_al','Accessories',jl.accessories.join('\n'),5)}${ta('je_wl','Work type',jl.works.join('\n'),4)}${ta('je_tl','Technician / Handler names (3 or more)',(jl.technicians||[]).join('\n'),5)}
+    <div class="mut" style="margin-top:6px">Add as many technician / handler names as you need, one per line. Staff can select multiple technicians on a job.</div></div>
+   <div class="card"><b>Job note text colours</b><div class="bar" style="margin-top:8px"><div><label>Issue reported font</label><input id="je_ic" type="color" value="${esc(jl.issueColor||'#d00000')}" oninput="jePrev()" style="padding:2px;height:34px"></div><div><label>Remarks / condition notes font</label><input id="je_rc" type="color" value="${esc(jl.remarksColor||'#d00000')}" oninput="jePrev()" style="padding:2px;height:34px"></div><div><label>Technician / handler font</label><input id="je_tc" type="color" value="${esc(jl.technicianColor||'#111111')}" oninput="jePrev()" style="padding:2px;height:34px"></div><div><label>Received signature font</label><input id="je_rec_c" type="color" value="${esc(jl.receivedColor||'#111111')}" oninput="jePrev()" style="padding:2px;height:34px"></div></div><div class="mut" style="margin-top:6px">Issue Reported and Remarks / Condition Notes are red by default. Change the colours here anytime.</div></div>
    <div class="card"><b>Texts</b>${ta('je_ru','Rules &amp; regulations',jl.rules,5)}${ta('je_au','Customer authorization',jl.auth,2)}${ta('je_de','Delivery acknowledgement',jl.delivery,2)}${tx('je_ft','Footer bar text (empty = shop | address | phone)',jl.footer)}</div>
-   <div class="card"><b>Show / hide sections</b>${ck('je_sa',jl.showAcc,'Accessories row')}${ck('je_sr',jl.showRemarks,'Remarks / condition notes')}${ck('je_su',jl.showRules,'Rules &amp; regulations')}${ck('je_sh',jl.showAuth,'Customer authorization')}${ck('je_sd',jl.showDel,'Delivery acknowledgement')}${ck('je_sf',jl.showFoot,'Footer bar')}
+   <div class="card"><b>Show / hide sections</b>${ck('je_sa',jl.showAcc,'Accessories row')}${ck('je_sr',jl.showRemarks,'Remarks / condition notes')}${ck('je_su',jl.showRules,'Rules &amp; regulations')}${ck('je_sh',jl.showAuth,'Customer authorization')}${ck('je_sd',jl.showDel,'Delivery acknowledgement')}${ck('je_sf',jl.showFoot,'Footer bar')}${ck('je_sth',jl.showTechnician!==false,'Technician / handler')}${ck('je_srs',jl.showReceivedSignature!==false,'Received person signature')}
     <div class="row" style="margin-top:8px"><label>Base font size</label><select id="je_fs" onchange="jePrev()">${[0,9,10,11,12].map(n=>`<option value="${n}" ${+jl.fontSize===n?'selected':''}>${n?n+' px':'Auto'}</option>`).join('')}</select></div></div>
   </div>
   <div class="card"><b>Live preview</b><div class="bar" style="margin:8px 0"><div style="flex:0 0 130px"><label>Zoom</label><select id="je_zoom" onchange="jePrev()"><option value="fit">Fit</option><option value="1">100%</option><option value="0.75">75%</option><option value="0.5">50%</option></select></div><div class="mut" style="flex:2">Sample data with some boxes ticked.</div></div><div id="jpw" style="overflow:hidden;position:relative;border:1px solid var(--line);border-radius:5px;background:#dfe3e8"><iframe id="je_pv" style="width:830px;height:1200px;border:0;display:block"></iframe></div></div></div>`;
@@ -1326,13 +1368,13 @@ function jeRead(){
   const g=id=>$('#'+id);
   return {co:{n:g('je_n').value,a:g('je_a').value,p:g('je_p').value},
    jl:{useInvLogo:g('je_ul').checked,logo:JLLOGO,logoH:+g('je_lh').value||60,accent:g('je_ac').value,margin:+g('je_mg').value||7,title:g('je_t1').value||'JOB NOTE',subtitle:g('je_t2').value,contact:g('je_ct').value,email:g('je_em').value.trim(),footer:g('je_ft').value,
-    products:jeLines('je_pl'),services:jeLines('je_sl'),accessories:jeLines('je_al'),works:jeLines('je_wl'),rules:g('je_ru').value,auth:g('je_au').value,delivery:g('je_de').value,
+    products:jeLines('je_pl'),services:jeLines('je_sl'),accessories:jeLines('je_al'),works:jeLines('je_wl'),technicians:jeLines('je_tl'),issueColor:g('je_ic').value,remarksColor:g('je_rc').value,technicianColor:g('je_tc').value,receivedColor:g('je_rec_c').value,rules:g('je_ru').value,auth:g('je_au').value,delivery:g('je_de').value,
     showAcc:g('je_sa').checked,showRemarks:g('je_sr').checked,showRules:g('je_su').checked,showAuth:g('je_sh').checked,showDel:g('je_sd').checked,showFoot:g('je_sf').checked,fontSize:+g('je_fs').value||0}};
 }
 function jePrev(){
   const {co,jl}=jeRead();
   const j={job_no:'WR-00001',job_date:new Date().toISOString(),customer_name:'Sample Customer',customer_code:'CUS-0001',mobile:'0771234567',whatsapp:'0771234567',email:'sample@mail.com',brand_model:'ASUS Vivobook X1504VA',item_ref:'LAP-0001',serial_no:'SN1234567890',product_id:'P-1001',
-    issue:'Laptop does not power on.\nBattery not charging.',remarks:'Small scratch on the lid.',checks:{product:[jl.products[0]],service:[jl.services[2]||jl.services[0]],accessories:[jl.accessories[0]],work:[jl.works[0]]}};
+    issue:'Laptop does not power on.\nBattery not charging.',remarks:'Small scratch on the lid.',checks:{product:[jl.products[0]],service:[jl.services[2]||jl.services[0]],accessories:[jl.accessories[0]],work:[jl.works[0]],technician:[(jl.technicians||[])[0]],received_by:'Received Person'}};
   const f=$('#je_pv'),zs=$('#je_zoom').value,ww=$('#jpw').clientWidth||830,z=zs==='fit'?Math.min(1,(ww-4)/830):+zs;
   f.srcdoc=jobDoc(j,jl,{n:co.n||'Company',a:co.a,p:co.p},true);
   f.style.transform='scale('+z+')';f.style.transformOrigin='0 0';$('#jpw').style.height=Math.round(1200*z+2)+'px';
