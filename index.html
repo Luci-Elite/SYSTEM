@@ -1146,7 +1146,7 @@ function repPrint(){if(!window._rep)return;printHtml(window._rep.title,`<h2>${es
 /* ---------------- Job notes (Warranty / Repair / Service) ---------------- */
 const JT={warranty:'Warranty',repair:'Repair',service:'Service'};
 const JSTAT=['Received','In progress','Waiting parts','Completed','Delivered'];
-const JL_DEF={useInvLogo:true,logo:'',logoH:60,accent:'#e8731a',title:'JOB NOTE',subtitle:'SERVICE INTAKE / REPAIR RECORD',contact:'',footer:'',margin:7,fontSize:0,
+const JL_DEF={useInvLogo:true,logo:'',logoH:60,accent:'#e8731a',title:'JOB NOTE',subtitle:'SERVICE INTAKE / REPAIR RECORD',contact:'',email:'',footer:'',margin:7,fontSize:0,
   products:['Laptop','Desktop','Printer','Monitor','Other'],services:['Chargeable','Service warranty','Warranty'],accessories:['Adapter','Power cord','Bag','USB cable','Other'],works:['Diagnosis','Repair','Upgrade','Other'],
   rules:'A hard disk or operating system failure may require formatting and cause data loss. Please back up important data and programs before handing over any device. LAPTOPCARE WILL NOT BE RESPONSIBLE FOR LOSS OF DATA. Customers will be informed when repairs are complete and are requested to collect items within 14 days. Items uncollected after 30 days may incur storage charges; the original collection and disposal conditions apply.',
   auth:'I agree to the conditions stated above and authorize inspection / repair.',delivery:'I received the above item(s) in good condition.',
@@ -1278,7 +1278,7 @@ html,body{margin:0}body{font:${fs}px/1.3 Arial,Helvetica,sans-serif;color:#111;$
 .spacer{height:2.6mm}`;
   const html=`<div class="sheet"><div class="jp">
   <div class="jh"><div>${logo?`<img src="${logo}" style="height:${jl.logoH}px">`:''}</div><div><div class="t1">${esc(jl.title)}</div><div class="t2">${esc(jl.subtitle)}</div></div></div>
-  <div class="jc"><div><b>${esc(co.n)}</b><div>${esc(addr)}</div></div><div class="ct">${esc(contact)}</div></div>
+  <div class="jc"><div><b>${esc(co.n)}</b><div>${esc(addr)}</div>${(jl.email||getLY().email)?`<div>Email: ${esc(jl.email||getLY().email)}</div>`:''}</div><div class="ct">${esc(contact)}</div></div>
   ${sec('CUSTOMER PROFILE',`<div class="gr">${cell('DATE / TIME',fmtDT(j.job_date),1)}${cell('JOB NO',j.job_no||'',1)}</div><div class="gr">${cell('CUSTOMER',(j.customer_name||'')+(j.customer_code?'  ('+j.customer_code+')':''),1)}${cell('MOBILE',j.mobile||'',1)}</div><div class="gr">${cell('EMAIL',j.email||'',1)}${cell('WHATSAPP',j.whatsapp||'',1)}</div>`)}
   ${sec('PRODUCT PROFILE',`<div class="chk2"><b>PRODUCT</b>${ci('product',jl.products,'product_other')}</div><div class="gr">${cell('BRAND / MODEL',j.brand_model||'',1)}${cell('ITEM / REFERENCE',j.item_ref||'',1)}</div><div class="gr">${cell('SERIAL NO.',j.serial_no||'',1)}${cell('PRODUCT ID',j.product_id||'',1)}</div>
    <div class="is"><b>ISSUE REPORTED</b><div class="ruled">${esc(j.issue||'').replace(/\n/g,'<br>')}</div></div>
@@ -1304,7 +1304,7 @@ PAGES.jobeditor=async()=>{
    <div class="card"><b>Shop details (same as the invoice)</b>
     <div class="row" style="margin-top:8px"><label>Shop name</label><input id="je_n" value="${esc(co.n)}" oninput="jePrev()"></div>
     ${ta('je_a','Address',co.a,2)}
-    <div class="bar" style="margin-top:8px">${tx('je_p','Phone',co.p)}${tx('je_ct','Contact text on the right (empty = Contact: phone)',jl.contact)}</div></div>
+    <div class="bar" style="margin-top:8px">${tx('je_p','Phone',co.p)}${tx('je_ct','Contact text on the right (empty = Contact: phone)',jl.contact)}${tx('je_em','Email (shown under the address; empty = invoice email)',jl.email)}</div></div>
    <div class="card"><b>Logo, title and colour</b>
     ${ck('je_ul',jl.useInvLogo,'Use the same logo as the invoice')}
     <div class="row"><label>Or upload a different logo</label><input id="je_lf" type="file" accept="image/*" onchange="jeLogo(this)"></div>
@@ -1325,7 +1325,7 @@ const jeLines=id=>$('#'+id).value.split('\n').map(x=>x.trim()).filter(Boolean);
 function jeRead(){
   const g=id=>$('#'+id);
   return {co:{n:g('je_n').value,a:g('je_a').value,p:g('je_p').value},
-   jl:{useInvLogo:g('je_ul').checked,logo:JLLOGO,logoH:+g('je_lh').value||60,accent:g('je_ac').value,margin:+g('je_mg').value||7,title:g('je_t1').value||'JOB NOTE',subtitle:g('je_t2').value,contact:g('je_ct').value,footer:g('je_ft').value,
+   jl:{useInvLogo:g('je_ul').checked,logo:JLLOGO,logoH:+g('je_lh').value||60,accent:g('je_ac').value,margin:+g('je_mg').value||7,title:g('je_t1').value||'JOB NOTE',subtitle:g('je_t2').value,contact:g('je_ct').value,email:g('je_em').value.trim(),footer:g('je_ft').value,
     products:jeLines('je_pl'),services:jeLines('je_sl'),accessories:jeLines('je_al'),works:jeLines('je_wl'),rules:g('je_ru').value,auth:g('je_au').value,delivery:g('je_de').value,
     showAcc:g('je_sa').checked,showRemarks:g('je_sr').checked,showRules:g('je_su').checked,showAuth:g('je_sh').checked,showDel:g('je_sd').checked,showFoot:g('je_sf').checked,fontSize:+g('je_fs').value||0}};
 }
