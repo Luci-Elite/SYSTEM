@@ -1340,7 +1340,7 @@ html,body{margin:0}body{font:${fs}px/1.3 Arial,Helvetica,sans-serif;color:#111;$
    ${jl.showRemarks?sec('REMARKS / CONDITION NOTES',`<div class="ruled rich" style="min-height:20mm;padding-top:0;color:${esc(jl.remarksColor||'#d00000')}">${safeRich(j.remarks||'',jl.remarksColor||'#d00000')}</div>`):''}
   ${jl.showRules?sec('RULES &amp; REGULATIONS',`<div class="txt">${esc(jl.rules).replace(/\n/g,'<br>')}</div>`):''}
   ${jl.showAuth?sec('CUSTOMER AUTHORIZATION',`<div class="txt" style="display:flex;justify-content:space-between;gap:8mm;align-items:flex-end"><span>${esc(jl.auth)}</span><span class="sigrow" style="padding:0"><div>CUSTOMER SIGNATURE</div></span></div>`,'sgs'):''}
-   ${jl.showDel?sec('DELIVERY ACKNOWLEDGEMENT',`<div class="txt">${esc(jl.delivery)}</div>${jl.showReceivedSignature?`<div class="sigbox"><div class="received"><b style="color:${esc(jl.receivedColor||'#111')}">RECEIVED BY:</b> ${esc(ch.received_by||'')}</div><div class="sigline handSig" style="color:${esc(jl.receivedColor||'#111')}">RECEIVED PERSON SIGNATURE</div><div class="sigline">DATE</div></div>`:''}`,'sgs'):''}
+   ${jl.showDel?sec('DELIVERY ACKNOWLEDGEMENT',`<div class="txt">${esc(jl.delivery)}</div>${jl.showReceivedSignature?`<div class="sigline handSig" style="color:${esc(jl.receivedColor||'#111')}">RECEIVED PERSON SIGNATURE</div><div class="sigline">DATE</div></div>`:''}`,'sgs'):''}
   ${jl.showFoot?`<div class="spacer"></div><div class="foot"><span>${esc(foot)}</span></div>`:''}
   </div></div>`;
   return `<html><head><meta charset="utf-8"><title>${esc(j.job_no||'Job note')}</title><style>${css}</style></head><body>${html}</body></html>`;
