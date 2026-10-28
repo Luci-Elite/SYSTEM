@@ -1254,7 +1254,7 @@ function jobWhatsAppUrl(j){
   if(!n)return '';
   const name=$('#j_cn')?.value.trim()||'Customer';
   const no=j?.job_no||'(pending)';
-  const msg=`Hi ${name},\n\nWe have received your laptop/device at Tech Emporium for service.\n\nJob No: ${no}\n\nWe will keep you updated regarding the service/repair.\n\nThank you,\nTech Emporium`;
+  const msg=`Hi ${name},\n\nWe have received your laptop/device at Laptopcare (Pvt) Ltd for service.\n\nJob No: ${no}\n\nWe will keep you updated regarding the service/repair.\n\nThank you,\nLaptopcare Pvt Ltd`;
   return `https://wa.me/${n}?text=${encodeURIComponent(msg)}`;
 }
 async function jobSaveWhatsApp(){
