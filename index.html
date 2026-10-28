@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stock & Invoice System</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 <div id="cssWarn" style="background:#b42318;color:#fff;padding:12px 16px;font:14px Arial,sans-serif">style.css was not found. Upload <b>style.css</b> into the same folder as index.html on GitHub (same level, same name), then reload this page.</div>
@@ -76,7 +76,7 @@ const today = () => { const d = new Date(); return d.getFullYear() + '-' + Strin
 let sb, me, items = [], settings = {};
 const isAdmin = () => me && me.role === 'admin';
 const hasP = k => isAdmin() || (me && (me.perms || []).includes(k));
-const PERMS=[['invoice','Create invoice'],['invoices','View / reprint invoices'],['stock','Stock check'],['serial','Serial number check'],['grn','GRN (goods received)'],['items','Add items and categories'],['customers','Create customers'],['suppliers','Create suppliers'],['reports','Sales reports'],['cost','See cost prices'],['profit','See profit in sales report'],['price','Change price on invoice'],['backdate','Change invoice / GRN date']];
+const PERMS=[['invoice','Create invoice'],['invoices','View / reprint invoices'],['stock','Stock check'],['serial','Serial number check'],['grn','GRN (goods received)'],['items','Add items and categories'],['customers','Create customers'],['suppliers','Create suppliers'],['reports','Sales reports'],['jobs','Job notes (create, change status)'],['cost','See cost prices'],['profit','See profit in sales report'],['price','Change price on invoice'],['backdate','Change invoice / GRN date']];
 const DEF_PERMS=['invoice','invoices'];
 const permBoxes=(pre,sel)=>PERMS.map(([k,l])=>`<label class="chk"><input type="checkbox" id="${pre}_${k}" ${sel.includes(k)?'checked':''}> ${l}</label>`).join('');
 const permRead=pre=>PERMS.filter(([k])=>$('#'+pre+'_'+k).checked).map(([k])=>k);
@@ -181,7 +181,8 @@ function buildNav(){
   [['stock','Stock check','stock'],['serial','Serial check','serial'],['invoice','New invoice','invoice'],['invoices','Invoices','invoices'],['grn','GRN','grn'],['reports','Sales report','reports']].forEach(([k,l,pm])=>{if(hasP(pm))a.push(L(k,l))});
   const gen=[['items','Items','items'],['cats','Categories','items'],['customers','Customers','customers'],['suppliers','Suppliers','suppliers'],['reps','Sales reps','ADMIN']].filter(x=>x[2]==='ADMIN'?isAdmin():hasP(x[2]));
   if(gen.length)a.push(`<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">General &#9662;</a><div class="sub">${gen.map(g=>L(g[0],g[1])).join('')}</div></div>`);
-  if(isAdmin())a.push(L('users','Users'),L('settings','Invoice editor'));
+  if(hasP('jobs'))a.push(`<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">Job note &#9662;</a><div class="sub">${[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
+  if(isAdmin())a.push(L('users','Users'),L('settings','Invoice editor'),L('jobeditor','Job note editor'));
   $('#nav').innerHTML=a.join('');
 }
 async function afterLogin(uid){
@@ -200,8 +201,8 @@ async function logout(){await sb.auth.signOut();location.reload()}
 
 const PAGES={};
 async function go(p){
-  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports'};
-  if((need[p]&&!hasP(need[p]))||((p==='users'||p==='settings'||p==='reps')&&!isAdmin()))p='dash';
+  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs'};
+  if((need[p]&&!hasP(need[p]))||((p==='users'||p==='settings'||p==='reps'||p==='jobeditor')&&!isAdmin()))p='dash';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
   const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('open')}
   $('#main').innerHTML='<p class="mut">Loading…</p>';
@@ -1142,6 +1143,211 @@ async function repBuy(){
   window._rep.html+=$('#r_buy').innerHTML;
 }
 function repPrint(){if(!window._rep)return;printHtml(window._rep.title,`<h2>${esc(window._rep.title)}</h2><div>${esc(settings.company_name||'')}</div><p><b>${window._rep.sum}</b></p>${window._rep.html}`,'@page{size:A4 landscape;margin:10mm}th,td{font-size:11px}')}
+/* ---------------- Job notes (Warranty / Repair / Service) ---------------- */
+const JT={warranty:'Warranty',repair:'Repair',service:'Service'};
+const JSTAT=['Received','In progress','Waiting parts','Completed','Delivered'];
+const JL_DEF={useInvLogo:true,logo:'',logoH:60,accent:'#e8731a',title:'JOB NOTE',subtitle:'SERVICE INTAKE / REPAIR RECORD',contact:'',footer:'',margin:7,fontSize:0,
+  products:['Laptop','Desktop','Printer','Monitor','Other'],services:['Chargeable','Service warranty','Warranty'],accessories:['Adapter','Power cord','Bag','USB cable','Other'],works:['Diagnosis','Repair','Upgrade','Other'],
+  rules:'A hard disk or operating system failure may require formatting and cause data loss. Please back up important data and programs before handing over any device. LAPTOPCARE WILL NOT BE RESPONSIBLE FOR LOSS OF DATA. Customers will be informed when repairs are complete and are requested to collect items within 14 days. Items uncollected after 30 days may incur storage charges; the original collection and disposal conditions apply.',
+  auth:'I agree to the conditions stated above and authorize inspection / repair.',delivery:'I received the above item(s) in good condition.',
+  showAcc:true,showRemarks:true,showRules:true,showAuth:true,showDel:true,showFoot:true};
+function getJL(){let o={};try{o=JSON.parse(settings.job_layout||'{}')}catch(e){}return {...JL_DEF,...o}}
+const jobLogo=jl=>jl.useInvLogo?getLY().logo:jl.logo;
+const toLocalDT=iso=>{const d=iso?new Date(iso):new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'T'+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
+const fmtDT=iso=>{if(!iso)return '';const d=new Date(iso);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
+
+/* ----- list pages (sub tabs) ----- */
+let JTYPE='warranty',JQ_T;
+PAGES.job_warranty=()=>jobList('warranty');
+PAGES.job_repair=()=>jobList('repair');
+PAGES.job_service=()=>jobList('service');
+async function jobList(type){
+  JTYPE=type;
+  $('#main').innerHTML=`<div class="top"><h2>${JT[type]} job notes</h2><div class="bar"><div style="flex:0;white-space:nowrap"><button class="btn" onclick="jobNew('${type}')">+ New ${JT[type].toLowerCase()} job note</button></div><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="printJobBlank()">Print blank form</button></div></div></div>
+  <div class="card"><div class="bar"><div><label>Status</label><select id="jf_s" onchange="jobLoad()"><option value="">All</option>${JSTAT.map(x=>`<option>${x}</option>`).join('')}</select></div>
+   <div><label>From</label><input id="jf_f" type="date" onchange="jobLoad()"></div><div><label>To</label><input id="jf_t" type="date" onchange="jobLoad()"></div>
+   <div style="flex:2"><label>Search (job no, customer, mobile, serial)</label><input id="jf_q" oninput="clearTimeout(JQ_T);JQ_T=setTimeout(jobLoad,300)"></div></div></div>
+  <div class="tw"><table><thead><tr><th>Job no</th><th>Date</th><th>Customer</th><th>Product</th><th>Issue</th><th>Status</th><th></th></tr></thead><tbody id="jbt"></tbody></table></div>`;
+  jobLoad();
+}
+async function jobLoad(){
+  let b=sb.from('job_notes').select('*').eq('job_type',JTYPE).order('id',{ascending:false}).limit(300);
+  const s=$('#jf_s').value,f=$('#jf_f').value,t=$('#jf_t').value,q=$('#jf_q').value.trim().replace(/[,()%]/g,' ');
+  if(s)b=b.eq('status',s);if(f)b=b.gte('job_date',f+'T00:00:00');if(t)b=b.lte('job_date',t+'T23:59:59');
+  if(q)b=b.or(`job_no.ilike.%${q}%,customer_name.ilike.%${q}%,customer_code.ilike.%${q}%,mobile.ilike.%${q}%,serial_no.ilike.%${q}%`);
+  const d=await run(b);
+  $('#jbt').innerHTML=d.map(j=>`<tr><td><b>${esc(j.job_no)}</b></td><td>${fmtDT(j.job_date)}</td><td>${esc(j.customer_name)}<div class="mut">${esc(j.customer_code)} ${esc(j.mobile)}</div></td>
+   <td>${esc(j.brand_model)}<div class="mut">${esc(j.serial_no)}</div></td><td style="max-width:260px">${esc((j.issue||'').slice(0,90))}</td>
+   <td><select onchange="jobStatus(${j.id},this.value)">${JSTAT.map(x=>`<option ${x===j.status?'selected':''}>${x}</option>`).join('')}</select></td>
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="printJob(${j.id})">Print</button> ${isAdmin()?`<button class="btn sec sm" onclick="jobEdit(${j.id})">Edit</button> <button class="btn sec sm" onclick="jobDel(${j.id},'${esc(j.job_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mut">No job notes found.</td></tr>';
+}
+async function jobStatus(id,v){await run(sb.from('job_notes').update({status:v}).eq('id',id));toast('Status updated')}
+async function jobDel(id,no){if(!confirm('Delete job note '+no+'?'))return;await run(sb.from('job_notes').delete().eq('id',id));toast('Deleted');jobLoad()}
+function jobNew(type){window._jobNew=type;window._jobId=null;go('jobform')}
+function jobEdit(id){window._jobId=id;go('jobform')}
+
+/* ----- the form ----- */
+let JF=null,JCS_LIST=[],JCS_T;
+PAGES.jobform=async()=>{
+  const jl=getJL(),id=window._jobId||null,nt=window._jobNew||'repair';window._jobId=null;window._jobNew=null;
+  let j={job_type:nt,job_date:new Date().toISOString(),customer_id:null,customer_code:'',customer_name:'',mobile:'',whatsapp:'',email:'',brand_model:'',item_ref:'',serial_no:'',product_id:'',issue:'',remarks:'',status:'Received',job_no:'',checks:{}};
+  if(id)j=await run(sb.from('job_notes').select('*').eq('id',id).single());
+  else{j.checks={service:nt==='warranty'?['Warranty']:nt==='service'?['Chargeable']:[],work:nt==='repair'?['Repair']:nt==='service'?['Diagnosis']:[]}}
+  JF={...j,id,checks:{product:[],service:[],accessories:[],work:[],product_other:'',accessories_other:'',work_other:'',...(j.checks||{})}};
+  const inp=(i,l,v,ex='')=>`<div><label>${l}</label><input id="${i}" value="${esc(v)}" ${ex}></div>`;
+  $('#main').innerHTML=`<div class="top"><h2>${id?'Edit job note '+esc(j.job_no):'New '+JT[nt].toLowerCase()+' job note'}</h2><button class="btn sec" onclick="go('job_${JF.job_type}')">Back to list</button></div>
+  <div class="card"><b>Customer profile</b>
+   <div class="bar" style="margin-top:8px"><div><label>Job type</label><select id="j_ty">${Object.keys(JT).map(k=>`<option value="${k}" ${k===JF.job_type?'selected':''}>${JT[k]}</option>`).join('')}</select></div>
+    <div><label>Date / time${hasP('backdate')?'':' (now)'}</label><input id="j_dt" type="datetime-local" value="${toLocalDT(JF.job_date)}" ${hasP('backdate')?'':'disabled'}></div>
+    <div><label>Job no</label><input readonly value="${esc(j.job_no||'(automatic)')}"></div>
+    <div><label>Status</label><select id="j_st">${JSTAT.map(x=>`<option ${x===JF.status?'selected':''}>${x}</option>`).join('')}</select></div></div>
+   <div style="position:relative;margin-top:10px"><label>Search customer (name, code or phone)</label><input id="jcs" placeholder="Type to search…" oninput="jobCustSearch(this.value)" autocomplete="off"><div id="jcs_res" class="sresbox"></div></div>
+   <div class="bar" style="margin-top:8px"><div style="flex:0 0 130px"><label>Customer code</label><input id="j_cc" readonly value="${esc(JF.customer_code)}"></div>${inp('j_cn','Customer name',JF.customer_name).replace('<div>','<div style="flex:2">')}${inp('j_mo','Mobile',JF.mobile)}${inp('j_wa','WhatsApp',JF.whatsapp)}${inp('j_em','Email',JF.email)}</div>
+   <div style="margin-top:8px">${hasP('customers')?'<button class="btn sec sm" onclick="customerModal(0,jobCustFill)">+ New customer</button> ':''}<button class="btn sec sm" onclick="jobCustClear()">Clear customer</button></div></div>
+  <div class="card"><b>Product profile</b>
+   <div style="margin-top:8px"><label>Product</label><div class="chkrow">${jcb('product',jl.products)}${jother('product',jl.products)}</div></div>
+   <div class="bar" style="margin-top:10px">${inp('j_bm','Brand / model',JF.brand_model)}${inp('j_ir','Item / reference',JF.item_ref)}${inp('j_sn','Serial no',JF.serial_no)}${inp('j_pi','Product ID',JF.product_id)}</div>
+   <div style="margin-top:10px"><label>Issue reported</label><textarea id="j_is" rows="5">${esc(JF.issue)}</textarea></div>
+   <div style="margin-top:10px"><label>Service type</label><div class="chkrow">${jcb('service',jl.services)}</div></div>
+   ${jl.showAcc?`<div style="margin-top:10px"><label>Accessories received</label><div class="chkrow">${jcb('accessories',jl.accessories)}${jother('accessories',jl.accessories)}</div></div>`:''}
+   <div style="margin-top:10px"><label>Work type</label><div class="chkrow">${jcb('work',jl.works)}${jother('work',jl.works)}</div></div></div>
+  ${jl.showRemarks?`<div class="card"><b>Remarks / condition notes</b><div style="margin-top:8px"><textarea id="j_rm" rows="4">${esc(JF.remarks)}</textarea></div></div>`:''}
+  <div class="bar" style="justify-content:flex-end"><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="jobSave(false)">Save</button></div><div style="flex:0;white-space:nowrap"><button class="btn" onclick="jobSave(true)">Save &amp; print</button></div></div>`;
+};
+const JKEY={product:'products',service:'services',accessories:'accessories',work:'works'};
+const jcb=(g,list)=>list.map((x,i)=>`<label class="chk jchk"><input type="checkbox" ${JF.checks[g].includes(x)?'checked':''} onchange="jobTick('${g}',${i},this.checked)"> ${esc(x)}</label>`).join('');
+const jother=(g,list)=>list.some(x=>/other/i.test(x))?`<input style="max-width:220px" placeholder="Other - specify" value="${esc(JF.checks[g+'_other']||'')}" oninput="JF.checks['${g}_other']=this.value">`:'';
+function jobTick(g,i,on){const x=getJL()[JKEY[g]][i],a=JF.checks[g],k=a.indexOf(x);if(on&&k<0)a.push(x);if(!on&&k>=0)a.splice(k,1)}
+function jobCustSearch(v){
+  clearTimeout(JCS_T);
+  JCS_T=setTimeout(async()=>{
+    const s=v.replace(/[,()%]/g,' ').trim(),box=$('#jcs_res');
+    if(!s){box.innerHTML='';return}
+    JCS_LIST=await run(sb.from('customers').select('*').or(`name.ilike.%${s}%,code.ilike.%${s}%,phone.ilike.%${s}%`).limit(8));
+    box.innerHTML=JCS_LIST.map((c,i)=>`<div class="sres" onclick="jobCustFill(JCS_LIST[${i}])"><b>${esc(c.name)}</b> <span class="mut">${esc(c.code)} ${esc(c.phone)}</span></div>`).join('')||'<div class="sres mut">No customer found. Type the name below.</div>';
+  },250);
+}
+function jobCustFill(c){JF.customer_id=c.id;JF.customer_code=c.code;$('#j_cc').value=c.code||'';$('#j_cn').value=c.name||'';$('#j_mo').value=c.phone||'';$('#j_em').value=c.email||'';$('#jcs').value='';$('#jcs_res').innerHTML=''}
+function jobCustClear(){JF.customer_id=null;JF.customer_code='';['j_cc','j_cn','j_mo','j_wa','j_em','jcs'].forEach(x=>$('#'+x).value='');$('#jcs_res').innerHTML=''}
+async function jobSave(print){
+  const row={job_type:$('#j_ty').value,customer_id:JF.customer_id||null,customer_code:JF.customer_code||'',customer_name:$('#j_cn').value.trim(),mobile:$('#j_mo').value.trim(),whatsapp:$('#j_wa').value.trim(),email:$('#j_em').value.trim(),
+    brand_model:$('#j_bm').value.trim(),item_ref:$('#j_ir').value.trim(),serial_no:$('#j_sn').value.trim(),product_id:$('#j_pi').value.trim(),issue:$('#j_is').value,remarks:($('#j_rm')||{value:JF.remarks}).value,status:$('#j_st').value,checks:JF.checks};
+  if(hasP('backdate'))row.job_date=new Date($('#j_dt').value).toISOString();
+  if(!row.customer_name)return toast('Enter the customer name',true);
+  const rec=JF.id?await run(sb.from('job_notes').update(row).eq('id',JF.id).select().single()):await run(sb.from('job_notes').insert(row).select().single());
+  toast('Job note saved: '+rec.job_no);
+  if(print)await printJob(rec.id);
+  go('job_'+rec.job_type);
+}
+
+/* ----- printing ----- */
+async function printJob(id){const j=await run(sb.from('job_notes').select('*').eq('id',id).single());jobPrintDoc(j)}
+function printJobBlank(){jobPrintDoc({job_no:'',job_date:null,checks:{}})}
+function jobPrintDoc(j){
+  const doc=jobDoc(j,getJL(),coInfo(),false);
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
+  f.contentDocument.open();f.contentDocument.write(doc);f.contentDocument.close();
+  setTimeout(()=>{f.contentWindow.focus();f.contentWindow.print();setTimeout(()=>f.remove(),60000)},500);
+}
+function jobDoc(j,jl,co,pv){
+  const A=jl.accent||'#e8731a',M=+jl.margin>=0?+jl.margin:7,fs=+jl.fontSize||10.5,W=210-2*M,H=297-2*M;
+  const ch=j.checks||{},logo=jobLogo(jl),addr=String(co.a||'').split('\n').filter(Boolean).join(', ');
+  const contact=jl.contact||(co.p?'Contact: '+co.p:''),foot=jl.footer||[co.n,addr,co.p].filter(Boolean).join('   |   ');
+  const ci=(g,list,oth)=>list.map(x=>`<span class="ci"><i class="cb">${(ch[g]||[]).includes(x)?'&#10003;':''}</i>${esc(x)}${/other/i.test(x)&&ch[oth]?': <u>'+esc(ch[oth])+'</u>':''}</span>`).join('');
+  const cell=(l,v,fl)=>`<div class="gc" style="flex:${fl||1}"><b>${l}</b><span class="v">${esc(v)}</span></div>`;
+  const sec=(t,body)=>`<div class="sec"><div class="sh">${t}</div>${body}</div>`;
+  const css=`@page{size:A4;margin:${M}mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0}body{font:${fs}px/1.3 Arial,Helvetica,sans-serif;color:#111;${pv?'background:#dfe3e8;':''}}
+.sheet{width:${pv?210:W}mm;${pv?`padding:${M}mm;background:#fff;margin:0 auto;`:''}}
+.jp{display:flex;flex-direction:column;min-height:${H-2}mm;width:100%;border-top:3mm solid ${A}}
+.jh{display:flex;justify-content:space-between;align-items:center;padding:2.5mm 0 1mm}.jh img{display:block}
+.t1{font-size:${fs*2.6}px;font-weight:800;letter-spacing:1px;text-align:right;color:#1d2b3a}.t2{font-size:${fs*.85}px;letter-spacing:.6px;text-align:right;color:#444}
+.jc{display:flex;justify-content:space-between;align-items:flex-end;padding:1mm 0 2mm;border-bottom:1.5px solid ${A}}.jc b{font-size:${fs*1.25}px}.ct{color:${A};font-weight:800;font-size:${fs*1.1}px}
+.sec{margin-top:2.6mm;border:1px solid #6a6a6a}.sh{background:#e8e8e8;border-left:3mm solid ${A};padding:1.4mm 3mm;font-weight:800;letter-spacing:.4px;border-bottom:1px solid #6a6a6a}
+.gr{display:flex;border-bottom:1px solid #6a6a6a;min-height:8mm}.gr:last-child{border-bottom:0}
+.gc{display:flex;align-items:flex-end;gap:2.5mm;padding:1.2mm 3mm;border-right:1px solid #6a6a6a}.gc:last-child{border-right:0}.gc b{white-space:nowrap;font-size:${fs*.92}px}
+.v{flex:1;border-bottom:1px solid #c4c4c4;min-height:4.6mm;padding:0 1mm;overflow-wrap:anywhere}
+.chk2{display:flex;align-items:center;gap:6mm;flex-wrap:wrap;padding:1.2mm 3mm;border-bottom:1px solid #6a6a6a;min-height:8mm}.chk2:last-child{border-bottom:0}.chk2>b{min-width:25mm;font-size:${fs*.92}px}
+.ci{display:inline-flex;align-items:center;gap:1.8mm;margin-right:4mm}.cb{display:inline-block;width:4.2mm;height:4.2mm;border:1.2px solid #444;text-align:center;line-height:3.6mm;font-style:normal;font-weight:700;font-size:${fs*1.1}px;font-family:'Segoe UI Symbol','DejaVu Sans',Arial,sans-serif}
+.is{display:flex;border-bottom:1px solid #6a6a6a}.is>b{width:31mm;padding:1.5mm 3mm;border-right:1px solid #6a6a6a;font-size:${fs*.92}px}
+.ruled{flex:1;line-height:6.4mm;min-height:32mm;padding:0 3mm;white-space:pre-wrap;background-image:linear-gradient(to bottom,transparent calc(6.4mm - 1px),#c9c9c9 calc(6.4mm - 1px));background-size:100% 6.4mm}
+.txt{padding:1.6mm 3mm;font-size:${fs*.82}px;line-height:1.35}
+.sigrow{display:flex;justify-content:flex-end;gap:10mm;align-items:flex-end;padding:0 3mm 1.5mm}.sigrow div{border-top:1px solid #444;font-size:${fs*.72}px;text-align:center;padding-top:.5mm;min-width:48mm}
+.foot{margin-top:auto;background:${A};color:#fff;font-weight:800;font-size:${fs*.85}px;padding:1.6mm 3mm;display:flex;justify-content:space-between;gap:6mm}
+.spacer{height:2.6mm}`;
+  const html=`<div class="sheet"><div class="jp">
+  <div class="jh"><div>${logo?`<img src="${logo}" style="height:${jl.logoH}px">`:''}</div><div><div class="t1">${esc(jl.title)}</div><div class="t2">${esc(jl.subtitle)}</div></div></div>
+  <div class="jc"><div><b>${esc(co.n)}</b><div>${esc(addr)}</div></div><div class="ct">${esc(contact)}</div></div>
+  ${sec('CUSTOMER PROFILE',`<div class="gr">${cell('DATE / TIME',fmtDT(j.job_date),1)}${cell('JOB NO',j.job_no||'',1)}</div><div class="gr">${cell('CUSTOMER',(j.customer_name||'')+(j.customer_code?'  ('+j.customer_code+')':''),1)}${cell('MOBILE',j.mobile||'',1)}</div><div class="gr">${cell('EMAIL',j.email||'',1)}${cell('WHATSAPP',j.whatsapp||'',1)}</div>`)}
+  ${sec('PRODUCT PROFILE',`<div class="chk2"><b>PRODUCT</b>${ci('product',jl.products,'product_other')}</div><div class="gr">${cell('BRAND / MODEL',j.brand_model||'',1)}${cell('ITEM / REFERENCE',j.item_ref||'',1)}</div><div class="gr">${cell('SERIAL NO.',j.serial_no||'',1)}${cell('PRODUCT ID',j.product_id||'',1)}</div>
+   <div class="is"><b>ISSUE REPORTED</b><div class="ruled">${esc(j.issue||'').replace(/\n/g,'<br>')}</div></div>
+   <div class="chk2"><b>SERVICE TYPE</b>${ci('service',jl.services,'service_other')}</div>${jl.showAcc?`<div class="chk2"><b>ACCESSORIES</b>${ci('accessories',jl.accessories,'accessories_other')}</div>`:''}<div class="chk2"><b>WORK TYPE</b>${ci('work',jl.works,'work_other')}</div>`)}
+  ${jl.showRemarks?sec('REMARKS / CONDITION NOTES',`<div class="ruled" style="min-height:26mm;padding-top:0">${esc(j.remarks||'').replace(/\n/g,'<br>')}</div>`):''}
+  ${jl.showRules?sec('RULES &amp; REGULATIONS',`<div class="txt">${esc(jl.rules).replace(/\n/g,'<br>')}</div>`):''}
+  ${jl.showAuth?sec('CUSTOMER AUTHORIZATION',`<div class="txt" style="display:flex;justify-content:space-between;gap:8mm;align-items:flex-end"><span>${esc(jl.auth)}</span><span class="sigrow" style="padding:0"><div>CUSTOMER SIGNATURE</div></span></div>`):''}
+  ${jl.showDel?sec('DELIVERY ACKNOWLEDGEMENT',`<div class="txt" style="display:flex;justify-content:space-between;gap:8mm;align-items:flex-end"><span>${esc(jl.delivery)}</span><span class="sigrow" style="padding:0"><div style="min-width:34mm">DATE</div><div>CUSTOMER SIGNATURE</div></span></div>`):''}
+  ${jl.showFoot?`<div class="spacer"></div><div class="foot"><span>${esc(foot)}</span></div>`:''}
+  </div></div>`;
+  return `<html><head><meta charset="utf-8"><title>${esc(j.job_no||'Job note')}</title><style>${css}</style></head><body>${html}</body></html>`;
+}
+
+/* ----- Job note editor (admin) ----- */
+let JLLOGO='';
+PAGES.jobeditor=async()=>{
+  const jl=getJL(),co=coInfo();JLLOGO=jl.logo||'';
+  const ck=(id,v,l)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''} onchange="jePrev()"> ${l}</label>`;
+  const ta=(id,l,v,r)=>`<div class="row" style="margin-top:8px"><label>${l}</label><textarea id="${id}" rows="${r||3}" oninput="jePrev()">${esc(v)}</textarea></div>`;
+  const tx=(id,l,v)=>`<div><label>${l}</label><input id="${id}" value="${esc(v)}" oninput="jePrev()"></div>`;
+  $('#main').innerHTML=`<div class="top"><h2>Job note editor</h2><div class="bar"><div style="flex:0"><button class="btn" onclick="jeSave()">Save</button></div></div></div>
+  <div class="edgrid"><div>
+   <div class="card"><b>Shop details (same as the invoice)</b>
+    <div class="row" style="margin-top:8px"><label>Shop name</label><input id="je_n" value="${esc(co.n)}" oninput="jePrev()"></div>
+    ${ta('je_a','Address',co.a,2)}
+    <div class="bar" style="margin-top:8px">${tx('je_p','Phone',co.p)}${tx('je_ct','Contact text on the right (empty = Contact: phone)',jl.contact)}</div></div>
+   <div class="card"><b>Logo, title and colour</b>
+    ${ck('je_ul',jl.useInvLogo,'Use the same logo as the invoice')}
+    <div class="row"><label>Or upload a different logo</label><input id="je_lf" type="file" accept="image/*" onchange="jeLogo(this)"></div>
+    <div class="bar" style="margin-top:8px"><div><label>Logo height (px)</label><input id="je_lh" type="number" min="20" max="160" value="${jl.logoH}" oninput="jePrev()"></div><div><label>Accent colour</label><input id="je_ac" type="color" value="${esc(jl.accent)}" oninput="jePrev()" style="padding:2px;height:34px"></div><div><label>Margin (mm)</label><input id="je_mg" type="number" min="3" max="20" value="${jl.margin}" oninput="jePrev()"></div></div>
+    <div class="bar" style="margin-top:8px">${tx('je_t1','Title',jl.title)}${tx('je_t2','Sub title',jl.subtitle)}</div></div>
+   <div class="card"><b>Tick-box lists (one per line)</b>
+    ${ta('je_pl','Product',jl.products.join('\n'),5)}${ta('je_sl','Service type',jl.services.join('\n'),3)}${ta('je_al','Accessories',jl.accessories.join('\n'),5)}${ta('je_wl','Work type',jl.works.join('\n'),4)}
+    <div class="mut" style="margin-top:6px">A line named "Other" gets a small text box on the form.</div></div>
+   <div class="card"><b>Texts</b>${ta('je_ru','Rules &amp; regulations',jl.rules,5)}${ta('je_au','Customer authorization',jl.auth,2)}${ta('je_de','Delivery acknowledgement',jl.delivery,2)}${tx('je_ft','Footer bar text (empty = shop | address | phone)',jl.footer)}</div>
+   <div class="card"><b>Show / hide sections</b>${ck('je_sa',jl.showAcc,'Accessories row')}${ck('je_sr',jl.showRemarks,'Remarks / condition notes')}${ck('je_su',jl.showRules,'Rules &amp; regulations')}${ck('je_sh',jl.showAuth,'Customer authorization')}${ck('je_sd',jl.showDel,'Delivery acknowledgement')}${ck('je_sf',jl.showFoot,'Footer bar')}
+    <div class="row" style="margin-top:8px"><label>Base font size</label><select id="je_fs" onchange="jePrev()">${[0,9,10,11,12].map(n=>`<option value="${n}" ${+jl.fontSize===n?'selected':''}>${n?n+' px':'Auto'}</option>`).join('')}</select></div></div>
+  </div>
+  <div class="card"><b>Live preview</b><div class="bar" style="margin:8px 0"><div style="flex:0 0 130px"><label>Zoom</label><select id="je_zoom" onchange="jePrev()"><option value="fit">Fit</option><option value="1">100%</option><option value="0.75">75%</option><option value="0.5">50%</option></select></div><div class="mut" style="flex:2">Sample data with some boxes ticked.</div></div><div id="jpw" style="overflow:hidden;position:relative;border:1px solid var(--line);border-radius:5px;background:#dfe3e8"><iframe id="je_pv" style="width:830px;height:1200px;border:0;display:block"></iframe></div></div></div>`;
+  document.querySelectorAll('.edgrid .card>b:first-child').forEach(b=>b.onclick=()=>b.parentNode.classList.toggle('closed'));
+  jePrev();
+};
+const jeLines=id=>$('#'+id).value.split('\n').map(x=>x.trim()).filter(Boolean);
+function jeRead(){
+  const g=id=>$('#'+id);
+  return {co:{n:g('je_n').value,a:g('je_a').value,p:g('je_p').value},
+   jl:{useInvLogo:g('je_ul').checked,logo:JLLOGO,logoH:+g('je_lh').value||60,accent:g('je_ac').value,margin:+g('je_mg').value||7,title:g('je_t1').value||'JOB NOTE',subtitle:g('je_t2').value,contact:g('je_ct').value,footer:g('je_ft').value,
+    products:jeLines('je_pl'),services:jeLines('je_sl'),accessories:jeLines('je_al'),works:jeLines('je_wl'),rules:g('je_ru').value,auth:g('je_au').value,delivery:g('je_de').value,
+    showAcc:g('je_sa').checked,showRemarks:g('je_sr').checked,showRules:g('je_su').checked,showAuth:g('je_sh').checked,showDel:g('je_sd').checked,showFoot:g('je_sf').checked,fontSize:+g('je_fs').value||0}};
+}
+function jePrev(){
+  const {co,jl}=jeRead();
+  const j={job_no:'WR-00001',job_date:new Date().toISOString(),customer_name:'Sample Customer',customer_code:'CUS-0001',mobile:'0771234567',whatsapp:'0771234567',email:'sample@mail.com',brand_model:'ASUS Vivobook X1504VA',item_ref:'LAP-0001',serial_no:'SN1234567890',product_id:'P-1001',
+    issue:'Laptop does not power on.\nBattery not charging.',remarks:'Small scratch on the lid.',checks:{product:[jl.products[0]],service:[jl.services[2]||jl.services[0]],accessories:[jl.accessories[0]],work:[jl.works[0]]}};
+  const f=$('#je_pv'),zs=$('#je_zoom').value,ww=$('#jpw').clientWidth||830,z=zs==='fit'?Math.min(1,(ww-4)/830):+zs;
+  f.srcdoc=jobDoc(j,jl,{n:co.n||'Company',a:co.a,p:co.p},true);
+  f.style.transform='scale('+z+')';f.style.transformOrigin='0 0';$('#jpw').style.height=Math.round(1200*z+2)+'px';
+}
+function jeLogo(inp){
+  const f=inp.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,500/im.width),c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);JLLOGO=c.toDataURL('image/png');$('#je_ul').checked=false;jePrev()};im.src=r.result};
+  r.readAsDataURL(f);
+}
+async function jeSave(){
+  const {co,jl}=jeRead();
+  const rows=[{key:'company_name',value:co.n},{key:'company_addr',value:co.a},{key:'company_phone',value:co.p},{key:'job_layout',value:JSON.stringify(jl)}];
+  await run(sb.from('settings').upsert(rows));rows.forEach(r=>settings[r.key]=r.value);
+  $('#coName').textContent=settings.company_name||'Company';toast('Job note layout saved');
+}
+
 </script>
 </body>
 </html>
