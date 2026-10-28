@@ -93,3 +93,13 @@ tbody tr:hover td{background:#f8fbfd}
 .edgrid>.card:last-child{position:sticky;top:10px}
 #pvw{overflow:hidden;position:relative;border:1px solid var(--line);border-radius:5px;background:#dfe3e8}
 #pvw iframe{border:0;display:block}
+
+/* ---- Job note tick boxes (chips) ---- */
+.chkrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:5px}
+label.jchk{display:inline-flex;align-items:center;gap:8px;margin:0;padding:7px 13px 7px 10px;border:1.5px solid var(--line,#d0d5dd);border-radius:999px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#344054;text-transform:none;letter-spacing:0;user-select:none;transition:.12s}
+label.jchk:hover{border-color:#e8731a;background:#fff7f0}
+label.jchk input{appearance:none;-webkit-appearance:none;width:18px;height:18px;margin:0;flex:none;border:2px solid #98a2b3;border-radius:5px;background:#fff;display:grid;place-content:center;cursor:pointer}
+label.jchk input::after{content:"";width:9px;height:5px;border-left:2.5px solid #fff;border-bottom:2.5px solid #fff;transform:rotate(-45deg) scale(0);margin-top:-2px;transition:.1s}
+label.jchk input:checked{background:#e8731a;border-color:#e8731a}
+label.jchk input:checked::after{transform:rotate(-45deg) scale(1)}
+label.jchk:has(input:checked){border-color:#e8731a;background:#fff3e8;color:#b54708}
