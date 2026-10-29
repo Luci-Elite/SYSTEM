@@ -1146,7 +1146,7 @@ function repPrint(){if(!window._rep)return;printHtml(window._rep.title,`<h2>${es
 /* ---------------- Job notes (Warranty / Repair / Service) ---------------- */
 const JT={warranty:'Warranty',repair:'Repair',service:'Service'};
 const JSTAT=['Received','In progress','Waiting parts','Completed','Delivered'];
-const JL_DEF={useInvLogo:true,logo:'',logoH:60,accent:'#e8731a',title:'JOB NOTE',subtitle:'SERVICE INTAKE / REPAIR RECORD',contact:'',email:'',footer:'',margin:7,fontSize:0,
+const JL_DEF={useInvLogo:true,logo:'',logoH:60,accent:'#e8731a',title:'JOB NOTE',subtitle:'SERVICE INTAKE / REPAIR RECORD',contact:'',email:'',footer:'',g:{},st:{},margin:7,fontSize:0,
   issueColor:'#d00000',remarksColor:'#d00000',technicianColor:'#111111',receivedColor:'#111111',
   products:['Laptop','Desktop','Printer','Monitor','Other'],services:['Chargeable','Service warranty','Warranty'],accessories:['Adapter','Power cord','Bag','USB cable','Other'],works:['Diagnosis','Repair','Upgrade','Other'],
   technicians:[],
@@ -1303,52 +1303,79 @@ function safeRich(v,defaultColor){
   if(defaultColor)d.style.color=defaultColor;
   return d.innerHTML;
 }
-function jobDoc(j,jl,co,pv){
+const JE_FONTS=[['','Default (Arial)'],['Arial, Helvetica, sans-serif','Arial'],['Verdana, Geneva, sans-serif','Verdana'],['Tahoma, Geneva, sans-serif','Tahoma'],['"Trebuchet MS", sans-serif','Trebuchet MS'],['"Segoe UI", Arial, sans-serif','Segoe UI'],['Calibri, Carlito, sans-serif','Calibri'],['Cambria, serif','Cambria'],['Georgia, serif','Georgia'],['"Times New Roman", Times, serif','Times New Roman'],['"Courier New", monospace','Courier New'],['Impact, "Arial Black", sans-serif','Impact'],['"Arial Black", Gadget, sans-serif','Arial Black']];
+const JE_GDEF={font:'',border:'#6a6a6a',headBg:'#e8e8e8',headText:'#111111',label:'#111111',value:'#111111',line:'#c4c4c4',title:'#1d2b3a',subtitle:'#444444',box:'#444444'};
+const jslug=t=>String(t).toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+function jobDoc(j,jl,co,pv,sel){
   const A=jl.accent||'#e8731a',M=+jl.margin>=0?+jl.margin:7,fs=+jl.fontSize||10.5,W=210-2*M,H=297-2*M;
+  const G={...JE_GDEF,...(jl.g||{})},ST=jl.st||{};
+  const bc=G.border,hb=G.headBg,ht=G.headText,lc=G.label,vc=G.value,ln=G.line,cbc=G.box,ff=G.font||'Arial, Helvetica, sans-serif';
   const ch=j.checks||{},logo=jobLogo(jl),addr=String(co.a||'').split('\n').filter(Boolean).join(', ');
   const contact=jl.contact||(co.p?'Contact: '+co.p:''),foot=jl.footer||[co.n,addr,co.p].filter(Boolean).join('   |   ');
+  const T=(k,d)=>{const t=ST[k]&&ST[k].t;return t!=null&&t!==''?t:d};
+  /* K = data-k + inline style (base style + the font / colour / size the person set by clicking in the preview) */
+  const K=(k,base,ed)=>{const o=ST[k]||{};let s=base||'';if(o.c)s+=';color:'+o.c;if(o.bg)s+=';background:'+o.bg;if(+o.s)s+=';font-size:'+(+o.s)+'px';if(o.f)s+=';font-family:'+o.f;if(o.b===1)s+=';font-weight:800';if(o.b===0)s+=';font-weight:400';if(o.i)s+=';font-style:italic';if(o.a)s+=';text-align:'+o.a;return ' data-k="'+k+'"'+(pv&&ed?' data-ed="'+ed+'"':'')+(s?' style="'+esc(s)+'"':'')};
+  const lb=(t,base)=>{const k='l_'+jslug(t);return `<b${K(k,base,1)}>${esc(T(k,t))}</b>`};
+  const sgl=(t,cls,base)=>{const k='l_'+jslug(t);return `<div class="${cls}"${K(k,base,1)}>${esc(T(k,t))}</div>`};
   const ci=(g,list,oth)=>list.map(x=>`<span class="ci"><i class="cb">${(ch[g]||[]).includes(x)?'&#10003;':''}</i>${esc(x)}${/other/i.test(x)&&ch[oth]?': <u>'+esc(ch[oth])+'</u>':''}</span>`).join('');
   const selectedTech=(ch.technician||[]).filter(Boolean).join(', ');
-  const cell=(l,v,fl)=>`<div class="gc" style="flex:${fl||1}"><b>${l}</b><span class="v">${esc(v)}</span></div>`;
-  const sec=(t,body,c)=>`<div class="sec${c?' '+c:''}"><div class="sh">${t}</div>${body}</div>`;
+  const cell=(l,v,fl)=>`<div class="gc" style="flex:${fl||1}">${lb(l)}<span class="v">${esc(v)}</span></div>`;
+  const sec=(k,t,body,c)=>{const hk='h_'+k;return `<div class="sec${c?' '+c:''}"><div class="sh"${K(hk,'',1)}>${esc(T(hk,t))}</div>${body}</div>`};
   const css=`@page{size:A4;margin:${M}mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-html,body{margin:0}body{font:${fs}px/1.3 Arial,Helvetica,sans-serif;color:#111;${pv?'background:#dfe3e8;':''}}
+html,body{margin:0}body{font:${fs}px/1.3 ${ff};color:${vc};${pv?'background:#dfe3e8;':''}}
 .sheet{width:${pv?'210mm':W+'mm'};${pv?`padding:${M}mm;background:#fff;margin:0 auto;`:''}}
 .jp{display:flex;flex-direction:column;min-height:${H-2}mm;width:100%;border-top:2.2mm solid ${A}}
 .jh{display:flex;justify-content:space-between;align-items:center;padding:1.6mm 0 .7mm}.jh img{display:block}
-.t1{font-size:${fs*2.6}px;font-weight:800;letter-spacing:1px;text-align:right;color:#1d2b3a}.t2{font-size:${fs*.85}px;letter-spacing:.6px;text-align:right;color:#444}
+.t1{font-size:${fs*2.6}px;font-weight:800;letter-spacing:1px;text-align:right;color:${G.title}}.t2{font-size:${fs*.85}px;letter-spacing:.6px;text-align:right;color:${G.subtitle}}
 .jc{display:flex;justify-content:space-between;align-items:flex-end;padding:.7mm 0 1.3mm;border-bottom:1.5px solid ${A}}.jc b{font-size:${fs*1.25}px}.ct{color:${A};font-weight:800;font-size:${fs*1.1}px}
-.sec{margin-top:1.8mm;border:1px solid #6a6a6a}.sh{background:#e8e8e8;border-left:3mm solid ${A};padding:1mm 2.5mm;font-weight:800;letter-spacing:.4px;border-bottom:1px solid #6a6a6a}
-.gr{display:flex;border-bottom:1px solid #6a6a6a;min-height:6.5mm}.gr:last-child{border-bottom:0}
-.gc{display:flex;align-items:flex-end;gap:2.5mm;padding:.8mm 2.5mm;border-right:1px solid #6a6a6a}.gc:last-child{border-right:0}.gc b{white-space:nowrap;font-size:${fs*.92}px}
-.v{flex:1;border-bottom:1px solid #c4c4c4;min-height:4.6mm;padding:0 1mm;overflow-wrap:anywhere}
-.chk2{display:flex;align-items:center;gap:6mm;flex-wrap:wrap;padding:1.2mm 3mm;border-bottom:1px solid #6a6a6a;min-height:6.5mm}.chk2:last-child{border-bottom:0}.chk2>b{min-width:25mm;font-size:${fs*.92}px}
-.ci{display:inline-flex;align-items:center;gap:1.8mm;margin-right:4mm}.cb{display:inline-block;width:4.2mm;height:4.2mm;border:1.2px solid #444;text-align:center;line-height:3.6mm;font-style:normal;font-weight:700;font-size:${fs*1.1}px;font-family:'Segoe UI Symbol','DejaVu Sans',Arial,sans-serif}
-.is{display:flex;border-bottom:1px solid #6a6a6a}.is>b{width:31mm;padding:.8mm 2.5mm;border-right:1px solid #6a6a6a;font-size:${fs*.92}px}\n  .rich{white-space:normal}.rich p{margin:0}.rich ul,.rich ol{margin:0 0 0 5mm;padding:0}.rich img{max-width:100%}.techTop{display:flex;justify-content:space-between;align-items:center;border:1px solid #6a6a6a;margin-top:2.2mm;padding:1.5mm 3mm;background:#fafafa}.techTop b{font-size:${fs*.9}px}.techrow{padding:1mm 2.5mm;border-bottom:1px solid #6a6a6a}.sigbox{padding:1.5mm 3mm;display:flex;justify-content:space-between;gap:8mm;align-items:flex-end;min-height:20mm}.sigbox .received{flex:1;padding-bottom:.6mm}.sigline{border-top:1px solid #444;min-width:52mm;text-align:center;padding-top:.5mm;font-size:${fs*.72}px}.handSig{width:62mm}
-.ruled{flex:1;line-height:5.1mm;min-height:24mm;padding:0 3mm;white-space:pre-wrap;background-image:linear-gradient(to bottom,transparent calc(5.1mm - 1px),#c9c9c9 calc(5.1mm - 1px));background-size:100% 5.1mm}
-.txt{padding:1.1mm 2.5mm;font-size:${fs*.76}px;line-height:1.25}
-.sigrow{display:flex;justify-content:flex-end;gap:10mm;align-items:flex-end;padding:0 3mm 1.5mm}.sigrow div{border-top:1px solid #444;font-size:${fs*.72}px;text-align:center;padding-top:.5mm;min-width:48mm}
+.sec{margin-top:1.8mm;border:1px solid ${bc}}.sh{background:${hb};color:${ht};border-left:3mm solid ${A};padding:1mm 2.5mm;font-weight:800;letter-spacing:.4px;border-bottom:1px solid ${bc}}
+.gr{display:flex;border-bottom:1px solid ${bc};min-height:6.5mm}.gr:last-child{border-bottom:0}
+.gc{display:flex;align-items:flex-end;gap:2.5mm;padding:.8mm 2.5mm;border-right:1px solid ${bc}}.gc:last-child{border-right:0}.gc b{white-space:nowrap;font-size:${fs*.92}px;color:${lc}}
+.v{flex:1;border-bottom:1px solid ${ln};min-height:4.6mm;padding:0 1mm;overflow-wrap:anywhere;color:${vc}}
+.chk2{display:flex;align-items:center;gap:6mm;flex-wrap:wrap;padding:1.2mm 3mm;border-bottom:1px solid ${bc};min-height:6.5mm}.chk2:last-child{border-bottom:0}.chk2>b{min-width:25mm;font-size:${fs*.92}px;color:${lc}}
+.ci{display:inline-flex;align-items:center;gap:1.8mm;margin-right:4mm}.cb{display:inline-block;width:4.2mm;height:4.2mm;border:1.2px solid ${cbc};color:${cbc};text-align:center;line-height:3.6mm;font-style:normal;font-weight:700;font-size:${fs*1.1}px;font-family:'Segoe UI Symbol','DejaVu Sans',Arial,sans-serif}
+.is{display:flex;border-bottom:1px solid ${bc}}.is>b{width:31mm;padding:.8mm 2.5mm;border-right:1px solid ${bc};font-size:${fs*.92}px;color:${lc}}
+.rich{white-space:normal}.rich p{margin:0}.rich ul,.rich ol{margin:0 0 0 5mm;padding:0}.rich img{max-width:100%}
+.sigbox{padding:1.5mm 3mm;display:flex;justify-content:space-between;gap:8mm;align-items:flex-end;min-height:20mm}.sigbox .received{flex:1;padding-bottom:.6mm}.sigline{border-top:1px solid ${cbc};min-width:52mm;text-align:center;padding-top:.5mm;font-size:${fs*.72}px;color:${lc}}.handSig{width:62mm}
+.ruled{flex:1;line-height:5.1mm;min-height:24mm;padding:0 3mm;white-space:pre-wrap;background-image:linear-gradient(to bottom,transparent calc(5.1mm - 1px),${ln} calc(5.1mm - 1px));background-size:100% 5.1mm}
+.txt{padding:1.1mm 2.5mm;font-size:${fs*.76}px;line-height:1.25;color:${vc}}
+.sigrow{display:flex;justify-content:flex-end;gap:10mm;align-items:flex-end;padding:0 3mm 1.5mm}.sigrow div{border-top:1px solid ${cbc};font-size:${fs*.72}px;text-align:center;padding-top:.5mm;min-width:48mm;color:${lc}}
 .foot{margin-top:auto;background:${A};color:#fff;font-weight:800;font-size:${fs*.85}px;padding:1.6mm 3mm;display:flex;justify-content:space-between;gap:6mm}
 .sgs{flex:1 1 0;max-height:30mm;min-height:14mm;display:flex;flex-direction:column}.sgs .txt{flex:1;padding-bottom:2mm}
-.spacer{height:2.6mm}`;
+.spacer{height:2.6mm}
+${pv?`[data-k]{cursor:pointer}[data-k]:hover{outline:1px dashed #1a73e8;outline-offset:1px}[data-k].jsel{outline:2px solid #1a73e8!important;outline-offset:1px}[contenteditable]{outline:2px solid #e8731a!important;background:#fffbe6;color:#000}`:''}`;
+  const jsT=(jl.technicianColor||'#111111'),jsR=(jl.receivedColor||'#111111');
   const html=`<div class="sheet"><div class="jp">
-  <div class="jh"><div>${logo?`<img src="${logo}" style="height:${jl.logoH}px">`:''}</div><div><div class="t1">${esc(jl.title)}</div><div class="t2">${esc(jl.subtitle)}</div></div></div>
-  <div class="jc"><div><b>${esc(co.n)}</b><div>${esc(addr)}</div>${(jl.email||getLY().email)?`<div>Email: ${esc(jl.email||getLY().email)}</div>`:''}</div><div class="ct">${esc(contact)}</div></div>
-  ${sec('CUSTOMER PROFILE',`<div class="gr">${cell('DATE / TIME',fmtDT(j.job_date),1)}${cell('JOB NO',j.job_no||'',1)}</div><div class="gr">${cell('CUSTOMER',(j.customer_name||'')+(j.customer_code?'  ('+j.customer_code+')':''),1)}${cell('MOBILE',j.mobile||'',1)}</div><div class="gr">${cell('EMAIL',j.email||'',1)}${cell('WHATSAPP',j.whatsapp||'',1)}</div>${jl.showTechnician?`<div class="gr"><div class="gc" style="flex:1"><b>TECHNICIAN / HANDLER</b><span class="v" style="color:${esc(jl.technicianColor||'#111111')};font-weight:700">${esc(selectedTech)}</span></div></div>`:''}`)}
-  ${sec('PRODUCT PROFILE',`<div class="chk2"><b>PRODUCT</b>${ci('product',jl.products,'product_other')}</div><div class="gr">${cell('BRAND / MODEL',j.brand_model||'',1)}${cell('ITEM / REFERENCE',j.item_ref||'',1)}</div><div class="gr">${cell('SERIAL NO.',j.serial_no||'',1)}${cell('PRODUCT ID',j.product_id||'',1)}</div>
-   <div class="is"><b>ISSUE REPORTED</b><div class="ruled rich" style="color:${esc(jl.issueColor||'#d00000')}">${safeRich(j.issue||'',jl.issueColor||'#d00000')}</div></div>
-   <div class="chk2"><b>SERVICE TYPE</b>${ci('service',jl.services,'service_other')}</div>${jl.showAcc?`<div class="chk2"><b>ACCESSORIES</b>${ci('accessories',jl.accessories,'accessories_other')}</div>`:''}<div class="chk2"><b>WORK TYPE</b>${ci('work',jl.works,'work_other')}</div>`)}
-   ${jl.showRemarks?sec('REMARKS / CONDITION NOTES',`<div class="ruled rich" style="min-height:20mm;padding-top:0;color:${esc(jl.remarksColor||'#d00000')}">${safeRich(j.remarks||'',jl.remarksColor||'#d00000')}</div>`):''}
-  ${jl.showRules?sec('RULES &amp; REGULATIONS',`<div class="txt">${esc(jl.rules).replace(/\n/g,'<br>')}</div>`):''}
-  ${jl.showAuth?sec('CUSTOMER AUTHORIZATION',`<div class="txt" style="display:flex;justify-content:space-between;gap:8mm;align-items:flex-end"><span>${esc(jl.auth)}</span><span class="sigrow" style="padding:0"><div>CUSTOMER SIGNATURE</div></span></div>`,'sgs'):''}
-   ${jl.showDel?sec('DELIVERY ACKNOWLEDGEMENT',`<div class="txt">${esc(jl.delivery)}</div>${jl.showReceivedSignature?`<div class="sigbox"><div class="received"><b style="color:${esc(jl.receivedColor||'#111')}">RECEIVED BY:</b> ${esc(ch.received_by||'')}</div><div class="sigline handSig" style="color:${esc(jl.receivedColor||'#111')}">RECEIVED PERSON SIGNATURE</div><div class="sigline">DATE</div></div>`:''}`,'sgs'):''}
-  ${jl.showFoot?`<div class="spacer"></div><div class="foot"><span>${esc(foot)}</span></div>`:''}
+  <div class="jh"><div>${logo?`<img src="${logo}" style="height:${jl.logoH}px">`:''}</div><div><div class="t1"${K('title','',1)}>${esc(jl.title)}</div><div class="t2"${K('subtitle','',1)}>${esc(jl.subtitle)}</div></div></div>
+  <div class="jc"><div><b${K('shop','',1)}>${esc(co.n)}</b><div${K('addr','',1)}>${esc(addr)}</div>${(jl.email||getLY().email)?`<div${K('email','',1)}>Email: ${esc(jl.email||getLY().email)}</div>`:''}</div><div class="ct"${K('contact','',1)}>${esc(contact)}</div></div>
+  ${sec('cust','CUSTOMER PROFILE',`<div class="gr">${cell('DATE / TIME',fmtDT(j.job_date),1)}${cell('JOB NO',j.job_no||'',1)}</div><div class="gr">${cell('CUSTOMER',(j.customer_name||'')+(j.customer_code?'  ('+j.customer_code+')':''),1)}${cell('MOBILE',j.mobile||'',1)}</div><div class="gr">${cell('EMAIL',j.email||'',1)}${cell('WHATSAPP',j.whatsapp||'',1)}</div>${jl.showTechnician?`<div class="gr"><div class="gc" style="flex:1">${lb('TECHNICIAN / HANDLER')}<span class="v"${K('tech','color:'+jsT+';font-weight:700')}>${esc(selectedTech)}</span></div></div>`:''}`)}
+  ${sec('prod','PRODUCT PROFILE',`<div class="chk2">${lb('PRODUCT')}${ci('product',jl.products,'product_other')}</div><div class="gr">${cell('BRAND / MODEL',j.brand_model||'',1)}${cell('ITEM / REFERENCE',j.item_ref||'',1)}</div><div class="gr">${cell('SERIAL NO.',j.serial_no||'',1)}${cell('PRODUCT ID',j.product_id||'',1)}</div>
+   <div class="is">${lb('ISSUE REPORTED')}<div class="ruled rich"${K('issue','color:'+(jl.issueColor||'#d00000'))}>${safeRich(j.issue||'',jl.issueColor||'#d00000')}</div></div>
+   <div class="chk2">${lb('SERVICE TYPE')}${ci('service',jl.services,'service_other')}</div>${jl.showAcc?`<div class="chk2">${lb('ACCESSORIES')}${ci('accessories',jl.accessories,'accessories_other')}</div>`:''}<div class="chk2">${lb('WORK TYPE')}${ci('work',jl.works,'work_other')}</div>`)}
+   ${jl.showRemarks?sec('rem','REMARKS / CONDITION NOTES',`<div class="ruled rich"${K('remarks','min-height:20mm;padding-top:0;color:'+(jl.remarksColor||'#d00000'))}>${safeRich(j.remarks||'',jl.remarksColor||'#d00000')}</div>`):''}
+  ${jl.showRules?sec('rules','RULES & REGULATIONS',`<div class="txt"${K('rules','','m')}>${esc(jl.rules).replace(/\n/g,'<br>')}</div>`):''}
+  ${jl.showAuth?sec('auth','CUSTOMER AUTHORIZATION',`<div class="txt" style="display:flex;justify-content:space-between;gap:8mm;align-items:flex-end"><span${K('auth','','m')}>${esc(jl.auth)}</span><span class="sigrow" style="padding:0">${sgl('CUSTOMER SIGNATURE','')}</span></div>`,'sgs'):''}
+   ${jl.showDel?sec('del','DELIVERY ACKNOWLEDGEMENT',`<div class="txt"${K('delivery','','m')}>${esc(jl.delivery)}</div>${jl.showReceivedSignature?`<div class="sigbox"><div class="received">${lb('RECEIVED BY:','color:'+jsR)} ${esc(ch.received_by||'')}</div>${sgl('RECEIVED PERSON SIGNATURE','sigline handSig','color:'+jsR)}${sgl('DATE','sigline')}</div>`:''}`,'sgs'):''}
+  ${jl.showFoot?`<div class="spacer"></div><div class="foot"${K('foot_bar')}><span${K('foot','',1)}>${esc(foot)}</span></div>`:''}
   </div></div>`;
-  return `<html><head><meta charset="utf-8"><title>${esc(j.job_no||'Job note')}</title><style>${css}</style></head><body>${html}</body></html>`;
+  const script=pv?`<script>(function(){var ed=null;function post(o){parent.postMessage(o,'*')}
+var s=${JSON.stringify(sel||'')};if(s){var el=document.querySelector('[data-k="'+s+'"]');if(el)el.classList.add('jsel')}
+document.addEventListener('click',function(e){if(ed)return;var k=e.target.closest('[data-k]');if(!k)return;document.querySelectorAll('.jsel').forEach(function(x){x.classList.remove('jsel')});k.classList.add('jsel');post({jsel:k.getAttribute('data-k')})});
+document.addEventListener('dblclick',function(e){var k=e.target.closest('[data-k][data-ed]');if(!k)return;ed=k;k.setAttribute('contenteditable','true');k.focus();var r=document.createRange();r.selectNodeContents(k);var sl=getSelection();sl.removeAllRanges();sl.addRange(r)});
+function fin(){if(!ed)return;var k=ed;ed=null;k.removeAttribute('contenteditable');post({jtext:k.getAttribute('data-k'),text:k.innerText.replace(/\\u00a0/g,' ').replace(/\\n+$/,'')})}
+document.addEventListener('focusout',function(){setTimeout(fin,0)});
+document.addEventListener('keydown',function(e){if(!ed)return;if(e.key==='Escape'){ed.blur()}if(e.key==='Enter'&&ed.getAttribute('data-ed')!=='m'){e.preventDefault();ed.blur()}});
+})()<\/script>`:'';
+  return `<html><head><meta charset="utf-8"><title>${esc(j.job_no||'Job note')}</title><style>${css}</style></head><body>${html}${script}</body></html>`;
 }
 
 /* ----- Job note editor (admin) ----- */
-let JLLOGO='';
+let JLLOGO='',JE_SEL='',JEST={},JE_REFILL=false;
+const JE_TEXTMAP={title:'je_t1',subtitle:'je_t2',contact:'je_ct',foot:'je_ft',rules:'je_ru',auth:'je_au',delivery:'je_de',shop:'je_n',addr:'je_a',email:'je_em'};
+const JE_NOTEXT=['foot_bar','tech','issue','remarks'];
+const JE_NAMES={title:'Title',subtitle:'Sub title',shop:'Shop name',addr:'Address',email:'Email line',contact:'Contact (right side)',tech:'Technician text',issue:'Issue reported text',remarks:'Remarks text',rules:'Rules text',auth:'Authorization text',delivery:'Delivery text',foot:'Footer text',foot_bar:'Footer bar'};
+const jeName=k=>JE_NAMES[k]||((/^h_/.test(k)?'Section heading: ':'Label: ')+k.replace(/^(l_|h_)/,'').replace(/_/g,' ').toUpperCase());
+const jeStyle=document.createElement('style');jeStyle.textContent='.jsb{position:fixed;right:18px;bottom:18px;width:310px;max-height:84vh;overflow:auto;background:#fff;border:1px solid #1a73e8;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:10px 12px;z-index:50}.jsb .jsh{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.jsb label{font-size:11.5px;display:block;margin:6px 0 2px}.jsb .r2{display:flex;gap:8px}.jsb .r2>div{flex:1}.jsb input[type=color]{width:100%;height:32px;padding:2px}.jsb input,.jsb select,.jsb textarea{width:100%}.jsb .tg{display:flex;gap:6px;margin-top:8px}.jsb .tg button{flex:1}';document.head.appendChild(jeStyle);
 PAGES.jobeditor=async()=>{
   const jl=getJL(),co=coInfo();JLLOGO=jl.logo||'';
   const ck=(id,v,l)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''} onchange="jePrev()"> ${l}</label>`;
@@ -1368,12 +1395,27 @@ PAGES.jobeditor=async()=>{
    <div class="card"><b>Tick-box lists (one per line)</b>
     ${ta('je_pl','Product',jl.products.join('\n'),5)}${ta('je_sl','Service type',jl.services.join('\n'),3)}${ta('je_al','Accessories',jl.accessories.join('\n'),5)}${ta('je_wl','Work type',jl.works.join('\n'),4)}${ta('je_tl','Technician / Handler names (3 or more)',(jl.technicians||[]).join('\n'),5)}
     <div class="mut" style="margin-top:6px">Add as many technician / handler names as you need, one per line. Staff can select multiple technicians on a job.</div></div>
+   <div class="card"><b>Fonts &amp; colours (whole form)</b>
+    <div class="mut" style="margin:6px 0">Tip: you can also <b>click any text in the live preview</b> to change just that one (font, size, colour, background, bold, align). <b>Double-click</b> a text to type over it.</div>
+    <div class="row"><label>Font for the whole form</label><select id="je_g_font" onchange="jePrev()">${JE_FONTS.map(f=>`<option value="${esc(f[0])}" ${(jl.g&&jl.g.font||'')===f[0]?'selected':''}>${f[1]}</option>`).join('')}</select></div>
+    <div class="bar" style="margin-top:8px">${[['title','Title colour'],['subtitle','Sub title colour'],['label','Label colour'],['value','Text / value colour'],['headBg','Section heading background'],['headText','Section heading text'],['border','Box border colour'],['line','Ruled / underline colour'],['box','Tick box colour']].map(([k,l])=>`<div style="min-width:140px"><label>${l}</label><input id="je_g_${k}" type="color" value="${esc((jl.g&&jl.g[k])||JE_GDEF[k])}" oninput="jePrev()" style="padding:2px;height:34px"></div>`).join('')}</div>
+    <div style="margin-top:8px"><button class="btn sec sm" onclick="jeGReset()">Reset fonts &amp; colours</button> <button class="btn sec sm" onclick="JEST={};jeSelClose();jePrev()">Clear all click-edits</button></div></div>
    <div class="card"><b>Job note text colours</b><div class="bar" style="margin-top:8px"><div><label>Issue reported font</label><input id="je_ic" type="color" value="${esc(jl.issueColor||'#d00000')}" oninput="jePrev()" style="padding:2px;height:34px"></div><div><label>Remarks / condition notes font</label><input id="je_rc" type="color" value="${esc(jl.remarksColor||'#d00000')}" oninput="jePrev()" style="padding:2px;height:34px"></div><div><label>Technician / handler font</label><input id="je_tc" type="color" value="${esc(jl.technicianColor||'#111111')}" oninput="jePrev()" style="padding:2px;height:34px"></div><div><label>Received signature font</label><input id="je_rec_c" type="color" value="${esc(jl.receivedColor||'#111111')}" oninput="jePrev()" style="padding:2px;height:34px"></div></div><div class="mut" style="margin-top:6px">Issue Reported and Remarks / Condition Notes are red by default. Change the colours here anytime.</div></div>
    <div class="card"><b>Texts</b>${ta('je_ru','Rules &amp; regulations',jl.rules,5)}${ta('je_au','Customer authorization',jl.auth,2)}${ta('je_de','Delivery acknowledgement',jl.delivery,2)}${tx('je_ft','Footer bar text (empty = shop | address | phone)',jl.footer)}</div>
    <div class="card"><b>Show / hide sections</b>${ck('je_sa',jl.showAcc,'Accessories row')}${ck('je_sr',jl.showRemarks,'Remarks / condition notes')}${ck('je_su',jl.showRules,'Rules &amp; regulations')}${ck('je_sh',jl.showAuth,'Customer authorization')}${ck('je_sd',jl.showDel,'Delivery acknowledgement')}${ck('je_sf',jl.showFoot,'Footer bar')}${ck('je_sth',jl.showTechnician!==false,'Technician / handler')}${ck('je_srs',jl.showReceivedSignature!==false,'Received person signature')}
     <div class="row" style="margin-top:8px"><label>Base font size</label><select id="je_fs" onchange="jePrev()">${[0,9,10,11,12].map(n=>`<option value="${n}" ${+jl.fontSize===n?'selected':''}>${n?n+' px':'Auto'}</option>`).join('')}</select></div></div>
   </div><div class="job-preview-card">
-  <div class="card"><b>Live preview</b><div class="bar" style="margin:8px 0"><div style="flex:0 0 130px"><label>Zoom</label><select id="je_zoom" onchange="jePrev()"><option value="fit">Fit</option><option value="1">100%</option><option value="0.75">75%</option><option value="0.5">50%</option></select></div><div class="mut" style="flex:2">Sample data with some boxes ticked.</div></div><div id="jpw" class="job-preview-wrap"><iframe id="je_pv" style="width:830px;height:1200px"></iframe></div></div></div></div>`;
+  <div class="card"><b>Live preview</b><div class="bar" style="margin:8px 0"><div style="flex:0 0 130px"><label>Zoom</label><select id="je_zoom" onchange="jePrev()"><option value="fit">Fit</option><option value="1">100%</option><option value="0.75">75%</option><option value="0.5">50%</option></select></div><div class="mut" style="flex:2">Sample data with some boxes ticked.</div></div><div id="jpw" class="job-preview-wrap"><iframe id="je_pv" style="width:830px;height:1200px"></iframe></div></div></div></div>
+  <div id="je_sel" class="jsb" style="display:none">
+   <div class="jsh" id="js_drag" style="cursor:move" title="Drag to move this box"><b id="js_name">Element</b><a onclick="jeSelClose()" style="cursor:pointer;font-size:18px;line-height:1">&times;</a></div>
+   <div id="js_txtw"><label>Text</label><textarea id="js_t" rows="2" oninput="jeSet('t',this.value)"></textarea></div>
+   <div class="r2"><div><label>Font</label><select id="js_f" onchange="jeSet('f',this.value)">${JE_FONTS.map(f=>`<option value="${esc(f[0])}">${f[1]}</option>`).join('')}</select></div><div style="flex:0 0 80px"><label>Size (px)</label><input id="js_s" type="number" min="5" max="90" step="0.5" oninput="jeSet('s',this.value)"></div></div>
+   <div class="r2"><div><label>Text colour</label><input id="js_c" type="color" oninput="jeSet('c',this.value)"></div><div><label>Background</label><input id="js_bg" type="color" oninput="jeSet('bg',this.value)"></div></div>
+   <div class="r2"><div><button class="btn sec sm" style="width:100%" onclick="jeSet('c','')">Reset colour</button></div><div><button class="btn sec sm" style="width:100%" onclick="jeSet('bg','')">Reset background</button></div></div>
+   <div class="tg"><button class="btn sec sm" id="js_b" onclick="jeToggle('b')">Bold</button><button class="btn sec sm" id="js_i" onclick="jeToggle('i')">Italic</button><select id="js_a" onchange="jeSet('a',this.value)" style="flex:1"><option value="">Align</option><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select></div>
+   <div style="margin-top:8px"><button class="btn sec sm" style="width:100%" onclick="jeSelReset()">Reset this element</button></div>
+  </div>`;
+  JEST=JSON.parse(JSON.stringify(jl.st||{}));JE_SEL='';
   document.querySelectorAll('.edgrid .card>b:first-child').forEach(b=>b.onclick=()=>b.parentNode.classList.toggle('closed'));
   jePrev();
 };
@@ -1383,16 +1425,64 @@ function jeRead(){
   return {co:{n:g('je_n').value,a:g('je_a').value,p:g('je_p').value},
    jl:{useInvLogo:g('je_ul').checked,logo:JLLOGO,logoH:+g('je_lh').value||60,accent:g('je_ac').value,margin:+g('je_mg').value||7,title:g('je_t1').value||'JOB NOTE',subtitle:g('je_t2').value,contact:g('je_ct').value,email:g('je_em').value.trim(),footer:g('je_ft').value,
     products:jeLines('je_pl'),services:jeLines('je_sl'),accessories:jeLines('je_al'),works:jeLines('je_wl'),technicians:jeLines('je_tl'),issueColor:g('je_ic').value,remarksColor:g('je_rc').value,technicianColor:g('je_tc').value,receivedColor:g('je_rec_c').value,rules:g('je_ru').value,auth:g('je_au').value,delivery:g('je_de').value,
-    showAcc:g('je_sa').checked,showRemarks:g('je_sr').checked,showRules:g('je_su').checked,showAuth:g('je_sh').checked,showDel:g('je_sd').checked,showFoot:g('je_sf').checked,showTechnician:g('je_sth').checked,showReceivedSignature:g('je_srs').checked,fontSize:+g('je_fs').value||0}};
+    g:Object.fromEntries(Object.keys(JE_GDEF).map(k=>[k,g('je_g_'+k).value])),st:JEST,showAcc:g('je_sa').checked,showRemarks:g('je_sr').checked,showRules:g('je_su').checked,showAuth:g('je_sh').checked,showDel:g('je_sd').checked,showFoot:g('je_sf').checked,showTechnician:g('je_sth').checked,showReceivedSignature:g('je_srs').checked,fontSize:+g('je_fs').value||0}};
 }
 function jePrev(){
   const {co,jl}=jeRead();
   const j={job_no:'WR-00001',job_date:new Date().toISOString(),customer_name:'Sample Customer',customer_code:'CUS-0001',mobile:'0771234567',whatsapp:'0771234567',email:'sample@mail.com',brand_model:'ASUS Vivobook X1504VA',item_ref:'LAP-0001',serial_no:'SN1234567890',product_id:'P-1001',
     issue:'Laptop does not power on.\nBattery not charging.',remarks:'Small scratch on the lid.',checks:{product:[jl.products[0]],service:[jl.services[2]||jl.services[0]],accessories:[jl.accessories[0]],work:[jl.works[0]],technician:[(jl.technicians||[])[0]],received_by:'Received Person'}};
   const f=$('#je_pv'),zs=$('#je_zoom').value,ww=$('#jpw').clientWidth||900,z=zs==='fit'?Math.min(1,(ww-20)/830):+zs;
-  f.srcdoc=jobDoc(j,jl,{n:co.n||'Company',a:co.a,p:co.p},true);
+  f.onload=()=>{if(JE_REFILL){JE_REFILL=false;jePanelFill()}};
+  f.srcdoc=jobDoc(j,jl,{n:co.n||'Company',a:co.a,p:co.p},true,JE_SEL);
   f.style.transform='scale('+z+')';f.style.transformOrigin='0 0';$('#jpw').style.height=Math.round(1200*z+24)+'px';
 }
+function jeGReset(){Object.keys(JE_GDEF).forEach(k=>{$('#je_g_'+k).value=JE_GDEF[k]});$('#je_g_font').value='';jePrev()}
+const rgbHex=c=>{const m=String(c).match(/\d+(\.\d+)?/g);if(!m||m.length<3||(m.length>=4&&+m[3]===0))return null;return '#'+m.slice(0,3).map(x=>Math.round(+x).toString(16).padStart(2,'0')).join('')};
+function jeEl(k){const f=$('#je_pv');try{return f.contentDocument.querySelector('[data-k="'+k+'"]')}catch(e){return null}}
+function jePanelFill(){
+  const k=JE_SEL,el=jeEl(k),o=JEST[k]||{};if(!k||!el)return;
+  $('#je_sel').style.display='block';$('#js_name').textContent=/^(h_|l_)/.test(k)?(/^h_/.test(k)?'Heading: ':'Label: ')+el.innerText.trim():jeName(k);
+  $('#js_txtw').style.display=JE_NOTEXT.includes(k)?'none':'';
+  $('#js_t').value=el.innerText.replace(/\u00a0/g,' ').replace(/\n+$/,'');
+  const cs=el.ownerDocument.defaultView.getComputedStyle(el);
+  $('#js_c').value=o.c||rgbHex(cs.color)||'#000000';
+  $('#js_bg').value=o.bg||rgbHex(cs.backgroundColor)||'#ffffff';
+  $('#js_s').value=o.s||Math.round(parseFloat(cs.fontSize)*2)/2;
+  $('#js_f').value=o.f||'';$('#js_a').value=o.a||'';
+  $('#js_b').style.background=o.b===1?'#cfe3ff':'';$('#js_b').textContent=o.b===0?'Not bold':'Bold';
+  $('#js_i').style.background=o.i?'#cfe3ff':'';
+}
+document.addEventListener('mousedown',e=>{const h=e.target.closest&&e.target.closest('#js_drag');if(!h||e.target.tagName==='A')return;const p=$('#je_sel'),r=p.getBoundingClientRect(),dx=e.clientX-r.left,dy=e.clientY-r.top;
+  const mv=ev=>{p.style.left=Math.max(0,ev.clientX-dx)+'px';p.style.top=Math.max(0,ev.clientY-dy)+'px';p.style.right='auto';p.style.bottom='auto'};
+  const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up)};document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);e.preventDefault()});
+function jeSelClose(){JE_SEL='';const p=$('#je_sel');if(p)p.style.display='none';const el=$('#je_pv')&&jeEl(JE_SEL);document.querySelectorAll('#je_pv').forEach(f=>{try{f.contentDocument.querySelectorAll('.jsel').forEach(x=>x.classList.remove('jsel'))}catch(e){}})}
+function jeSet(p,v){
+  const k=JE_SEL;if(!k)return;
+  if(p==='t'&&JE_TEXTMAP[k]){$('#'+JE_TEXTMAP[k]).value=(k==='email')?v.replace(/^Email:\s*/i,''):v;jePrev();return}
+  const o=JEST[k]=JEST[k]||{};
+  if(p==='s')v=+v||0;
+  if(v===''||v===0||v==null)delete o[p];else o[p]=v;
+  if(!Object.keys(o).length)delete JEST[k];
+  jePrev();
+}
+function jeToggle(p){
+  const k=JE_SEL;if(!k)return;const o=JEST[k]=JEST[k]||{};
+  if(p==='b'){if(o.b===undefined)o.b=1;else if(o.b===1)o.b=0;else delete o.b}
+  else{if(o.i)delete o.i;else o.i=1}
+  if(!Object.keys(o).length)delete JEST[k];
+  JE_REFILL=true;jePrev();
+}
+function jeSelReset(){const k=JE_SEL;if(!k)return;delete JEST[k];JE_REFILL=true;jePrev()}
+window.addEventListener('message',e=>{
+  if(!e.data||!$('#je_pv'))return;
+  if(e.data.jsel){JE_SEL=e.data.jsel;jePanelFill()}
+  if(e.data.jtext!==undefined){
+    const k=e.data.jtext,t=e.data.text;JE_SEL=k;
+    if(JE_TEXTMAP[k]){$('#'+JE_TEXTMAP[k]).value=(k==='email')?t.replace(/^Email:\s*/i,''):t}
+    else{const o=JEST[k]=JEST[k]||{};if(t)o.t=t;else delete o.t;if(!Object.keys(o).length)delete JEST[k]}
+    JE_REFILL=true;jePrev();
+  }
+});
 function jeLogo(inp){
   const f=inp.files[0];if(!f)return;const r=new FileReader();
   r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,500/im.width),c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);JLLOGO=c.toDataURL('image/png');$('#je_ul').checked=false;jePrev()};im.src=r.result};
