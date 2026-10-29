@@ -1196,7 +1196,7 @@ PAGES.jobform=async()=>{
   let j={job_type:nt,job_date:new Date().toISOString(),customer_id:null,customer_code:'',customer_name:'',mobile:'',whatsapp:'',email:'',brand_model:'',item_ref:'',serial_no:'',product_id:'',issue:'',remarks:'',status:'Received',job_no:'',checks:{}};
   if(id)j=await run(sb.from('job_notes').select('*').eq('id',id).single());
   else{j.checks={service:nt==='warranty'?['Warranty']:nt==='service'?['Chargeable']:[],work:nt==='repair'?['Repair']:nt==='service'?['Diagnosis']:[]}}
-  JF={...j,id,checks:{product:[],service:[],accessories:[],work:[],technician:[],product_other:'',accessories_other:'',work_other:'',received_by:'',received_signature:'',...(j.checks||{})}};
+  JF={...j,id,checks:{product:[],service:[],accessories:[],work:[],technician:[],product_other:'',accessories_other:'',work_other:'',received_by:'',received_signature:'',taken_by:'',taken_sig:'',...(j.checks||{})}};
   if(!Array.isArray(JF.checks.technician))JF.checks.technician=[];
   const inp=(i,l,v,ex='')=>`<div><label>${l}</label><input id="${i}" value="${esc(v)}" ${ex}></div>`;
   $('#main').innerHTML=`<div class="top"><h2>${id?'Edit job note '+esc(j.job_no):'New '+JT[nt].toLowerCase()+' job note'}</h2><button class="btn sec" onclick="go('job_${JF.job_type}')">Back to list</button></div>
@@ -1219,8 +1219,13 @@ PAGES.jobform=async()=>{
    ${jl.showTechnician?`<div style="margin-top:10px"><label>Technician / handler (tick one or more)</label><div class="chkrow">${(jl.technicians||[]).length?jcb('technician',jl.technicians):'<span class="mut">Add technician names in Job note editor.</span>'}</div></div>`:''}
    </div>
   ${jl.showRemarks?`<div class="card"><b>Remarks / condition notes</b><div style="margin-top:8px"><div class="jobrt"><div id="j_rm" class="jobrich" contenteditable="true" onpaste="jobPaste(event)" style="color:${esc(jl.remarksColor||'#d00000')}">${richDisplay(JF.remarks)}</div></div></div></div>`:''}
+  <div class="card"><b>Laptop received by (staff) - signature</b><div class="bar" style="margin-top:8px"><div><label>Staff name</label><input id="j_taken" value="${esc(JF.checks.taken_by||me.username||'')}"></div></div>
+   <label style="margin-top:8px">Sign here (mouse, finger or pen)</label>
+   <canvas id="j_pad" width="480" height="150" style="width:100%;max-width:480px;height:150px;border:1.5px dashed #98a2b3;border-radius:8px;background:#fff;touch-action:none;display:block"></canvas>
+   <div style="margin-top:6px"><button type="button" class="btn sec sm" onclick="jobPadClear()">Clear signature</button> <span class="mut">Prints above the "Received by (staff)" line. Leave empty to sign by hand.</span></div></div>
   ${jl.showReceivedSignature?`<div class="card"><b>Received person</b><div class="bar" style="margin-top:8px"><div><label>Received by</label><input id="j_received" value="${esc(JF.checks.received_by||'')}"></div></div><div class="mut" style="margin-top:7px">Signature will be left blank on the printed Job Note for the customer to sign by hand.</div></div>`:''}
   <div class="bar" style="justify-content:flex-end"><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="jobSave(false)">Save</button></div><div style="flex:0;white-space:nowrap"><button class="btn" onclick="jobSave(true)">Save &amp; print</button></div><div style="flex:0;white-space:nowrap"><button class="btn" onclick="jobSaveWhatsApp()">Save &amp; WhatsApp</button></div></div>`;
+  jobPadInit();
 };
 const JKEY={product:'products',service:'services',accessories:'accessories',work:'works',technician:'technicians'};
 const jcb=(g,list)=>list.map((x,i)=>`<label class="chk jchk"><input type="checkbox" ${JF.checks[g].includes(x)?'checked':''} onchange="jobTick('${g}',${i},this.checked)"> ${esc(x)}</label>`).join('');
@@ -1267,7 +1272,18 @@ async function jobSaveWhatsApp(){
   const url=jobWhatsAppUrl(saved);
   if(w&&url)w.location.href=url;else if(w)w.close();
 }
+function jobPadInit(){
+  const c=$('#j_pad');if(!c)return;const x=c.getContext('2d');x.lineWidth=2.4;x.lineCap='round';x.lineJoin='round';x.strokeStyle='#111';
+  if(JF.checks.taken_sig){const im=new Image();im.onload=()=>x.drawImage(im,0,0,c.width,c.height);im.src=JF.checks.taken_sig}
+  let dr=false;const pt=e=>{const r=c.getBoundingClientRect();return [(e.clientX-r.left)*c.width/r.width,(e.clientY-r.top)*c.height/r.height]};
+  c.onpointerdown=e=>{dr=true;c.setPointerCapture(e.pointerId);const [a,b]=pt(e);x.beginPath();x.moveTo(a,b);x.lineTo(a+.1,b+.1);x.stroke();JF.padDirty=true;e.preventDefault()};
+  c.onpointermove=e=>{if(!dr)return;const [a,b]=pt(e);x.lineTo(a,b);x.stroke();e.preventDefault()};
+  c.onpointerup=c.onpointercancel=()=>{dr=false};
+}
+function jobPadClear(){const c=$('#j_pad');if(!c)return;c.getContext('2d').clearRect(0,0,c.width,c.height);JF.checks.taken_sig='';JF.padDirty=false;JF.padCleared=true}
 async function jobSave(print,openWhatsApp=false){
+  if($('#j_taken'))JF.checks.taken_by=$('#j_taken').value.trim();
+  if($('#j_pad')&&JF.padDirty)JF.checks.taken_sig=$('#j_pad').toDataURL('image/png');
   const issueEl=$('#j_is'),remarksEl=$('#j_rm');
   if(issueEl)JF.issue=richTextHtml(issueEl.innerHTML);
   if(remarksEl)JF.remarks=richTextHtml(remarksEl.innerHTML);
@@ -1339,7 +1355,7 @@ html,body{margin:0}body{font:${fs}px/1.3 ${ff};color:${vc};${pv?'background:#dfe
 .sigbox{padding:1.5mm 3mm;display:flex;justify-content:space-between;gap:8mm;align-items:flex-end;min-height:20mm}.sigbox .received{flex:1;padding-bottom:.6mm}.sigline{border-top:1px solid ${cbc};min-width:52mm;text-align:center;padding-top:.5mm;font-size:${fs*.72}px;color:${lc}}.handSig{width:62mm}
 .ruled{flex:1;line-height:5.1mm;min-height:24mm;padding:0 3mm;white-space:pre-wrap;background-image:linear-gradient(to bottom,transparent calc(5.1mm - 1px),${ln} calc(5.1mm - 1px));background-size:100% 5.1mm}
 .txt{padding:1.1mm 2.5mm;font-size:${fs*.76}px;line-height:1.25;color:${vc}}
-.sigrow{display:flex;justify-content:flex-end;gap:10mm;align-items:flex-end;padding:0 3mm 1.5mm}.sigrow div{border-top:1px solid ${cbc};font-size:${fs*.72}px;text-align:center;padding-top:.5mm;min-width:48mm;color:${lc}}
+.sigrow{display:flex;justify-content:flex-end;gap:10mm;align-items:flex-end;padding:0 3mm 1.5mm}.sgcol{min-width:48mm;text-align:center}.sgcol img{display:block;margin:0 auto 0;height:12mm;max-width:100%;object-fit:contain}.sgcol .sn{font-size:${fs*.8}px;color:${vc}}.sgcol .sl{border-top:1px solid ${cbc};font-size:${fs*.72}px;padding-top:.5mm;color:${lc}}
 .foot{margin-top:auto;background:${A};color:#fff;font-weight:800;font-size:${fs*.85}px;padding:1.6mm 3mm;display:flex;justify-content:space-between;gap:6mm}
 .sgs{flex:1 1 0;max-height:30mm;min-height:14mm;display:flex;flex-direction:column}.sgs .txt{flex:1;padding-bottom:2mm}
 .spacer{height:2.6mm}
@@ -1354,7 +1370,7 @@ ${pv?`[data-k]{cursor:pointer}[data-k]:hover{outline:1px dashed #1a73e8;outline-
    <div class="chk2">${lb('SERVICE TYPE')}${ci('service',jl.services,'service_other')}</div>${jl.showAcc?`<div class="chk2">${lb('ACCESSORIES')}${ci('accessories',jl.accessories,'accessories_other')}</div>`:''}<div class="chk2">${lb('WORK TYPE')}${ci('work',jl.works,'work_other')}</div>`)}
    ${jl.showRemarks?sec('rem','REMARKS / CONDITION NOTES',`<div class="ruled rich"${K('remarks','min-height:20mm;padding-top:0;color:'+(jl.remarksColor||'#d00000'))}>${safeRich(j.remarks||'',jl.remarksColor||'#d00000')}</div>`):''}
   ${jl.showRules?sec('rules','RULES & REGULATIONS',`<div class="txt"${K('rules','','m')}>${esc(jl.rules).replace(/\n/g,'<br>')}</div>`):''}
-  ${jl.showAuth?sec('auth','CUSTOMER AUTHORIZATION',`<div class="txt" style="display:flex;justify-content:space-between;gap:8mm;align-items:flex-end"><span${K('auth','','m')}>${esc(jl.auth)}</span><span class="sigrow" style="padding:0">${sgl('CUSTOMER SIGNATURE','')}</span></div>`,'sgs'):''}
+  ${jl.showAuth?sec('auth','CUSTOMER AUTHORIZATION',`<div class="txt" style="display:flex;justify-content:space-between;gap:8mm;align-items:flex-end"><span${K('auth','','m')}>${esc(jl.auth)}</span><span class="sigrow" style="padding:0">${jl.showTakenSig!==false?`<div class="sgcol">${ch.taken_sig&&/^data:image\/png;base64,/.test(ch.taken_sig)?`<img src="${ch.taken_sig}">`:''}${ch.taken_by?`<div class="sn">${esc(ch.taken_by)}</div>`:''}${sgl('RECEIVED BY (STAFF)','sl')}</div>`:''}<div class="sgcol">${sgl('CUSTOMER SIGNATURE','sl')}</div></span></div>`,'sgs'):''}
    ${jl.showDel?sec('del','DELIVERY ACKNOWLEDGEMENT',`<div class="txt"${K('delivery','','m')}>${esc(jl.delivery)}</div>${jl.showReceivedSignature?`<div class="sigbox"><div class="received">${lb('RECEIVED BY:','color:'+jsR)} ${esc(ch.received_by||'')}</div>${sgl('RECEIVED PERSON SIGNATURE','sigline handSig','color:'+jsR)}${sgl('DATE','sigline')}</div>`:''}`,'sgs'):''}
   ${jl.showFoot?`<div class="spacer"></div><div class="foot"${K('foot_bar')}><span${K('foot','',1)}>${esc(foot)}</span></div>`:''}
   </div></div>`;
