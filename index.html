@@ -1196,7 +1196,7 @@ PAGES.jobform=async()=>{
   let j={job_type:nt,job_date:new Date().toISOString(),customer_id:null,customer_code:'',customer_name:'',mobile:'',whatsapp:'',email:'',brand_model:'',item_ref:'',serial_no:'',product_id:'',issue:'',remarks:'',status:'Received',job_no:'',checks:{}};
   if(id)j=await run(sb.from('job_notes').select('*').eq('id',id).single());
   else{j.checks={service:nt==='warranty'?['Warranty']:nt==='service'?['Chargeable']:[],work:nt==='repair'?['Repair']:nt==='service'?['Diagnosis']:[]}}
-  JF={...j,id,checks:{product:[],service:[],accessories:[],work:[],technician:[],product_other:'',accessories_other:'',work_other:'',received_by:'',received_signature:'',taken_by:'',taken_sig:'',...(j.checks||{})}};
+  JF={...j,id,checks:{product:[],service:[],accessories:[],work:[],technician:[],product_other:'',accessories_other:'',work_other:'',received_by:'',received_signature:'',taken_by:'',taken_sig:'',purchase_date:'',invoice_no:'',...(j.checks||{})}};
   if(!Array.isArray(JF.checks.technician))JF.checks.technician=[];
   const inp=(i,l,v,ex='')=>`<div><label>${l}</label><input id="${i}" value="${esc(v)}" ${ex}></div>`;
   $('#main').innerHTML=`<div class="top"><h2>${id?'Edit job note '+esc(j.job_no):'New '+JT[nt].toLowerCase()+' job note'}</h2><button class="btn sec" onclick="go('job_${JF.job_type}')">Back to list</button></div>
@@ -1207,6 +1207,7 @@ PAGES.jobform=async()=>{
     <div><label>Status</label><select id="j_st">${JSTAT.map(x=>`<option ${x===JF.status?'selected':''}>${x}</option>`).join('')}</select></div></div>
    <div style="position:relative;margin-top:10px"><label>Search customer (name, code or phone)</label><input id="jcs" placeholder="Type to search…" oninput="jobCustSearch(this.value)" autocomplete="off"><div id="jcs_res" class="sresbox"></div></div>
    <div class="bar" style="margin-top:8px"><div style="flex:0 0 130px"><label>Customer code</label><input id="j_cc" readonly value="${esc(JF.customer_code)}"></div>${inp('j_cn','Customer name',JF.customer_name).replace('<div>','<div style="flex:2">')}${inp('j_mo','Mobile',JF.mobile)}${inp('j_wa','WhatsApp',JF.whatsapp)}${inp('j_em','Email',JF.email)}</div>
+   <div class="bar" style="margin-top:8px"><div style="flex:0 0 200px"><label>Purchasing date</label><input id="j_pd" type="date" value="${esc(JF.checks.purchase_date||'')}"></div><div style="flex:0 0 240px"><label>Invoice number</label><input id="j_inv" placeholder="Type the invoice number" value="${esc(JF.checks.invoice_no||'')}"></div></div>
    <div style="margin-top:8px">${hasP('customers')?'<button class="btn sec sm" onclick="customerModal(0,jobCustFill)">+ New customer</button> ':''}<button class="btn sec sm" onclick="jobCustClear()">Clear customer</button></div></div>
   <div class="card"><b>Product profile</b>
    <div style="margin-top:8px"><label>Product</label><div class="chkrow">${jcb('product',jl.products)}${jother('product',jl.products)}</div></div>
@@ -1282,6 +1283,7 @@ function jobPadInit(){
 }
 function jobPadClear(){const c=$('#j_pad');if(!c)return;c.getContext('2d').clearRect(0,0,c.width,c.height);JF.checks.taken_sig='';JF.padDirty=false;JF.padCleared=true}
 async function jobSave(print,openWhatsApp=false){
+  if($('#j_pd'))JF.checks.purchase_date=$('#j_pd').value;if($('#j_inv'))JF.checks.invoice_no=$('#j_inv').value.trim();
   if($('#j_taken'))JF.checks.taken_by=$('#j_taken').value.trim();
   if($('#j_pad')&&JF.padDirty)JF.checks.taken_sig=$('#j_pad').toDataURL('image/png');
   const issueEl=$('#j_is'),remarksEl=$('#j_rm');
@@ -1364,7 +1366,7 @@ ${pv?`[data-k]{cursor:pointer}[data-k]:hover{outline:1px dashed #1a73e8;outline-
   const html=`<div class="sheet"><div class="jp">
   <div class="jh"><div>${logo?`<img src="${logo}" style="height:${jl.logoH}px">`:''}</div><div><div class="t1"${K('title','',1)}>${esc(jl.title)}</div><div class="t2"${K('subtitle','',1)}>${esc(jl.subtitle)}</div></div></div>
   <div class="jc"><div><b${K('shop','',1)}>${esc(co.n)}</b><div${K('addr','',1)}>${esc(addr)}</div>${(jl.email||getLY().email)?`<div${K('email','',1)}>Email: ${esc(jl.email||getLY().email)}</div>`:''}</div><div class="ct"${K('contact','',1)}>${esc(contact)}</div></div>
-  ${sec('cust','CUSTOMER PROFILE',`<div class="gr">${cell('DATE / TIME',fmtDT(j.job_date),1)}${cell('JOB NO',j.job_no||'',1)}</div><div class="gr">${cell('CUSTOMER',(j.customer_name||'')+(j.customer_code?'  ('+j.customer_code+')':''),1)}${cell('MOBILE',j.mobile||'',1)}</div><div class="gr">${cell('EMAIL',j.email||'',1)}${cell('WHATSAPP',j.whatsapp||'',1)}</div>${jl.showTechnician?`<div class="gr"><div class="gc" style="flex:1">${lb('TECHNICIAN / HANDLER')}<span class="v"${K('tech','color:'+jsT+';font-weight:700')}>${esc(selectedTech)}</span></div></div>`:''}`)}
+  ${sec('cust','CUSTOMER PROFILE',`<div class="gr">${cell('DATE / TIME',fmtDT(j.job_date),1)}${cell('JOB NO',j.job_no||'',1)}</div><div class="gr">${cell('CUSTOMER',(j.customer_name||'')+(j.customer_code?'  ('+j.customer_code+')':''),1)}${cell('MOBILE',j.mobile||'',1)}</div><div class="gr">${cell('EMAIL',j.email||'',1)}${cell('WHATSAPP',j.whatsapp||'',1)}</div><div class="gr">${cell('PURCHASING DATE',ch.purchase_date||'',1)}${cell('INVOICE NO',ch.invoice_no||'',1)}</div>${jl.showTechnician?`<div class="gr"><div class="gc" style="flex:1">${lb('TECHNICIAN / HANDLER')}<span class="v"${K('tech','color:'+jsT+';font-weight:700')}>${esc(selectedTech)}</span></div></div>`:''}`)}
   ${sec('prod','PRODUCT PROFILE',`<div class="chk2">${lb('PRODUCT')}${ci('product',jl.products,'product_other')}</div><div class="gr">${cell('BRAND / MODEL',j.brand_model||'',1)}${cell('ITEM / REFERENCE',j.item_ref||'',1)}</div><div class="gr">${cell('SERIAL NO.',j.serial_no||'',1)}${cell('PRODUCT ID',j.product_id||'',1)}</div>
    <div class="is">${lb('ISSUE REPORTED')}<div class="ruled rich"${K('issue','color:'+(jl.issueColor||'#d00000'))}>${safeRich(j.issue||'',jl.issueColor||'#d00000')}</div></div>
    <div class="chk2">${lb('SERVICE TYPE')}${ci('service',jl.services,'service_other')}</div>${jl.showAcc?`<div class="chk2">${lb('ACCESSORIES')}${ci('accessories',jl.accessories,'accessories_other')}</div>`:''}<div class="chk2">${lb('WORK TYPE')}${ci('work',jl.works,'work_other')}</div>`)}
@@ -1456,7 +1458,7 @@ function jeRead(){
 function jePrev(){
   const {co,jl}=jeRead();
   const j={job_no:'WR-00001',job_date:new Date().toISOString(),customer_name:'Sample Customer',customer_code:'CUS-0001',mobile:'0771234567',whatsapp:'0771234567',email:'sample@mail.com',brand_model:'ASUS Vivobook X1504VA',item_ref:'LAP-0001',serial_no:'SN1234567890',product_id:'P-1001',
-    issue:'Laptop does not power on.\nBattery not charging.',remarks:'Small scratch on the lid.',checks:{product:[jl.products[0]],service:[jl.services[2]||jl.services[0]],accessories:[jl.accessories[0]],work:[jl.works[0]],technician:[(jl.technicians||[])[0]],received_by:'Received Person',taken_by:'Staff Name',taken_sig:jeDemoSig()}};
+    issue:'Laptop does not power on.\nBattery not charging.',remarks:'Small scratch on the lid.',checks:{product:[jl.products[0]],service:[jl.services[2]||jl.services[0]],accessories:[jl.accessories[0]],work:[jl.works[0]],technician:[(jl.technicians||[])[0]],purchase_date:new Date().toISOString().slice(0,10),invoice_no:'INV-00001',received_by:'Received Person',taken_by:'Staff Name',taken_sig:jeDemoSig()}};
   const f=$('#je_pv'),zs=$('#je_zoom').value,ww=$('#jpw').clientWidth||900,z=zs==='fit'?Math.min(1,(ww-20)/830):+zs;
   f.onload=()=>{if(JE_REFILL){JE_REFILL=false;jePanelFill()}};
   f.srcdoc=jobDoc(j,jl,{n:co.n||'Company',a:co.a,p:co.p},true,JE_SEL);
