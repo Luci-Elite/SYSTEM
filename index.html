@@ -1706,15 +1706,15 @@ async function stfSlip(id) {
   const adv = pays.filter(p => p.kind === 'Advance'); if (adv.length) notes.push('Advance: ' + adv.map(p => `${p.pay_date} Rs. ${money(p.amount)}`).join(', ') + '.');
   if (x.paid) notes.push(`Paid Rs. ${money(x.paid)}. Balance Rs. ${money(bal)}.`);
   const ly = getLY(), contact = [co.p ? 'Mob : ' + co.p : '', ly.email ? 'Email : ' + ly.email : '', ly.web ? 'Website : ' + ly.web : ''].filter(Boolean).map(esc).join('&nbsp;&nbsp;&nbsp;');
-  const lh = `<div class="lh"><div><div class="nm">${esc(co.n)}</div>${String(co.a || '').split('\n').filter(Boolean).map(z => `<div>${esc(z)}</div>`).join('')}${contact ? `<div>${contact}</div>` : ''}</div>${ly.logo ? `<img src="${ly.logo}" style="height:${Math.min(+ly.logoH || 60, 70)}px">` : ''}</div>`;
+  const lh = `<div class="lh"><div><div class="nm">${esc(co.n)}</div>${String(co.a || '').split('\n').filter(Boolean).map(z => `<div>${esc(z)}</div>`).join('')}${contact ? `<div>${contact}</div>` : ''}</div>${ly.logo ? `<img src="${ly.logo}" style="height:${Math.min(+ly.logoH || 60, 50)}px">` : ''}</div>`;
   const body = lh + `<table><tr><td colspan="2" class="t">${esc(co.n.replace(/\(?\s*pvt\s*\)?\s*ltd\.?/i, '').trim().toUpperCase())} STAFF SALARY</td></tr>
   ${I('Company Name', (co.n || '').toUpperCase())}${I('Branch', (s.branch || '-').toUpperCase())}${I('Employee Name', (s.name || '').toUpperCase())}${I('Employee ID', s.fp_id || '-------------')}${I('Position', (s.position || '-').toUpperCase())}${I('Month & Year', '01/' + String(m).padStart(2, '0') + '/' + y)}
   <tr><td colspan="2" class="sh">SALARY DETAILS</td></tr><tr class="b"><td>Description</td><td class="r">Amount (LKR)</td></tr>
   ${R('Basic Salary', sal)}${R('Allowances', al)}${R('Commissions', x.comm)}${R('Bonus', x.bonus)}${R('Total Earnings', earn, 'b')}
   <tr><td colspan="2" class="sh">DEDUCTIONS</td></tr><tr class="b"><td>Description</td><td class="r">Amount (LKR)</td></tr>
   ${R('Late Attendance', x.late)}${R('Leave Deduction', x.leave)}${R('Advance Salary', x.adv)}${R('Other Deductions', x.ded)}${R('Total Deductions', dedT, 'b')}
-  ${R('Total Salary', tot, 'b big')}</table>${notes.length ? `<div style="margin-top:6px;font-size:10px">${notes.map(esc).join('<br>')}</div>` : ''}`;
-  printHtml('Salary slip ' + s.name + ' ' + mo, body, '@page{size:A5;margin:8mm}body{font-size:12px}table{border:1.5px solid #000}td,th{border:1px solid #000;padding:5px 8px}.t{font-size:17px;font-weight:700;text-align:center;padding:8px}.sh{background:#ddd;font-weight:700;text-align:center}tr.b td{font-weight:700;background:#f0f0f0}tr.big td{font-size:14px;background:#ddd}.lb{font-weight:700;width:45%}.lh{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px}.nm{font-size:20px;font-weight:700}');
+  ${R('Total Salary', tot, 'b big')}</table>${notes.length ? `<div style="margin-top:4px;font-size:9px">${notes.map(esc).join('<br>')}</div>` : ''}`;
+  printHtml('Salary slip ' + s.name + ' ' + mo, body, '@page{size:A5;margin:8mm}html,body{margin:0;padding:0}body{font-size:11px;line-height:1.2}table{border:1.5px solid #000;margin:0;page-break-inside:avoid}tr{page-break-inside:avoid}td,th{border:1px solid #000;padding:2px 7px}.t{font-size:15px;font-weight:700;text-align:center;padding:4px}.sh{background:#ddd;font-weight:700;text-align:center}tr.b td{font-weight:700;background:#f0f0f0}tr.big td{font-size:13px;background:#ddd}.lb{font-weight:700;width:45%}.lh{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:2px solid #000;padding-bottom:4px;margin-bottom:5px}.nm{font-size:17px;font-weight:700}');
 }
 
 /* ---------------- Salary increase ---------------- */
