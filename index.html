@@ -1540,7 +1540,7 @@ async function jeSave(){
 }
 
 </script>
-  <!-- ===== STAFF MANAGEMENT (paste this whole block just before </body>) ===== -->
+<!-- ===== STAFF MANAGEMENT (paste this whole block just before </body>) ===== -->
 <script>
 /* ===== Staff management + salary + fingerprint attendance (admin only) ===== */
 PERMS.push(['staff','Staff management & salary']);
@@ -1553,26 +1553,42 @@ const stfD = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '
 const stfOldNav = window.buildNav;
 window.buildNav = function () {
   stfOldNav();
-  if (hasP('staff')) $('#nav').insertAdjacentHTML('beforeend', '<a id="n_staff" onclick="go(\'staff\')">Staff management</a>');
+  if (hasP('staff')) $('#nav').insertAdjacentHTML('beforeend', `<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">Staff management &#9662;</a><div class="sub">${[['staff', 'Staff &amp; attendance'], ['staff_adv', 'Advances'], ['staff_sal', 'Salary sheet']].map(g => `<a id="n_${g[0]}" onclick="go('${g[0]}')">${g[1]}</a>`).join('')}</div></div>`);
 };
+
+/* month sums per staff: Salary = paid out, Advance/Deduction reduce pay, Bonus adds to pay */
+const stfZ = () => ({ adv: 0, bonus: 0, ded: 0, paid: 0 });
+const stfKey = { Advance: 'adv', Bonus: 'bonus', Deduction: 'ded', Salary: 'paid' };
+function stfSums(pays) { const m = {}; pays.forEach(p => { const k = stfKey[p.kind]; if (!k) return; const o = m[p.staff_id] = m[p.staff_id] || stfZ(); o[k] += Number(p.amount) }); return m }
+const stfNet = (s, x) => Number(s.salary) + x.bonus - x.adv - x.ded;
+function stfCalc(s, att, f, t) {
+  const m = {}; att.forEach(a => m[a.att_date] = a);
+  const st = stfTm(s.start_time) ?? 570, gr = +s.grace_min || 0; let pres = 0, abs = 0, late = 0, lm = 0;
+  for (let d = new Date(f + 'T00:00:00'); stfD(d) <= t && stfD(d) <= today(); d.setDate(d.getDate() + 1)) {
+    const a = m[stfD(d)];
+    if (!a) { if (d.getDay() !== 0) abs++; continue }
+    pres++; const i = stfTm(a.in_time); if (i !== null && i > st + gr) { late++; lm += i - st }
+  }
+  return { pres, abs, late, lm };
+}
 
 /* ---------------- main page ---------------- */
 PAGES.staff = async () => {
   if (!hasP('staff')) { $('#main').innerHTML = '<p class="mut">No permission.</p>'; return }
   SF.mo = SF.mo || today().slice(0, 7);
   SF.list = await run(sb.from('staff').select('*').order('name'));
-  const pays = await run(sb.from('staff_pay').select('staff_id,amount').eq('pay_month', SF.mo));
-  const paid = {}; pays.forEach(p => paid[p.staff_id] = (paid[p.staff_id] || 0) + Number(p.amount));
-  const tS = SF.list.filter(s => s.active).reduce((a, s) => a + Number(s.salary), 0), tP = pays.reduce((a, p) => a + Number(p.amount), 0);
+  const pays = await run(sb.from('staff_pay').select('staff_id,amount,kind').eq('pay_month', SF.mo));
+  const sm = stfSums(pays);
+  const tS = SF.list.filter(s => s.active).reduce((a, s) => a + Number(s.salary), 0), tP = pays.filter(p => p.kind === 'Salary').reduce((a, p) => a + Number(p.amount), 0);
   $('#main').innerHTML = `<div class="top"><h2>Staff management</h2><div class="bar">
     <div style="flex:0;white-space:nowrap"><button class="btn" onclick="stfModal(0)">+ Add staff</button></div>
     <div style="flex:0;white-space:nowrap"><label class="btn sec" style="cursor:pointer;margin:0">Import fingerprint Excel<input type="file" accept=".xls,.xlsx" style="display:none" onchange="stfImport(this)"></label></div></div></div>
   <div class="card"><div class="bar"><div style="flex:0 0 200px"><label>Salary month</label><input id="sm_mo" type="month" value="${SF.mo}" onchange="SF.mo=this.value;go('staff')"></div>
     <div class="mut" style="flex:3">Total monthly salary (active staff): <b>Rs. ${money(tS)}</b> &nbsp;|&nbsp; Paid for ${SF.mo}: <b>Rs. ${money(tP)}</b></div></div></div>
-  <div class="tw"><table><thead><tr><th>Name</th><th>Finger ID</th><th class="r">Monthly salary</th><th class="r">Paid (${SF.mo})</th><th class="r">Balance</th><th>Shift</th><th></th></tr></thead><tbody>
-  ${SF.list.map(s => { const b = Number(s.salary) - (paid[s.id] || 0); return `<tr style="${s.active ? '' : 'opacity:.5'}"><td><a class="link" onclick="stfDetail(${s.id})"><b>${esc(s.name)}</b></a></td><td>${esc(s.fp_id)}</td>
-   <td class="r">${money(s.salary)}</td><td class="r">${money(paid[s.id] || 0)}</td><td class="r"><span class="tag ${b > 0.005 ? 'warn' : 'ok'}">${money(b)}</span></td><td>${esc(s.start_time)} - ${esc(s.end_time)}</td>
-   <td style="white-space:nowrap"><button class="btn sec sm" onclick="stfPay(${s.id})">Pay</button> <button class="btn sec sm" onclick="stfDetail(${s.id})">Details</button> <button class="btn sec sm" onclick="stfModal(${s.id})">Edit</button> <button class="btn sec sm" onclick="stfDel(${s.id})">Delete</button></td></tr>` }).join('') || '<tr><td colspan="7" class="mut">No staff yet. Add staff or import the fingerprint Excel (staff are created automatically).</td></tr>'}
+  <div class="tw"><table><thead><tr><th>Name</th><th>Finger ID</th><th class="r">Monthly salary</th><th class="r">Advance</th><th class="r">Paid (${SF.mo})</th><th class="r">Balance</th><th>Shift</th><th></th></tr></thead><tbody>
+  ${SF.list.map(s => { const x = sm[s.id] || stfZ(), b = stfNet(s, x) - x.paid; return `<tr style="${s.active ? '' : 'opacity:.5'}"><td><a class="link" onclick="stfDetail(${s.id})"><b>${esc(s.name)}</b></a></td><td>${esc(s.fp_id)}</td>
+   <td class="r">${money(s.salary)}</td><td class="r">${money(x.adv)}</td><td class="r">${money(x.paid)}</td><td class="r"><span class="tag ${b > 0.005 ? 'warn' : 'ok'}">${money(b)}</span></td><td>${esc(s.start_time)} - ${esc(s.end_time)}</td>
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="stfPay(${s.id})">Pay</button> <button class="btn sec sm" onclick="stfDetail(${s.id})">Details</button> <button class="btn sec sm" onclick="stfModal(${s.id})">Edit</button> <button class="btn sec sm" onclick="stfDel(${s.id})">Delete</button></td></tr>` }).join('') || '<tr><td colspan="8" class="mut">No staff yet. Add staff or import the fingerprint Excel (staff are created automatically).</td></tr>'}
   </tbody></table></div>`;
 };
 
@@ -1598,20 +1614,21 @@ async function stfDel(id) {
 }
 
 /* ---------------- salary payment ---------------- */
-function stfPay(id, back) {
-  const s = SF.list.find(x => x.id === id) || SF.cur;
-  openModal(`<h3>Salary payment: ${esc(s.name)}</h3>
-  <div class="bar"><div><label>For month</label><input id="sp_m" type="month" value="${SF.mo || today().slice(0, 7)}"></div><div><label>Paid date</label><input id="sp_d" type="date" value="${today()}"></div></div>
-  <div class="bar" style="margin-top:8px"><div><label>Amount (Rs.)</label><input id="sp_a" type="number" step="0.01" value="${s.salary}"></div><div><label>Type</label><select id="sp_k"><option>Salary</option><option>Advance</option><option>Bonus</option><option>Other</option></select></div></div>
+function stfPay(id, back, kind, amt) {
+  const s = SF.list.find(x => x.id === id) || SF.cur, K = kind || 'Salary', bk = typeof back === 'string' ? `'${back}'` : (back ? 1 : 0);
+  openModal(`<h3>${esc(s.name)}: salary / advance entry</h3>
+  <div class="bar"><div><label>For salary month</label><input id="sp_m" type="month" value="${SF.mo || today().slice(0, 7)}"></div><div><label>Date</label><input id="sp_d" type="date" value="${today()}"></div></div>
+  <div class="bar" style="margin-top:8px"><div><label>Amount (Rs.)</label><input id="sp_a" type="number" step="0.01" value="${amt ?? s.salary}"></div><div><label>Type</label><select id="sp_k">${['Salary', 'Advance', 'Bonus', 'Deduction'].map(k => `<option ${k === K ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
+  <div class="mut" style="margin-top:6px">Salary = money paid out. Advance and Deduction reduce the pay. Bonus adds to the pay.</div>
   <div class="row" style="margin-top:8px"><label>Note</label><input id="sp_n"></div>
-  <div class="bar" style="margin-top:14px;justify-content:flex-end"><div style="flex:0"><button class="btn sec" onclick="${back ? `stfDetail(${id})` : 'closeModal()'}">Cancel</button></div><div style="flex:0"><button class="btn" onclick="stfPaySave(${id},${back ? 1 : 0})">Save payment</button></div></div>`);
+  <div class="bar" style="margin-top:14px;justify-content:flex-end"><div style="flex:0"><button class="btn sec" onclick="${back === 1 ? `stfDetail(${id})` : 'closeModal()'}">Cancel</button></div><div style="flex:0"><button class="btn" onclick="stfPaySave(${id},${bk})">Save</button></div></div>`);
 }
 async function stfPaySave(id, back) {
   const a = +$('#sp_a').value;
   if (!a || !$('#sp_m').value) return toast('Enter the month and amount', true);
   await run(sb.from('staff_pay').insert({ staff_id: id, pay_month: $('#sp_m').value, pay_date: $('#sp_d').value, amount: a, kind: $('#sp_k').value, note: $('#sp_n').value.trim() }));
-  toast('Payment saved');
-  if (back) stfDetail(id); else { closeModal(); go('staff') }
+  toast('Saved');
+  if (back === 1) stfDetail(id); else { closeModal(); go(back || 'staff') }
 }
 async function stfPayDel(pid, sid) { if (!confirm('Delete this payment record?')) return; await run(sb.from('staff_pay').delete().eq('id', pid)); stfDetail(sid) }
 
@@ -1663,6 +1680,71 @@ async function stfLoad() {
   <div class="tw"><table><thead><tr><th>Paid date</th><th>For month</th><th>Type</th><th class="r">Amount</th><th>Note</th><th></th></tr></thead><tbody>
   ${pays.map(p => `<tr><td>${p.pay_date}</td><td>${esc(p.pay_month)}</td><td>${esc(p.kind)}</td><td class="r">${money(p.amount)}</td><td>${esc(p.note)}</td><td><button class="btn sec sm" onclick="stfPayDel(${p.id},${s.id})">x</button></td></tr>`).join('') || '<tr><td colspan="6" class="mut">No payments yet.</td></tr>'}</tbody></table></div>`;
 }
+
+/* ---------------- Advances ---------------- */
+PAGES.staff_adv = async () => {
+  if (!hasP('staff')) { $('#main').innerHTML = '<p class="mut">No permission.</p>'; return }
+  SF.mo = SF.mo || today().slice(0, 7);
+  SF.list = await run(sb.from('staff').select('*').eq('active', true).order('name'));
+  const rows = await run(sb.from('staff_pay').select('*, staff(name)').eq('kind', 'Advance').eq('pay_month', SF.mo).order('pay_date', { ascending: false }));
+  const tot = rows.reduce((a, r) => a + Number(r.amount), 0);
+  $('#main').innerHTML = `<div class="top"><h2>Staff advances</h2></div>
+  <div class="card"><b>Give an advance</b><div class="bar" style="margin-top:8px">
+   <div style="flex:2"><label>Staff</label><select id="ad_s"><option value="">Select staff…</option>${SF.list.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></div>
+   <div><label>Date given</label><input id="ad_d" type="date" value="${today()}" onchange="$('#ad_m').value=this.value.slice(0,7)"></div>
+   <div><label>Amount (Rs.)</label><input id="ad_a" type="number" step="0.01"></div>
+   <div><label>Deduct from salary of</label><input id="ad_m" type="month" value="${today().slice(0, 7)}"></div>
+   <div style="flex:2"><label>Note</label><input id="ad_n"></div>
+   <div style="flex:0"><button class="btn" onclick="stfAdvSave()">Save</button></div></div></div>
+  <div class="card"><div class="bar"><div style="flex:0 0 220px"><label>Advances deducted in month</label><input type="month" value="${SF.mo}" onchange="SF.mo=this.value;go('staff_adv')"></div><div class="mut" style="flex:3">Total advances: <b>Rs. ${money(tot)}</b></div></div></div>
+  <div class="tw"><table><thead><tr><th>Date given</th><th>Staff</th><th class="r">Amount</th><th>Deducted from</th><th>Note</th><th></th></tr></thead><tbody>
+  ${rows.map(r => `<tr><td>${r.pay_date}</td><td><b>${esc(r.staff?.name)}</b></td><td class="r">${money(r.amount)}</td><td>${esc(r.pay_month)}</td><td>${esc(r.note)}</td><td><button class="btn sec sm" onclick="stfAdvDel(${r.id})">Delete</button></td></tr>`).join('') || '<tr><td colspan="6" class="mut">No advances in this month.</td></tr>'}</tbody></table></div>`;
+};
+async function stfAdvSave() {
+  const sid = +$('#ad_s').value, a = +$('#ad_a').value;
+  if (!sid) return toast('Select the staff member', true);
+  if (!a) return toast('Enter the amount', true);
+  await run(sb.from('staff_pay').insert({ staff_id: sid, pay_date: $('#ad_d').value, pay_month: $('#ad_m').value, amount: a, kind: 'Advance', note: $('#ad_n').value.trim() }));
+  SF.mo = $('#ad_m').value; toast('Advance saved'); go('staff_adv');
+}
+async function stfAdvDel(id) { if (!confirm('Delete this advance?')) return; await run(sb.from('staff_pay').delete().eq('id', id)); go('staff_adv') }
+
+/* ---------------- Salary sheet (monthly) ---------------- */
+function stfSheet(rows, act) {
+  const T = { salary: 0, bonus: 0, adv: 0, ded: 0, net: 0, paid: 0, bal: 0 }; rows.forEach(r => Object.keys(T).forEach(k => T[k] += r[k]));
+  return `<table><thead><tr><th>Staff</th><th class="r">Basic</th><th>Attendance</th><th class="r">Bonus</th><th class="r">Advance</th><th class="r">Deduction</th><th class="r">Net pay</th><th class="r">Paid</th><th class="r">Balance</th>${act ? '<th></th>' : ''}</tr></thead><tbody>
+  ${rows.map(r => `<tr><td><b>${esc(r.s.name)}</b></td><td class="r">${money(r.salary)}</td><td>${r.at}</td><td class="r">${money(r.bonus)}</td><td class="r">${money(r.adv)}</td><td class="r">${money(r.ded)}</td><td class="r"><b>${money(r.net)}</b></td><td class="r">${money(r.paid)}</td><td class="r"><span class="tag ${r.bal > 0.005 ? 'warn' : 'ok'}">${money(r.bal)}</span></td>
+   ${act ? `<td style="white-space:nowrap">${r.bal > 0.005 ? `<button class="btn sm" onclick="stfPay(${r.s.id},'staff_sal','Salary',${Math.round(r.bal * 100) / 100})">Pay</button> ` : ''}<button class="btn sec sm" onclick="stfPay(${r.s.id},'staff_sal','Deduction',0)">Deduct</button> <button class="btn sec sm" onclick="stfDetail(${r.s.id})">Details</button></td>` : ''}</tr>`).join('') || `<tr><td colspan="10" class="mut">No active staff.</td></tr>`}
+  </tbody><tfoot><tr><th>Total</th><th class="r">${money(T.salary)}</th><th></th><th class="r">${money(T.bonus)}</th><th class="r">${money(T.adv)}</th><th class="r">${money(T.ded)}</th><th class="r">${money(T.net)}</th><th class="r">${money(T.paid)}</th><th class="r">${money(T.bal)}</th>${act ? '<th></th>' : ''}</tr></tfoot></table>`;
+}
+PAGES.staff_sal = async () => {
+  if (!hasP('staff')) { $('#main').innerHTML = '<p class="mut">No permission.</p>'; return }
+  SF.mo = SF.mo || today().slice(0, 7);
+  const [y, m] = SF.mo.split('-').map(Number), f = SF.mo + '-01', t = stfD(new Date(y, m, 0));
+  SF.list = await run(sb.from('staff').select('*').order('name'));
+  const pays = await run(sb.from('staff_pay').select('staff_id,amount,kind').eq('pay_month', SF.mo));
+  const att = await allRows(() => sb.from('attendance').select('staff_id,att_date,in_time').gte('att_date', f).lte('att_date', t));
+  const by = {}; att.forEach(a => (by[a.staff_id] = by[a.staff_id] || []).push(a));
+  const sm = stfSums(pays);
+  SF.rows = SF.list.filter(s => s.active).map(s => {
+    const x = sm[s.id] || stfZ(), net = stfNet(s, x), c = by[s.id] ? stfCalc(s, by[s.id], f, t) : null;
+    return { s, salary: Number(s.salary), bonus: x.bonus, adv: x.adv, ded: x.ded, net, paid: x.paid, bal: net - x.paid, at: c ? `${c.pres} present, ${c.abs} absent, ${c.late} late${c.lm ? ' (' + stfHm(c.lm) + ')' : ''}` : '-' };
+  });
+  $('#main').innerHTML = `<div class="top"><h2>Salary sheet</h2><button class="btn sec" onclick="stfSheetPrint()">Print</button></div>
+  <div class="card"><div class="bar"><div style="flex:0 0 200px"><label>Salary month</label><input type="month" value="${SF.mo}" onchange="SF.mo=this.value;go('staff_sal')"></div>
+   <div style="flex:0 0 180px"><label>Paid date</label><input id="sa_d" type="date" value="${today()}"></div>
+   <div style="flex:0;white-space:nowrap"><button class="btn" onclick="stfPayAll()">Pay all balances</button></div></div>
+   <div class="mut" style="margin-top:6px">Net pay = Basic + Bonus - Advance - Deduction. Absent / late come from the imported fingerprint data (Sundays ignored) and are for your information. Use <b>Deduct</b> to reduce the pay, or change the amount in the Pay window.</div></div>
+  <div class="tw">${stfSheet(SF.rows, true)}</div>`;
+};
+async function stfPayAll() {
+  const d = $('#sa_d').value, rows = SF.rows.filter(r => r.bal > 0.005);
+  if (!d || !rows.length) return toast('Nothing to pay', true);
+  if (!confirm('Pay ' + rows.length + ' staff, total Rs. ' + money(rows.reduce((a, r) => a + r.bal, 0)) + ' for ' + SF.mo + '?')) return;
+  await run(sb.from('staff_pay').insert(rows.map(r => ({ staff_id: r.s.id, pay_month: SF.mo, pay_date: d, amount: Math.round(r.bal * 100) / 100, kind: 'Salary', note: 'Monthly salary' }))));
+  toast('Salaries paid'); go('staff_sal');
+}
+function stfSheetPrint() { printHtml('Salary sheet ' + SF.mo, `<h2>Salary sheet ${SF.mo}</h2><div>${esc(settings.company_name || '')}</div>${stfSheet(SF.rows, false)}`, '@page{size:A4 landscape;margin:10mm}th,td{font-size:11px}') }
 
 /* ---------------- import the fingerprint machine Excel ---------------- */
 function stfXlsx() {
