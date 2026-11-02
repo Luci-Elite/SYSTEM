@@ -1560,7 +1560,10 @@ window.buildNav = function () {
 const stfZ = () => ({ adv: 0, bonus: 0, ded: 0, paid: 0 });
 const stfKey = { Advance: 'adv', Bonus: 'bonus', Deduction: 'ded', Salary: 'paid' };
 function stfSums(pays) { const m = {}; pays.forEach(p => { const k = stfKey[p.kind]; if (!k) return; const o = m[p.staff_id] = m[p.staff_id] || stfZ(); o[k] += Number(p.amount) }); return m }
-const stfNet = (s, x) => Number(s.salary) + x.bonus - x.adv - x.ded;
+/* salary history: the salary of a month = latest increase effective on or before that month */
+function stfSal(s, mo) { const h = (SF.hist && SF.hist[s.id]) || []; let v = null; h.forEach(x => { if (x.eff_date <= mo + '-31') v = Number(x.amount) }); return v === null ? Number(s.salary) : v }
+async function stfHistLoad() { const h = await run(sb.from('staff_salary').select('*').order('eff_date')); SF.hist = {}; h.forEach(x => (SF.hist[x.staff_id] = SF.hist[x.staff_id] || []).push(x)) }
+const stfNet = (s, x) => stfSal(s, SF.mo) + x.bonus - x.adv - x.ded;
 function stfCalc(s, att, f, t) {
   const m = {}; att.forEach(a => m[a.att_date] = a);
   const st = stfTm(s.start_time) ?? 570, gr = +s.grace_min || 0; let pres = 0, abs = 0, late = 0, lm = 0;
@@ -1576,10 +1579,10 @@ function stfCalc(s, att, f, t) {
 PAGES.staff = async () => {
   if (!hasP('staff')) { $('#main').innerHTML = '<p class="mut">No permission.</p>'; return }
   SF.mo = SF.mo || today().slice(0, 7);
-  SF.list = await run(sb.from('staff').select('*').order('name'));
+  SF.list = await run(sb.from('staff').select('*').order('name')); await stfHistLoad();
   const pays = await run(sb.from('staff_pay').select('staff_id,amount,kind').eq('pay_month', SF.mo));
   const sm = stfSums(pays);
-  const tS = SF.list.filter(s => s.active).reduce((a, s) => a + Number(s.salary), 0), tP = pays.filter(p => p.kind === 'Salary').reduce((a, p) => a + Number(p.amount), 0);
+  const tS = SF.list.filter(s => s.active).reduce((a, s) => a + stfSal(s, SF.mo), 0), tP = pays.filter(p => p.kind === 'Salary').reduce((a, p) => a + Number(p.amount), 0);
   $('#main').innerHTML = `<div class="top"><h2>Staff management</h2><div class="bar">
     <div style="flex:0;white-space:nowrap"><button class="btn" onclick="stfModal(0)">+ Add staff</button></div>
     <div style="flex:0;white-space:nowrap"><label class="btn sec" style="cursor:pointer;margin:0">Import fingerprint Excel<input type="file" accept=".xls,.xlsx" style="display:none" onchange="stfImport(this)"></label></div></div></div>
@@ -1587,8 +1590,8 @@ PAGES.staff = async () => {
     <div class="mut" style="flex:3">Total monthly salary (active staff): <b>Rs. ${money(tS)}</b> &nbsp;|&nbsp; Paid for ${SF.mo}: <b>Rs. ${money(tP)}</b></div></div></div>
   <div class="tw"><table><thead><tr><th>Name</th><th>Finger ID</th><th class="r">Monthly salary</th><th class="r">Advance</th><th class="r">Paid (${SF.mo})</th><th class="r">Balance</th><th>Shift</th><th></th></tr></thead><tbody>
   ${SF.list.map(s => { const x = sm[s.id] || stfZ(), b = stfNet(s, x) - x.paid; return `<tr style="${s.active ? '' : 'opacity:.5'}"><td><a class="link" onclick="stfDetail(${s.id})"><b>${esc(s.name)}</b></a></td><td>${esc(s.fp_id)}</td>
-   <td class="r">${money(s.salary)}</td><td class="r">${money(x.adv)}</td><td class="r">${money(x.paid)}</td><td class="r"><span class="tag ${b > 0.005 ? 'warn' : 'ok'}">${money(b)}</span></td><td>${esc(s.start_time)} - ${esc(s.end_time)}</td>
-   <td style="white-space:nowrap"><button class="btn sec sm" onclick="stfPay(${s.id})">Pay</button> <button class="btn sec sm" onclick="stfDetail(${s.id})">Details</button> <button class="btn sec sm" onclick="stfModal(${s.id})">Edit</button> <button class="btn sec sm" onclick="stfDel(${s.id})">Delete</button></td></tr>` }).join('') || '<tr><td colspan="8" class="mut">No staff yet. Add staff or import the fingerprint Excel (staff are created automatically).</td></tr>'}
+   <td class="r">${money(stfSal(s, SF.mo))}</td><td class="r">${money(x.adv)}</td><td class="r">${money(x.paid)}</td><td class="r"><span class="tag ${b > 0.005 ? 'warn' : 'ok'}">${money(b)}</span></td><td>${esc(s.start_time)} - ${esc(s.end_time)}</td>
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="stfPay(${s.id})">Pay</button> <button class="btn sec sm" onclick="stfDetail(${s.id})">Details</button> <button class="btn sec sm" onclick="stfInc(${s.id})">Increase</button> <button class="btn sec sm" onclick="stfModal(${s.id})">Edit</button> <button class="btn sec sm" onclick="stfDel(${s.id})">Delete</button></td></tr>` }).join('') || '<tr><td colspan="8" class="mut">No staff yet. Add staff or import the fingerprint Excel (staff are created automatically).</td></tr>'}
   </tbody></table></div>`;
 };
 
@@ -1596,7 +1599,7 @@ function stfModal(id) {
   const s = (SF.list || []).find(x => x.id === id) || { salary: 0, start_time: '09:30', end_time: '18:00', grace_min: 0, active: true };
   openModal(`<h3>${id ? 'Edit' : 'New'} staff</h3>
   <div class="bar"><div style="flex:2"><label>Name</label><input id="sf_n" value="${esc(s.name)}"></div><div><label>Finger ID (Employee ID in the machine)</label><input id="sf_f" value="${esc(s.fp_id)}"></div></div>
-  <div class="bar" style="margin-top:8px"><div><label>Monthly salary (Rs.)</label><input id="sf_s" type="number" step="0.01" value="${s.salary}"></div>
+  <div class="bar" style="margin-top:8px"><div><label>Monthly salary (Rs.)${id && (SF.hist[id] || []).length ? ' - use the Increase button' : ''}</label><input id="sf_s" type="number" step="0.01" value="${s.salary}" ${id && (SF.hist[id] || []).length ? 'readonly' : ''}></div>
    <div><label>Status</label><select id="sf_a"><option value="1" ${s.active ? 'selected' : ''}>Active</option><option value="0" ${!s.active ? 'selected' : ''}>Left / inactive</option></select></div></div>
   <div class="bar" style="margin-top:8px"><div><label>Work starts</label><input id="sf_st" type="time" value="${esc(s.start_time)}"></div><div><label>Work ends</label><input id="sf_en" type="time" value="${esc(s.end_time)}"></div><div><label>Grace (minutes)</label><input id="sf_g" type="number" min="0" value="${s.grace_min || 0}"></div></div>
   <div class="mut" style="margin-top:6px">Late = arriving after (start time + grace).</div>
@@ -1605,7 +1608,7 @@ function stfModal(id) {
 async function stfSave(id) {
   const row = { name: $('#sf_n').value.trim(), fp_id: $('#sf_f').value.trim() || null, salary: +$('#sf_s').value || 0, start_time: $('#sf_st').value || '09:30', end_time: $('#sf_en').value || '18:00', grace_min: +$('#sf_g').value || 0, active: $('#sf_a').value === '1' };
   if (!row.name) return toast('Enter the staff name', true);
-  if (id) await run(sb.from('staff').update(row).eq('id', id)); else await run(sb.from('staff').insert(row));
+  if (id) { if ((SF.hist[id] || []).length) delete row.salary; await run(sb.from('staff').update(row).eq('id', id)) } else await run(sb.from('staff').insert(row));
   closeModal(); toast('Saved'); go('staff');
 }
 async function stfDel(id) {
@@ -1618,7 +1621,7 @@ function stfPay(id, back, kind, amt) {
   const s = SF.list.find(x => x.id === id) || SF.cur, K = kind || 'Salary', bk = typeof back === 'string' ? `'${back}'` : (back ? 1 : 0);
   openModal(`<h3>${esc(s.name)}: salary / advance entry</h3>
   <div class="bar"><div><label>For salary month</label><input id="sp_m" type="month" value="${SF.mo || today().slice(0, 7)}"></div><div><label>Date</label><input id="sp_d" type="date" value="${today()}"></div></div>
-  <div class="bar" style="margin-top:8px"><div><label>Amount (Rs.)</label><input id="sp_a" type="number" step="0.01" value="${amt ?? s.salary}"></div><div><label>Type</label><select id="sp_k">${['Salary', 'Advance', 'Bonus', 'Deduction'].map(k => `<option ${k === K ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
+  <div class="bar" style="margin-top:8px"><div><label>Amount (Rs.)</label><input id="sp_a" type="number" step="0.01" value="${amt ?? stfSal(s, SF.mo || today().slice(0, 7))}"></div><div><label>Type</label><select id="sp_k">${['Salary', 'Advance', 'Bonus', 'Deduction'].map(k => `<option ${k === K ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
   <div class="mut" style="margin-top:6px">Salary = money paid out. Advance and Deduction reduce the pay. Bonus adds to the pay.</div>
   <div class="row" style="margin-top:8px"><label>Note</label><input id="sp_n"></div>
   <div class="bar" style="margin-top:14px;justify-content:flex-end"><div style="flex:0"><button class="btn sec" onclick="${back === 1 ? `stfDetail(${id})` : 'closeModal()'}">Cancel</button></div><div style="flex:0"><button class="btn" onclick="stfPaySave(${id},${bk})">Save</button></div></div>`);
@@ -1634,10 +1637,10 @@ async function stfPayDel(pid, sid) { if (!confirm('Delete this payment record?')
 
 /* ---------------- staff details (attendance for a date range) ---------------- */
 async function stfDetail(id) {
-  const s = (SF.list || []).find(x => x.id === id) || await run(sb.from('staff').select('*').eq('id', id).single());
+  const s = await run(sb.from('staff').select('*').eq('id', id).single()); await stfHistLoad();
   SF.cur = s; const n = new Date();
   SF.f = SF.f || stfD(new Date(n.getFullYear(), n.getMonth(), 1)); SF.t = SF.t || today();
-  openModal(`<h3>${esc(s.name)} <span class="mut" style="font-size:13px">Finger ID ${esc(s.fp_id)} | Salary Rs. ${money(s.salary)} | Shift ${esc(s.start_time)} - ${esc(s.end_time)} (grace ${s.grace_min || 0} min)</span></h3>
+  openModal(`<h3>${esc(s.name)} <span class="mut" style="font-size:13px">Finger ID ${esc(s.fp_id)} | Salary Rs. ${money(stfSal(s, today().slice(0, 7)))} | Shift ${esc(s.start_time)} - ${esc(s.end_time)} (grace ${s.grace_min || 0} min)</span></h3>
   <div class="bar"><div><label>From</label><input id="sd_f" type="date" value="${SF.f}"></div><div><label>To</label><input id="sd_t" type="date" value="${SF.t}"></div>
    <div style="flex:0;white-space:nowrap"><button class="btn" onclick="stfLoad()">Show</button></div>
    <div style="flex:0;white-space:nowrap"><button class="btn sec sm" onclick="stfQuick('m')">This month</button></div><div style="flex:0;white-space:nowrap"><button class="btn sec sm" onclick="stfQuick('l')">Last month</button></div></div>
@@ -1678,8 +1681,33 @@ async function stfLoad() {
   <div class="tw" style="margin-top:10px;max-height:340px;overflow:auto"><table><thead><tr><th>Date</th><th>Day</th><th>In</th><th>Out</th><th>Status</th></tr></thead><tbody>${rows.join('') || '<tr><td colspan="5" class="mut">No days.</td></tr>'}</tbody></table></div>
   <div class="top" style="margin-top:16px"><h3>Salary payments</h3><button class="btn sm" onclick="stfPay(${s.id},1)">+ Add payment</button></div>
   <div class="tw"><table><thead><tr><th>Paid date</th><th>For month</th><th>Type</th><th class="r">Amount</th><th>Note</th><th></th></tr></thead><tbody>
-  ${pays.map(p => `<tr><td>${p.pay_date}</td><td>${esc(p.pay_month)}</td><td>${esc(p.kind)}</td><td class="r">${money(p.amount)}</td><td>${esc(p.note)}</td><td><button class="btn sec sm" onclick="stfPayDel(${p.id},${s.id})">x</button></td></tr>`).join('') || '<tr><td colspan="6" class="mut">No payments yet.</td></tr>'}</tbody></table></div>`;
+  ${pays.map(p => `<tr><td>${p.pay_date}</td><td>${esc(p.pay_month)}</td><td>${esc(p.kind)}</td><td class="r">${money(p.amount)}</td><td>${esc(p.note)}</td><td><button class="btn sec sm" onclick="stfPayDel(${p.id},${s.id})">x</button></td></tr>`).join('') || '<tr><td colspan="6" class="mut">No payments yet.</td></tr>'}</tbody></table></div>
+  <div class="top" style="margin-top:16px"><h3>Salary history</h3><button class="btn sm" onclick="stfInc(${s.id},1)">+ Increase salary</button></div>
+  <div class="tw"><table><thead><tr><th>Effective from</th><th class="r">Salary</th><th>Note</th><th></th></tr></thead><tbody>${(SF.hist[s.id] || []).slice().reverse().map(h => `<tr><td>${h.eff_date === '2000-01-01' ? 'Start' : h.eff_date}</td><td class="r">${money(h.amount)}</td><td>${esc(h.note)}</td><td>${h.eff_date === '2000-01-01' ? '' : `<button class="btn sec sm" onclick="stfIncDel(${h.id},${s.id})">x</button>`}</td></tr>`).join('') || `<tr><td colspan="4" class="mut">No increases yet. Current salary Rs. ${money(s.salary)}.</td></tr>`}</tbody></table></div>`;
 }
+
+/* ---------------- Salary increase ---------------- */
+function stfInc(id, back) {
+  const s = SF.list.find(x => x.id === id) || SF.cur, cur = stfSal(s, today().slice(0, 7)), bk = typeof back === 'string' ? `'${back}'` : (back ? 1 : 0);
+  openModal(`<h3>Salary increase: ${esc(s.name)}</h3>
+  <div class="mut">Current salary: <b>Rs. ${money(cur)}</b></div>
+  <div class="bar" style="margin-top:8px"><div><label>New salary (Rs.)</label><input id="si_a" type="number" step="0.01" oninput="stfIncCalc(${cur})"></div><div><label>Effective from</label><input id="si_d" type="date" value="${today()}"></div></div>
+  <div id="si_i" style="margin-top:6px;font-weight:600"></div>
+  <div class="row" style="margin-top:8px"><label>Note</label><input id="si_n" placeholder="e.g. Annual increment"></div>
+  <div class="mut" style="margin-top:6px">The new salary applies to the whole month that contains the effective date, and to later months. Earlier months keep the old salary.</div>
+  <div class="bar" style="margin-top:14px;justify-content:flex-end"><div style="flex:0"><button class="btn sec" onclick="${back === 1 ? `stfDetail(${id})` : 'closeModal()'}">Cancel</button></div><div style="flex:0"><button class="btn" onclick="stfIncSave(${id},${bk})">Save increase</button></div></div>`);
+}
+function stfIncCalc(cur) { const a = +$('#si_a').value; $('#si_i').textContent = a ? 'Increase: Rs. ' + money(a - cur) + (cur ? ' (' + ((a - cur) / cur * 100).toFixed(1) + '%)' : '') : '' }
+async function stfSyncSalary(id) { await stfHistLoad(); const h = (SF.hist[id] || []).filter(x => x.eff_date <= today()); if (h.length) await run(sb.from('staff').update({ salary: h[h.length - 1].amount }).eq('id', id)) }
+async function stfIncSave(id, back) {
+  const s = SF.list.find(x => x.id === id) || SF.cur, a = +$('#si_a').value, d = $('#si_d').value;
+  if (!a || !d) return toast('Enter the new salary and the date', true);
+  const rows = []; if (!(SF.hist[id] || []).length) rows.push({ staff_id: id, eff_date: '2000-01-01', amount: s.salary, note: 'Starting salary' });
+  rows.push({ staff_id: id, eff_date: d, amount: a, note: $('#si_n').value.trim() });
+  await run(sb.from('staff_salary').insert(rows)); await stfSyncSalary(id); toast('Salary increase saved');
+  if (back === 1) stfDetail(id); else { closeModal(); go(back || 'staff') }
+}
+async function stfIncDel(hid, sid) { if (!confirm('Delete this salary change?')) return; await run(sb.from('staff_salary').delete().eq('id', hid)); await stfSyncSalary(sid); stfDetail(sid) }
 
 /* ---------------- Advances ---------------- */
 PAGES.staff_adv = async () => {
@@ -1721,14 +1749,14 @@ PAGES.staff_sal = async () => {
   if (!hasP('staff')) { $('#main').innerHTML = '<p class="mut">No permission.</p>'; return }
   SF.mo = SF.mo || today().slice(0, 7);
   const [y, m] = SF.mo.split('-').map(Number), f = SF.mo + '-01', t = stfD(new Date(y, m, 0));
-  SF.list = await run(sb.from('staff').select('*').order('name'));
+  SF.list = await run(sb.from('staff').select('*').order('name')); await stfHistLoad();
   const pays = await run(sb.from('staff_pay').select('staff_id,amount,kind').eq('pay_month', SF.mo));
   const att = await allRows(() => sb.from('attendance').select('staff_id,att_date,in_time').gte('att_date', f).lte('att_date', t));
   const by = {}; att.forEach(a => (by[a.staff_id] = by[a.staff_id] || []).push(a));
   const sm = stfSums(pays);
   SF.rows = SF.list.filter(s => s.active).map(s => {
     const x = sm[s.id] || stfZ(), net = stfNet(s, x), c = by[s.id] ? stfCalc(s, by[s.id], f, t) : null;
-    return { s, salary: Number(s.salary), bonus: x.bonus, adv: x.adv, ded: x.ded, net, paid: x.paid, bal: net - x.paid, at: c ? `${c.pres} present, ${c.abs} absent, ${c.late} late${c.lm ? ' (' + stfHm(c.lm) + ')' : ''}` : '-' };
+    return { s, salary: stfSal(s, SF.mo), bonus: x.bonus, adv: x.adv, ded: x.ded, net, paid: x.paid, bal: net - x.paid, at: c ? `${c.pres} present, ${c.abs} absent, ${c.late} late${c.lm ? ' (' + stfHm(c.lm) + ')' : ''}` : '-' };
   });
   $('#main').innerHTML = `<div class="top"><h2>Salary sheet</h2><button class="btn sec" onclick="stfSheetPrint()">Print</button></div>
   <div class="card"><div class="bar"><div style="flex:0 0 200px"><label>Salary month</label><input type="month" value="${SF.mo}" onchange="SF.mo=this.value;go('staff_sal')"></div>
