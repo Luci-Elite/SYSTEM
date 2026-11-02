@@ -1686,6 +1686,41 @@ async function stfLoad() {
   <div class="tw"><table><thead><tr><th>Effective from</th><th class="r">Salary</th><th>Note</th><th></th></tr></thead><tbody>${(SF.hist[s.id] || []).slice().reverse().map(h => `<tr><td>${h.eff_date === '2000-01-01' ? 'Start' : h.eff_date}</td><td class="r">${money(h.amount)}</td><td>${esc(h.note)}</td><td>${h.eff_date === '2000-01-01' ? '' : `<button class="btn sec sm" onclick="stfIncDel(${h.id},${s.id})">x</button>`}</td></tr>`).join('') || `<tr><td colspan="4" class="mut">No increases yet. Current salary Rs. ${money(s.salary)}.</td></tr>`}</tbody></table></div>`;
 }
 
+/* ---------------- Salary slip (A5, with letterhead) ---------------- */
+async function stfSlip(id) {
+  const mo = SF.mo || today().slice(0, 7), [y, m] = mo.split('-').map(Number), f = mo + '-01', t = stfD(new Date(y, m, 0));
+  const s = await run(sb.from('staff').select('*').eq('id', id).single()); await stfHistLoad();
+  const pays = await run(sb.from('staff_pay').select('*').eq('staff_id', id).eq('pay_month', mo).order('pay_date'));
+  const att = await allRows(() => sb.from('attendance').select('staff_id,att_date,in_time').eq('staff_id', id).gte('att_date', f).lte('att_date', t));
+  const K = k => pays.filter(p => p.kind === k), sum = a => a.reduce((x, p) => x + Number(p.amount), 0);
+  const adv = K('Advance'), bon = K('Bonus'), ded = K('Deduction'), paid = K('Salary');
+  const sal = stfSal(s, mo), prev = stfSal(s, stfD(new Date(y, m - 2, 1)).slice(0, 7));
+  const net = sal + sum(bon) - sum(adv) - sum(ded), bal = net - sum(paid);
+  const h = (SF.hist[id] || []).filter(x => x.eff_date <= mo + '-31'), hr = h[h.length - 1];
+  const c = att.length ? stfCalc(s, att, f, t) : null;
+  const label = new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const co = coInfo(), ly = getLY();
+  const contact = [co.p ? 'Mob : ' + co.p : '', ly.email ? 'Email : ' + ly.email : '', ly.web ? 'Website : ' + ly.web : ''].filter(Boolean).map(esc).join('&nbsp;&nbsp;&nbsp;');
+  const R = (l, a, c2) => `<tr class="${c2 || ''}"><td>${l}</td><td class="r">${money(a)}</td></tr>`;
+  const nt = p => (p.note ? ' - ' + esc(p.note) : '');
+  const body = `<div class="lh"><div><div class="nm">${esc(co.n)}</div>${String(co.a || '').split('\n').filter(Boolean).map(x => `<div>${esc(x)}</div>`).join('')}${contact ? `<div>${contact}</div>` : ''}</div>${ly.logo ? `<img src="${ly.logo}" style="height:${Math.min(+ly.logoH || 60, 70)}px">` : ''}</div>
+  <h3 style="text-align:center;margin:8px 0 0;letter-spacing:1px">SALARY SLIP</h3><div style="text-align:center;margin-bottom:6px"><b>${label}</b></div>
+  <table><tr><td><b>Name</b></td><td>${esc(s.name)}</td><td><b>Finger ID</b></td><td>${esc(s.fp_id)}</td></tr>
+  <tr><td><b>Printed on</b></td><td>${today()}</td><td><b>Attendance</b></td><td>${c ? `${c.pres} present, ${c.abs} absent, ${c.late} late${c.lm ? ' (' + stfHm(c.lm) + ')' : ''}` : '-'}</td></tr></table>
+  <table><thead><tr><th>Description</th><th class="r" style="width:32%">Amount (Rs.)</th></tr></thead><tbody>
+  ${R('Basic salary', sal)}
+  ${sal !== prev && hr ? `<tr><td colspan="2"><i>Salary increased from Rs. ${money(prev)} to Rs. ${money(sal)} (effective ${hr.eff_date})</i></td></tr>` : ''}
+  ${bon.map(p => R('Bonus (' + p.pay_date + ')' + nt(p), p.amount)).join('')}
+  ${adv.map(p => R('Less: Advance taken (' + p.pay_date + ')' + nt(p), -p.amount)).join('')}
+  ${ded.map(p => R('Less: Deduction (' + p.pay_date + ')' + nt(p), -p.amount)).join('')}
+  ${R('NET PAY', net, 'b')}
+  ${paid.map(p => R('Salary paid (' + p.pay_date + ')' + nt(p), p.amount)).join('')}
+  ${R('BALANCE TO PAY', bal, 'b')}
+  </tbody></table>
+  <div class="sg"><div>Prepared by</div><div>Employee signature</div></div>`;
+  printHtml('Salary slip ' + s.name + ' ' + mo, body, '@page{size:A5;margin:8mm}body{font-size:11px}td,th{border:1px solid #bbb}.lh{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:2px solid #000;padding-bottom:6px}.nm{font-size:20px;font-weight:700}tr.b td{font-weight:700;background:#eee}.sg{display:flex;justify-content:space-between;margin-top:38px}.sg div{border-top:1px solid #000;width:40%;text-align:center;padding-top:3px}');
+}
+
 /* ---------------- Salary increase ---------------- */
 function stfInc(id, back) {
   const s = SF.list.find(x => x.id === id) || SF.cur, cur = stfSal(s, today().slice(0, 7)), bk = typeof back === 'string' ? `'${back}'` : (back ? 1 : 0);
@@ -1742,7 +1777,7 @@ function stfSheet(rows, act) {
   const T = { salary: 0, bonus: 0, adv: 0, ded: 0, net: 0, paid: 0, bal: 0 }; rows.forEach(r => Object.keys(T).forEach(k => T[k] += r[k]));
   return `<table><thead><tr><th>Staff</th><th class="r">Basic</th><th>Attendance</th><th class="r">Bonus</th><th class="r">Advance</th><th class="r">Deduction</th><th class="r">Net pay</th><th class="r">Paid</th><th class="r">Balance</th>${act ? '<th></th>' : ''}</tr></thead><tbody>
   ${rows.map(r => `<tr><td><b>${esc(r.s.name)}</b></td><td class="r">${money(r.salary)}</td><td>${r.at}</td><td class="r">${money(r.bonus)}</td><td class="r">${money(r.adv)}</td><td class="r">${money(r.ded)}</td><td class="r"><b>${money(r.net)}</b></td><td class="r">${money(r.paid)}</td><td class="r"><span class="tag ${r.bal > 0.005 ? 'warn' : 'ok'}">${money(r.bal)}</span></td>
-   ${act ? `<td style="white-space:nowrap">${r.bal > 0.005 ? `<button class="btn sm" onclick="stfPay(${r.s.id},'staff_sal','Salary',${Math.round(r.bal * 100) / 100})">Pay</button> ` : ''}<button class="btn sec sm" onclick="stfPay(${r.s.id},'staff_sal','Deduction',0)">Deduct</button> <button class="btn sec sm" onclick="stfDetail(${r.s.id})">Details</button></td>` : ''}</tr>`).join('') || `<tr><td colspan="10" class="mut">No active staff.</td></tr>`}
+   ${act ? `<td style="white-space:nowrap">${r.bal > 0.005 ? `<button class="btn sm" onclick="stfPay(${r.s.id},'staff_sal','Salary',${Math.round(r.bal * 100) / 100})">Pay</button> ` : ''}<button class="btn sec sm" onclick="stfPay(${r.s.id},'staff_sal','Deduction',0)">Deduct</button> <button class="btn sec sm" onclick="stfSlip(${r.s.id})">Slip</button> <button class="btn sec sm" onclick="stfDetail(${r.s.id})">Details</button></td>` : ''}</tr>`).join('') || `<tr><td colspan="10" class="mut">No active staff.</td></tr>`}
   </tbody><tfoot><tr><th>Total</th><th class="r">${money(T.salary)}</th><th></th><th class="r">${money(T.bonus)}</th><th class="r">${money(T.adv)}</th><th class="r">${money(T.ded)}</th><th class="r">${money(T.net)}</th><th class="r">${money(T.paid)}</th><th class="r">${money(T.bal)}</th>${act ? '<th></th>' : ''}</tr></tfoot></table>`;
 }
 PAGES.staff_sal = async () => {
