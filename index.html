@@ -1557,13 +1557,14 @@ window.buildNav = function () {
 };
 
 /* month sums per staff: Salary = paid out, Advance/Deduction reduce pay, Bonus adds to pay */
-const stfZ = () => ({ adv: 0, bonus: 0, ded: 0, paid: 0 });
-const stfKey = { Advance: 'adv', Bonus: 'bonus', Deduction: 'ded', Salary: 'paid' };
+const stfZ = () => ({ adv: 0, bonus: 0, comm: 0, late: 0, leave: 0, ded: 0, paid: 0 });
+const stfKey = { Advance: 'adv', Bonus: 'bonus', Commission: 'comm', 'Late Attendance': 'late', 'Leave Deduction': 'leave', Deduction: 'ded', Salary: 'paid' };
 function stfSums(pays) { const m = {}; pays.forEach(p => { const k = stfKey[p.kind]; if (!k) return; const o = m[p.staff_id] = m[p.staff_id] || stfZ(); o[k] += Number(p.amount) }); return m }
 /* salary history: the salary of a month = latest increase effective on or before that month */
 function stfSal(s, mo) { const h = (SF.hist && SF.hist[s.id]) || []; let v = null; h.forEach(x => { if (x.eff_date <= mo + '-31') v = Number(x.amount) }); return v === null ? Number(s.salary) : v }
 async function stfHistLoad() { const h = await run(sb.from('staff_salary').select('*').order('eff_date')); SF.hist = {}; h.forEach(x => (SF.hist[x.staff_id] = SF.hist[x.staff_id] || []).push(x)) }
-const stfNet = (s, x) => stfSal(s, SF.mo) + x.bonus - x.adv - x.ded;
+const stfNetM = (s, x, mo) => stfSal(s, mo) + Number(s.allowance || 0) + x.bonus + x.comm - x.adv - x.ded - x.late - x.leave;
+const stfNet = (s, x) => stfNetM(s, x, SF.mo);
 function stfCalc(s, att, f, t) {
   const m = {}; att.forEach(a => m[a.att_date] = a);
   const st = stfTm(s.start_time) ?? 570, gr = +s.grace_min || 0; let pres = 0, abs = 0, late = 0, lm = 0;
@@ -1582,15 +1583,15 @@ PAGES.staff = async () => {
   SF.list = await run(sb.from('staff').select('*').order('name')); await stfHistLoad();
   const pays = await run(sb.from('staff_pay').select('staff_id,amount,kind').eq('pay_month', SF.mo));
   const sm = stfSums(pays);
-  const tS = SF.list.filter(s => s.active).reduce((a, s) => a + stfSal(s, SF.mo), 0), tP = pays.filter(p => p.kind === 'Salary').reduce((a, p) => a + Number(p.amount), 0);
+  const tS = SF.list.filter(s => s.active).reduce((a, s) => a + stfSal(s, SF.mo) + Number(s.allowance || 0), 0), tP = pays.filter(p => p.kind === 'Salary').reduce((a, p) => a + Number(p.amount), 0);
   $('#main').innerHTML = `<div class="top"><h2>Staff management</h2><div class="bar">
     <div style="flex:0;white-space:nowrap"><button class="btn" onclick="stfModal(0)">+ Add staff</button></div>
     <div style="flex:0;white-space:nowrap"><label class="btn sec" style="cursor:pointer;margin:0">Import fingerprint Excel<input type="file" accept=".xls,.xlsx" style="display:none" onchange="stfImport(this)"></label></div></div></div>
   <div class="card"><div class="bar"><div style="flex:0 0 200px"><label>Salary month</label><input id="sm_mo" type="month" value="${SF.mo}" onchange="SF.mo=this.value;go('staff')"></div>
     <div class="mut" style="flex:3">Total monthly salary (active staff): <b>Rs. ${money(tS)}</b> &nbsp;|&nbsp; Paid for ${SF.mo}: <b>Rs. ${money(tP)}</b></div></div></div>
-  <div class="tw"><table><thead><tr><th>Name</th><th>Finger ID</th><th class="r">Monthly salary</th><th class="r">Advance</th><th class="r">Paid (${SF.mo})</th><th class="r">Balance</th><th>Shift</th><th></th></tr></thead><tbody>
+  <div class="tw"><table><thead><tr><th>Name</th><th>Finger ID</th><th class="r">Salary + allowance</th><th class="r">Advance</th><th class="r">Paid (${SF.mo})</th><th class="r">Balance</th><th>Shift</th><th></th></tr></thead><tbody>
   ${SF.list.map(s => { const x = sm[s.id] || stfZ(), b = stfNet(s, x) - x.paid; return `<tr style="${s.active ? '' : 'opacity:.5'}"><td><a class="link" onclick="stfDetail(${s.id})"><b>${esc(s.name)}</b></a></td><td>${esc(s.fp_id)}</td>
-   <td class="r">${money(stfSal(s, SF.mo))}</td><td class="r">${money(x.adv)}</td><td class="r">${money(x.paid)}</td><td class="r"><span class="tag ${b > 0.005 ? 'warn' : 'ok'}">${money(b)}</span></td><td>${esc(s.start_time)} - ${esc(s.end_time)}</td>
+   <td class="r">${money(stfSal(s, SF.mo) + Number(s.allowance || 0))}</td><td class="r">${money(x.adv)}</td><td class="r">${money(x.paid)}</td><td class="r"><span class="tag ${b > 0.005 ? 'warn' : 'ok'}">${money(b)}</span></td><td>${esc(s.start_time)} - ${esc(s.end_time)}</td>
    <td style="white-space:nowrap"><button class="btn sec sm" onclick="stfPay(${s.id})">Pay</button> <button class="btn sec sm" onclick="stfDetail(${s.id})">Details</button> <button class="btn sec sm" onclick="stfInc(${s.id})">Increase</button> <button class="btn sec sm" onclick="stfModal(${s.id})">Edit</button> <button class="btn sec sm" onclick="stfDel(${s.id})">Delete</button></td></tr>` }).join('') || '<tr><td colspan="8" class="mut">No staff yet. Add staff or import the fingerprint Excel (staff are created automatically).</td></tr>'}
   </tbody></table></div>`;
 };
@@ -1601,12 +1602,13 @@ function stfModal(id) {
   <div class="bar"><div style="flex:2"><label>Name</label><input id="sf_n" value="${esc(s.name)}"></div><div><label>Finger ID (Employee ID in the machine)</label><input id="sf_f" value="${esc(s.fp_id)}"></div></div>
   <div class="bar" style="margin-top:8px"><div><label>Monthly salary (Rs.)${id && (SF.hist[id] || []).length ? ' - use the Increase button' : ''}</label><input id="sf_s" type="number" step="0.01" value="${s.salary}" ${id && (SF.hist[id] || []).length ? 'readonly' : ''}></div>
    <div><label>Status</label><select id="sf_a"><option value="1" ${s.active ? 'selected' : ''}>Active</option><option value="0" ${!s.active ? 'selected' : ''}>Left / inactive</option></select></div></div>
+  <div class="bar" style="margin-top:8px"><div><label>Position</label><input id="sf_pos" value="${esc(s.position)}"></div><div><label>Branch</label><input id="sf_br" value="${esc(s.branch)}"></div><div><label>Monthly allowance (Rs.)</label><input id="sf_al" type="number" step="0.01" value="${s.allowance || 0}"></div></div>
   <div class="bar" style="margin-top:8px"><div><label>Work starts</label><input id="sf_st" type="time" value="${esc(s.start_time)}"></div><div><label>Work ends</label><input id="sf_en" type="time" value="${esc(s.end_time)}"></div><div><label>Grace (minutes)</label><input id="sf_g" type="number" min="0" value="${s.grace_min || 0}"></div></div>
   <div class="mut" style="margin-top:6px">Late = arriving after (start time + grace).</div>
   <div class="bar" style="margin-top:14px;justify-content:flex-end"><div style="flex:0"><button class="btn sec" onclick="closeModal()">Cancel</button></div><div style="flex:0"><button class="btn" onclick="stfSave(${id})">Save</button></div></div>`);
 }
 async function stfSave(id) {
-  const row = { name: $('#sf_n').value.trim(), fp_id: $('#sf_f').value.trim() || null, salary: +$('#sf_s').value || 0, start_time: $('#sf_st').value || '09:30', end_time: $('#sf_en').value || '18:00', grace_min: +$('#sf_g').value || 0, active: $('#sf_a').value === '1' };
+  const row = { name: $('#sf_n').value.trim(), fp_id: $('#sf_f').value.trim() || null, salary: +$('#sf_s').value || 0, position: $('#sf_pos').value.trim(), branch: $('#sf_br').value.trim(), allowance: +$('#sf_al').value || 0, start_time: $('#sf_st').value || '09:30', end_time: $('#sf_en').value || '18:00', grace_min: +$('#sf_g').value || 0, active: $('#sf_a').value === '1' };
   if (!row.name) return toast('Enter the staff name', true);
   if (id) { if ((SF.hist[id] || []).length) delete row.salary; await run(sb.from('staff').update(row).eq('id', id)) } else await run(sb.from('staff').insert(row));
   closeModal(); toast('Saved'); go('staff');
@@ -1621,8 +1623,8 @@ function stfPay(id, back, kind, amt) {
   const s = SF.list.find(x => x.id === id) || SF.cur, K = kind || 'Salary', bk = typeof back === 'string' ? `'${back}'` : (back ? 1 : 0);
   openModal(`<h3>${esc(s.name)}: salary / advance entry</h3>
   <div class="bar"><div><label>For salary month</label><input id="sp_m" type="month" value="${SF.mo || today().slice(0, 7)}"></div><div><label>Date</label><input id="sp_d" type="date" value="${today()}"></div></div>
-  <div class="bar" style="margin-top:8px"><div><label>Amount (Rs.)</label><input id="sp_a" type="number" step="0.01" value="${amt ?? stfSal(s, SF.mo || today().slice(0, 7))}"></div><div><label>Type</label><select id="sp_k">${['Salary', 'Advance', 'Bonus', 'Deduction'].map(k => `<option ${k === K ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
-  <div class="mut" style="margin-top:6px">Salary = money paid out. Advance and Deduction reduce the pay. Bonus adds to the pay.</div>
+  <div class="bar" style="margin-top:8px"><div><label>Amount (Rs.)</label><input id="sp_a" type="number" step="0.01" value="${amt ?? stfSal(s, SF.mo || today().slice(0, 7))}"></div><div><label>Type</label><select id="sp_k">${['Salary', 'Advance', 'Bonus', 'Commission', 'Late Attendance', 'Leave Deduction', 'Deduction'].map(k => `<option ${k === K ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
+  <div class="mut" style="margin-top:6px">Salary = money paid out. Bonus / Commission add to the pay. Advance, Late Attendance, Leave Deduction and Deduction (other) reduce it.</div>
   <div class="row" style="margin-top:8px"><label>Note</label><input id="sp_n"></div>
   <div class="bar" style="margin-top:14px;justify-content:flex-end"><div style="flex:0"><button class="btn sec" onclick="${back === 1 ? `stfDetail(${id})` : 'closeModal()'}">Cancel</button></div><div style="flex:0"><button class="btn" onclick="stfPaySave(${id},${bk})">Save</button></div></div>`);
 }
@@ -1688,37 +1690,29 @@ async function stfLoad() {
 
 /* ---------------- Salary slip (A5, with letterhead) ---------------- */
 async function stfSlip(id) {
-  const mo = SF.mo || today().slice(0, 7), [y, m] = mo.split('-').map(Number), f = mo + '-01', t = stfD(new Date(y, m, 0));
+  const mo = SF.mo || today().slice(0, 7), [y, m] = mo.split('-').map(Number);
   const s = await run(sb.from('staff').select('*').eq('id', id).single()); await stfHistLoad();
   const pays = await run(sb.from('staff_pay').select('*').eq('staff_id', id).eq('pay_month', mo).order('pay_date'));
-  const att = await allRows(() => sb.from('attendance').select('staff_id,att_date,in_time').eq('staff_id', id).gte('att_date', f).lte('att_date', t));
-  const K = k => pays.filter(p => p.kind === k), sum = a => a.reduce((x, p) => x + Number(p.amount), 0);
-  const adv = K('Advance'), bon = K('Bonus'), ded = K('Deduction'), paid = K('Salary');
-  const sal = stfSal(s, mo), prev = stfSal(s, stfD(new Date(y, m - 2, 1)).slice(0, 7));
-  const net = sal + sum(bon) - sum(adv) - sum(ded), bal = net - sum(paid);
-  const h = (SF.hist[id] || []).filter(x => x.eff_date <= mo + '-31'), hr = h[h.length - 1];
-  const c = att.length ? stfCalc(s, att, f, t) : null;
-  const label = new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-  const co = coInfo(), ly = getLY();
-  const contact = [co.p ? 'Mob : ' + co.p : '', ly.email ? 'Email : ' + ly.email : '', ly.web ? 'Website : ' + ly.web : ''].filter(Boolean).map(esc).join('&nbsp;&nbsp;&nbsp;');
-  const R = (l, a, c2) => `<tr class="${c2 || ''}"><td>${l}</td><td class="r">${money(a)}</td></tr>`;
-  const nt = p => (p.note ? ' - ' + esc(p.note) : '');
-  const body = `<div class="lh"><div><div class="nm">${esc(co.n)}</div>${String(co.a || '').split('\n').filter(Boolean).map(x => `<div>${esc(x)}</div>`).join('')}${contact ? `<div>${contact}</div>` : ''}</div>${ly.logo ? `<img src="${ly.logo}" style="height:${Math.min(+ly.logoH || 60, 70)}px">` : ''}</div>
-  <h3 style="text-align:center;margin:8px 0 0;letter-spacing:1px">SALARY SLIP</h3><div style="text-align:center;margin-bottom:6px"><b>${label}</b></div>
-  <table><tr><td><b>Name</b></td><td>${esc(s.name)}</td><td><b>Finger ID</b></td><td>${esc(s.fp_id)}</td></tr>
-  <tr><td><b>Printed on</b></td><td>${today()}</td><td><b>Attendance</b></td><td>${c ? `${c.pres} present, ${c.abs} absent, ${c.late} late${c.lm ? ' (' + stfHm(c.lm) + ')' : ''}` : '-'}</td></tr></table>
-  <table><thead><tr><th>Description</th><th class="r" style="width:32%">Amount (Rs.)</th></tr></thead><tbody>
-  ${R('Basic salary', sal)}
-  ${sal !== prev && hr ? `<tr><td colspan="2"><i>Salary increased from Rs. ${money(prev)} to Rs. ${money(sal)} (effective ${hr.eff_date})</i></td></tr>` : ''}
-  ${bon.map(p => R('Bonus (' + p.pay_date + ')' + nt(p), p.amount)).join('')}
-  ${adv.map(p => R('Less: Advance taken (' + p.pay_date + ')' + nt(p), -p.amount)).join('')}
-  ${ded.map(p => R('Less: Deduction (' + p.pay_date + ')' + nt(p), -p.amount)).join('')}
-  ${R('NET PAY', net, 'b')}
-  ${paid.map(p => R('Salary paid (' + p.pay_date + ')' + nt(p), p.amount)).join('')}
-  ${R('BALANCE TO PAY', bal, 'b')}
-  </tbody></table>
-  <div class="sg"><div>Prepared by</div><div>Employee signature</div></div>`;
-  printHtml('Salary slip ' + s.name + ' ' + mo, body, '@page{size:A5;margin:8mm}body{font-size:11px}td,th{border:1px solid #bbb}.lh{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:2px solid #000;padding-bottom:6px}.nm{font-size:20px;font-weight:700}tr.b td{font-weight:700;background:#eee}.sg{display:flex;justify-content:space-between;margin-top:38px}.sg div{border-top:1px solid #000;width:40%;text-align:center;padding-top:3px}');
+  const x = stfSums(pays)[id] || stfZ(), co = coInfo();
+  const sal = stfSal(s, mo), prev = stfSal(s, stfD(new Date(y, m - 2, 1)).slice(0, 7)), al = Number(s.allowance || 0);
+  const earn = sal + al + x.comm + x.bonus, dedT = x.late + x.leave + x.adv + x.ded, tot = earn - dedT, bal = tot - x.paid;
+  const h = (SF.hist[id] || []).filter(z => z.eff_date <= mo + '-31'), hr = h[h.length - 1];
+  const v = n => n ? money(n) : '----';
+  const I = (l, val) => `<tr><td class="lb">${l}</td><td colspan="1">${esc(val)}</td></tr>`;
+  const R = (l, n, c) => `<tr class="${c || ''}"><td>${l}</td><td class="r">${v(n)}</td></tr>`;
+  const SH = t => `<tr><td colspan="2" class="sh">${t}</td></tr><tr class="b"><td>Description</td><td class="r">Amount (LKR)</td></tr>`;
+  const notes = [];
+  if (sal !== prev && hr) notes.push(`Salary increased from Rs. ${money(prev)} to Rs. ${money(sal)} (effective ${hr.eff_date}).`);
+  const adv = pays.filter(p => p.kind === 'Advance'); if (adv.length) notes.push('Advance: ' + adv.map(p => `${p.pay_date} Rs. ${money(p.amount)}`).join(', ') + '.');
+  if (x.paid) notes.push(`Paid Rs. ${money(x.paid)}. Balance Rs. ${money(bal)}.`);
+  const body = `<table><tr><td colspan="2" class="t">${esc(co.n.replace(/\(?\s*pvt\s*\)?\s*ltd\.?/i, '').trim().toUpperCase())} STAFF SALARY</td></tr>
+  ${I('Company Name', (co.n || '').toUpperCase())}${I('Branch', (s.branch || '-').toUpperCase())}${I('Employee Name', (s.name || '').toUpperCase())}${I('Employee ID', s.fp_id || '-------------')}${I('Position', (s.position || '-').toUpperCase())}${I('Month & Year', '01/' + String(m).padStart(2, '0') + '/' + y)}
+  <tr><td colspan="2" class="sh">SALARY DETAILS</td></tr><tr class="b"><td>Description</td><td class="r">Amount (LKR)</td></tr>
+  ${R('Basic Salary', sal)}${R('Allowances', al)}${R('Commissions', x.comm)}${R('Bonus', x.bonus)}${R('Total Earnings', earn, 'b')}
+  <tr><td colspan="2" class="sh">DEDUCTIONS</td></tr><tr class="b"><td>Description</td><td class="r">Amount (LKR)</td></tr>
+  ${R('Late Attendance', x.late)}${R('Leave Deduction', x.leave)}${R('Advance Salary', x.adv)}${R('Other Deductions', x.ded)}${R('Total Deductions', dedT, 'b')}
+  ${R('Total Salary', tot, 'b big')}</table>${notes.length ? `<div style="margin-top:6px;font-size:10px">${notes.map(esc).join('<br>')}</div>` : ''}`;
+  printHtml('Salary slip ' + s.name + ' ' + mo, body, '@page{size:A5;margin:8mm}body{font-size:12px}table{border:1.5px solid #000}td,th{border:1px solid #000;padding:5px 8px}.t{font-size:17px;font-weight:700;text-align:center;padding:8px}.sh{background:#ddd;font-weight:700;text-align:center}tr.b td{font-weight:700;background:#f0f0f0}tr.big td{font-size:14px;background:#ddd}.lb{font-weight:700;width:45%}');
 }
 
 /* ---------------- Salary increase ---------------- */
@@ -1774,11 +1768,11 @@ async function stfAdvDel(id) { if (!confirm('Delete this advance?')) return; awa
 
 /* ---------------- Salary sheet (monthly) ---------------- */
 function stfSheet(rows, act) {
-  const T = { salary: 0, bonus: 0, adv: 0, ded: 0, net: 0, paid: 0, bal: 0 }; rows.forEach(r => Object.keys(T).forEach(k => T[k] += r[k]));
-  return `<table><thead><tr><th>Staff</th><th class="r">Basic</th><th>Attendance</th><th class="r">Bonus</th><th class="r">Advance</th><th class="r">Deduction</th><th class="r">Net pay</th><th class="r">Paid</th><th class="r">Balance</th>${act ? '<th></th>' : ''}</tr></thead><tbody>
-  ${rows.map(r => `<tr><td><b>${esc(r.s.name)}</b></td><td class="r">${money(r.salary)}</td><td>${r.at}</td><td class="r">${money(r.bonus)}</td><td class="r">${money(r.adv)}</td><td class="r">${money(r.ded)}</td><td class="r"><b>${money(r.net)}</b></td><td class="r">${money(r.paid)}</td><td class="r"><span class="tag ${r.bal > 0.005 ? 'warn' : 'ok'}">${money(r.bal)}</span></td>
-   ${act ? `<td style="white-space:nowrap">${r.bal > 0.005 ? `<button class="btn sm" onclick="stfPay(${r.s.id},'staff_sal','Salary',${Math.round(r.bal * 100) / 100})">Pay</button> ` : ''}<button class="btn sec sm" onclick="stfPay(${r.s.id},'staff_sal','Deduction',0)">Deduct</button> <button class="btn sec sm" onclick="stfSlip(${r.s.id})">Slip</button> <button class="btn sec sm" onclick="stfDetail(${r.s.id})">Details</button></td>` : ''}</tr>`).join('') || `<tr><td colspan="10" class="mut">No active staff.</td></tr>`}
-  </tbody><tfoot><tr><th>Total</th><th class="r">${money(T.salary)}</th><th></th><th class="r">${money(T.bonus)}</th><th class="r">${money(T.adv)}</th><th class="r">${money(T.ded)}</th><th class="r">${money(T.net)}</th><th class="r">${money(T.paid)}</th><th class="r">${money(T.bal)}</th>${act ? '<th></th>' : ''}</tr></tfoot></table>`;
+  const T = { salary: 0, allow: 0, bonus: 0, adv: 0, ded: 0, net: 0, paid: 0, bal: 0 }; rows.forEach(r => Object.keys(T).forEach(k => T[k] += r[k]));
+  return `<table><thead><tr><th>Staff</th><th class="r">Basic</th><th class="r">Allowance</th><th>Attendance</th><th class="r">Bonus + Comm.</th><th class="r">Advance</th><th class="r">Deductions</th><th class="r">Net pay</th><th class="r">Paid</th><th class="r">Balance</th>${act ? '<th></th>' : ''}</tr></thead><tbody>
+  ${rows.map(r => `<tr><td><b>${esc(r.s.name)}</b></td><td class="r">${money(r.salary)}</td><td class="r">${money(r.allow)}</td><td>${r.at}</td><td class="r">${money(r.bonus)}</td><td class="r">${money(r.adv)}</td><td class="r">${money(r.ded)}</td><td class="r"><b>${money(r.net)}</b></td><td class="r">${money(r.paid)}</td><td class="r"><span class="tag ${r.bal > 0.005 ? 'warn' : 'ok'}">${money(r.bal)}</span></td>
+   ${act ? `<td style="white-space:nowrap">${r.bal > 0.005 ? `<button class="btn sm" onclick="stfPay(${r.s.id},'staff_sal','Salary',${Math.round(r.bal * 100) / 100})">Pay</button> ` : ''}<button class="btn sec sm" onclick="stfPay(${r.s.id},'staff_sal','Deduction',0)">Deduct</button> <button class="btn sec sm" onclick="stfSlip(${r.s.id})">Slip</button> <button class="btn sec sm" onclick="stfDetail(${r.s.id})">Details</button></td>` : ''}</tr>`).join('') || `<tr><td colspan="11" class="mut">No active staff.</td></tr>`}
+  </tbody><tfoot><tr><th>Total</th><th class="r">${money(T.salary)}</th><th class="r">${money(T.allow)}</th><th></th><th class="r">${money(T.bonus)}</th><th class="r">${money(T.adv)}</th><th class="r">${money(T.ded)}</th><th class="r">${money(T.net)}</th><th class="r">${money(T.paid)}</th><th class="r">${money(T.bal)}</th>${act ? '<th></th>' : ''}</tr></tfoot></table>`;
 }
 PAGES.staff_sal = async () => {
   if (!hasP('staff')) { $('#main').innerHTML = '<p class="mut">No permission.</p>'; return }
@@ -1791,13 +1785,13 @@ PAGES.staff_sal = async () => {
   const sm = stfSums(pays);
   SF.rows = SF.list.filter(s => s.active).map(s => {
     const x = sm[s.id] || stfZ(), net = stfNet(s, x), c = by[s.id] ? stfCalc(s, by[s.id], f, t) : null;
-    return { s, salary: stfSal(s, SF.mo), bonus: x.bonus, adv: x.adv, ded: x.ded, net, paid: x.paid, bal: net - x.paid, at: c ? `${c.pres} present, ${c.abs} absent, ${c.late} late${c.lm ? ' (' + stfHm(c.lm) + ')' : ''}` : '-' };
+    return { s, salary: stfSal(s, SF.mo), allow: Number(s.allowance || 0), bonus: x.bonus + x.comm, adv: x.adv, ded: x.ded + x.late + x.leave, net, paid: x.paid, bal: net - x.paid, at: c ? `${c.pres} present, ${c.abs} absent, ${c.late} late${c.lm ? ' (' + stfHm(c.lm) + ')' : ''}` : '-' };
   });
   $('#main').innerHTML = `<div class="top"><h2>Salary sheet</h2><button class="btn sec" onclick="stfSheetPrint()">Print</button></div>
   <div class="card"><div class="bar"><div style="flex:0 0 200px"><label>Salary month</label><input type="month" value="${SF.mo}" onchange="SF.mo=this.value;go('staff_sal')"></div>
    <div style="flex:0 0 180px"><label>Paid date</label><input id="sa_d" type="date" value="${today()}"></div>
    <div style="flex:0;white-space:nowrap"><button class="btn" onclick="stfPayAll()">Pay all balances</button></div></div>
-   <div class="mut" style="margin-top:6px">Net pay = Basic + Bonus - Advance - Deduction. Absent / late come from the imported fingerprint data (Sundays ignored) and are for your information. Use <b>Deduct</b> to reduce the pay, or change the amount in the Pay window.</div></div>
+   <div class="mut" style="margin-top:6px">Net pay = Basic + Allowance + Bonus + Commission - Advance - Late - Leave - Other deductions. Absent / late come from the imported fingerprint data (Sundays ignored) and are for your information. Use <b>Deduct</b> to reduce the pay, or change the amount in the Pay window.</div></div>
   <div class="tw">${stfSheet(SF.rows, true)}</div>`;
 };
 async function stfPayAll() {
