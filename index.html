@@ -182,7 +182,9 @@ function buildNav(){
   const gen=[['items','Items','items'],['cats','Categories','items'],['customers','Customers','customers'],['suppliers','Suppliers','suppliers'],['reps','Sales reps','ADMIN']].filter(x=>x[2]==='ADMIN'?isAdmin():hasP(x[2]));
   if(gen.length)a.push(`<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">General &#9662;</a><div class="sub">${gen.map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(hasP('jobs'))a.push(`<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">Job note &#9662;</a><div class="sub">${[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
-  if(isAdmin())a.push(L('users','Users'),L('settings','Invoice editor'),L('jobeditor','Job note editor'));
+  if(hasP('staff'))a.push(`<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">Staff management &#9662;</a><div class="sub">${[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
+  if(isAdmin())a.push(L('users','Users'));
+  if(isAdmin())a.push(`<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">Editors &#9662;</a><div class="sub">${[['settings','Invoice editor'],['jobeditor','Job note editor'],['slipeditor','Salary slip editor']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
   $('#nav').innerHTML=a.join('');
 }
 async function afterLogin(uid){
@@ -202,7 +204,7 @@ async function logout(){await sb.auth.signOut();location.reload()}
 const PAGES={};
 async function go(p){
   const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs'};
-  if((need[p]&&!hasP(need[p]))||((p==='users'||p==='settings'||p==='reps'||p==='jobeditor')&&!isAdmin()))p='dash';
+  if((need[p]&&!hasP(need[p]))||((p==='users'||p==='settings'||p==='reps'||p==='jobeditor'||p==='slipeditor')&&!isAdmin()))p='dash';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
   const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('open')}
   $('#main').innerHTML='<p class="mut">Loading…</p>';
@@ -1164,12 +1166,13 @@ PAGES.job_warranty=()=>jobList('warranty');
 PAGES.job_repair=()=>jobList('repair');
 PAGES.job_service=()=>jobList('service');
 async function jobList(type){
-  JTYPE=type;
+  JTYPE=type;try{await loadSups()}catch(e){}
   $('#main').innerHTML=`<div class="top"><h2>${JT[type]} job notes</h2><div class="bar"><div style="flex:0;white-space:nowrap"><button class="btn" onclick="jobNew('${type}')">+ New ${JT[type].toLowerCase()} job note</button></div><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="printJobBlank()">Print blank form</button></div></div></div>
   <div class="card"><div class="bar"><div><label>Status</label><select id="jf_s" onchange="jobLoad()"><option value="">All</option>${JSTAT.map(x=>`<option>${x}</option>`).join('')}</select></div>
    <div><label>From</label><input id="jf_f" type="date" onchange="jobLoad()"></div><div><label>To</label><input id="jf_t" type="date" onchange="jobLoad()"></div>
+   <div><label>Supplier</label><select id="jf_su" onchange="jobLoad()"><option value="">All</option><option value="__none">- none -</option>${(SUPS||[]).map(x=>`<option value="${esc(x.name)}">${esc(x.name)}</option>`).join('')}</select></div>
    <div style="flex:2"><label>Search (job no, customer, mobile, serial)</label><input id="jf_q" oninput="clearTimeout(JQ_T);JQ_T=setTimeout(jobLoad,300)"></div></div></div>
-  <div class="tw"><table><thead><tr><th>Job no</th><th>Date</th><th>Customer</th><th>Product</th><th>Issue</th><th>Status</th><th></th></tr></thead><tbody id="jbt"></tbody></table></div>`;
+  <div class="tw"><table><thead><tr><th>Job no</th><th>Date</th><th>Customer</th><th>Product</th><th>Issue</th><th>Supplier</th><th>Status</th><th></th></tr></thead><tbody id="jbt"></tbody></table></div>`;
   jobLoad();
 }
 async function jobLoad(){
@@ -1177,11 +1180,12 @@ async function jobLoad(){
   const s=$('#jf_s').value,f=$('#jf_f').value,t=$('#jf_t').value,q=$('#jf_q').value.trim().replace(/[,()%]/g,' ');
   if(s)b=b.eq('status',s);if(f)b=b.gte('job_date',f+'T00:00:00');if(t)b=b.lte('job_date',t+'T23:59:59');
   if(q)b=b.or(`job_no.ilike.%${q}%,customer_name.ilike.%${q}%,customer_code.ilike.%${q}%,mobile.ilike.%${q}%,serial_no.ilike.%${q}%`);
-  const d=await run(b);
+  let d=await run(b);const su=$('#jf_su').value;
+  if(su==='__none')d=d.filter(j=>!(j.checks&&j.checks.supplier_name));else if(su)d=d.filter(j=>j.checks&&j.checks.supplier_name===su);
   $('#jbt').innerHTML=d.map(j=>`<tr><td><b>${esc(j.job_no)}</b></td><td>${fmtDT(j.job_date)}</td><td>${esc(j.customer_name)}<div class="mut">${esc(j.customer_code)} ${esc(j.mobile)}</div></td>
-   <td>${esc(j.brand_model)}<div class="mut">${esc(j.serial_no)}</div></td><td style="max-width:260px">${esc(plainText(j.issue).slice(0,90))}</td>
+   <td>${esc(j.brand_model)}<div class="mut">${esc(j.serial_no)}</div></td><td style="max-width:260px">${esc(plainText(j.issue).slice(0,90))}</td><td>${j.checks&&j.checks.supplier_name?`<b>${esc(j.checks.supplier_name)}</b>${j.checks.supplier_ref?`<div class="mut">${esc(j.checks.supplier_ref)}</div>`:''}`:'<span class="mut">-</span>'}</td>
    <td><select onchange="jobStatus(${j.id},this.value)">${JSTAT.map(x=>`<option ${x===j.status?'selected':''}>${x}</option>`).join('')}</select></td>
-   <td style="white-space:nowrap"><button class="btn sec sm" onclick="printJob(${j.id})">Print</button> ${isAdmin()?`<button class="btn sec sm" onclick="jobEdit(${j.id})">Edit</button> <button class="btn sec sm" onclick="jobDel(${j.id},'${esc(j.job_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mut">No job notes found.</td></tr>';
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="printJob(${j.id})">Print</button> ${isAdmin()?`<button class="btn sec sm" onclick="jobEdit(${j.id})">Edit</button> <button class="btn sec sm" onclick="jobDel(${j.id},'${esc(j.job_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8" class="mut">No job notes found.</td></tr>';
 }
 async function jobStatus(id,v){await run(sb.from('job_notes').update({status:v}).eq('id',id));toast('Status updated')}
 async function jobDel(id,no){if(!confirm('Delete job note '+no+'?'))return;await run(sb.from('job_notes').delete().eq('id',id));toast('Deleted');jobLoad()}
@@ -1194,9 +1198,10 @@ const jobRichStyle=document.createElement('style');jobRichStyle.textContent=`.jo
 PAGES.jobform=async()=>{
   const jl=getJL(),id=window._jobId||null,nt=window._jobNew||'repair';window._jobId=null;window._jobNew=null;
   let j={job_type:nt,job_date:new Date().toISOString(),customer_id:null,customer_code:'',customer_name:'',mobile:'',whatsapp:'',email:'',brand_model:'',item_ref:'',serial_no:'',product_id:'',issue:'',remarks:'',status:'Received',job_no:'',checks:{}};
+  try{await loadSups()}catch(e){}
   if(id)j=await run(sb.from('job_notes').select('*').eq('id',id).single());
   else{j.checks={service:nt==='warranty'?['Warranty']:nt==='service'?['Chargeable']:[],work:nt==='repair'?['Repair']:nt==='service'?['Diagnosis']:[]}}
-  JF={...j,id,checks:{product:[],service:[],accessories:[],work:[],technician:[],product_other:'',accessories_other:'',work_other:'',received_by:'',received_signature:'',taken_by:'',taken_sig:'',purchase_date:'',invoice_no:'',...(j.checks||{})}};
+  JF={...j,id,checks:{product:[],service:[],accessories:[],work:[],technician:[],product_other:'',accessories_other:'',work_other:'',received_by:'',received_signature:'',taken_by:'',taken_sig:'',purchase_date:'',invoice_no:'',supplier_id:'',supplier_name:'',supplier_ref:'',...(j.checks||{})}};
   if(!Array.isArray(JF.checks.technician))JF.checks.technician=[];
   const inp=(i,l,v,ex='')=>`<div><label>${l}</label><input id="${i}" value="${esc(v)}" ${ex}></div>`;
   $('#main').innerHTML=`<div class="top"><h2>${id?'Edit job note '+esc(j.job_no):'New '+JT[nt].toLowerCase()+' job note'}</h2><button class="btn sec" onclick="go('job_${JF.job_type}')">Back to list</button></div>
@@ -1220,6 +1225,7 @@ PAGES.jobform=async()=>{
    ${jl.showTechnician?`<div style="margin-top:10px"><label>Technician / handler (tick one or more)</label><div class="chkrow">${(jl.technicians||[]).length?jcb('technician',jl.technicians):'<span class="mut">Add technician names in Job note editor.</span>'}</div></div>`:''}
    </div>
   ${jl.showRemarks?`<div class="card"><b>Remarks / condition notes</b><div style="margin-top:8px"><div class="jobrt"><div id="j_rm" class="jobrich" contenteditable="true" onpaste="jobPaste(event)" style="color:${esc(jl.remarksColor||'#d00000')}">${richDisplay(JF.remarks)}</div></div></div></div>`:''}
+  <div class="card"><b>Supplier (backend only - NOT printed on the job note)</b><div class="bar" style="margin-top:8px"><div style="flex:2"><label>Supplier (sent for warranty / repair)</label><select id="j_sup"><option value="">- none -</option>${(SUPS||[]).map(x=>`<option value="${x.id}" ${String(x.id)===String(JF.checks.supplier_id||'')?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div><div><label>Supplier claim / RMA no (optional)</label><input id="j_supref" value="${esc(JF.checks.supplier_ref||'')}"></div></div></div>
   <div class="card"><b>Laptop received by (staff) - signature</b><div class="bar" style="margin-top:8px"><div><label>Name shown in the brackets: RECEIVED BY (name) - empty = technician / handler ticked above</label><input id="j_taken" placeholder="Auto: technician name" value="${esc(JF.checks.taken_by||'')}"></div></div>
    <label style="margin-top:8px">Sign here (mouse, finger or pen)</label>
    <canvas id="j_pad" width="480" height="150" style="width:100%;max-width:480px;height:150px;border:1.5px dashed #98a2b3;border-radius:8px;background:#fff;touch-action:none;display:block"></canvas>
@@ -1283,6 +1289,7 @@ function jobPadInit(){
 }
 function jobPadClear(){const c=$('#j_pad');if(!c)return;c.getContext('2d').clearRect(0,0,c.width,c.height);JF.checks.taken_sig='';JF.padDirty=false;JF.padCleared=true}
 async function jobSave(print,openWhatsApp=false){
+  if($('#j_sup')){const sid=$('#j_sup').value,sp=(SUPS||[]).find(x=>String(x.id)===sid);JF.checks.supplier_id=sid;JF.checks.supplier_name=sp?sp.name:'';JF.checks.supplier_ref=$('#j_supref').value.trim()}
   if($('#j_pd'))JF.checks.purchase_date=$('#j_pd').value;if($('#j_inv'))JF.checks.invoice_no=$('#j_inv').value.trim();
   if($('#j_taken'))JF.checks.taken_by=$('#j_taken').value.trim();
   if($('#j_pad')&&JF.padDirty)JF.checks.taken_sig=$('#j_pad').toDataURL('image/png');
@@ -1397,12 +1404,14 @@ document.addEventListener('mouseup',function(){if(!dg)return;var d=dg;dg=null;if
 
 /* ----- Job note editor (admin) ----- */
 let JLLOGO='',JE_SEL='',JEST={},JE_REFILL=false;
-const JE_TEXTMAP={title:'je_t1',subtitle:'je_t2',contact:'je_ct',foot:'je_ft',rules:'je_ru',auth:'je_au',delivery:'je_de',shop:'je_n',addr:'je_a',email:'je_em'};
+const JE_TEXTMAP_JOB={title:'je_t1',subtitle:'je_t2',contact:'je_ct',foot:'je_ft',rules:'je_ru',auth:'je_au',delivery:'je_de',shop:'je_n',addr:'je_a',email:'je_em'};
+let JE_TEXTMAP=JE_TEXTMAP_JOB,JE_MODE='job';
 const JE_NOTEXT=['foot_bar','tech','issue','remarks'];
-const JE_NAMES={title:'Title',subtitle:'Sub title',shop:'Shop name',addr:'Address',email:'Email line',contact:'Contact (right side)',tech:'Technician text',sg_staff:'Staff signature block (image + name + line)',staff_img:'Staff signature image',sg_cust:'Customer signature block',rcv_name:'Received by (delivery)',issue:'Issue reported text',remarks:'Remarks text',rules:'Rules text',auth:'Authorization text',delivery:'Delivery text',foot:'Footer text',foot_bar:'Footer bar'};
-const jeName=k=>JE_NAMES[k]||((/^h_/.test(k)?'Section heading: ':'Label: ')+k.replace(/^(l_|h_)/,'').replace(/_/g,' ').toUpperCase());
+const JE_NAMES={lh_name:'Shop name',lh_addr:'Address',lh_contact:'Contact line',notes:'Notes under the table',footer:'Footer text',title:'Title',subtitle:'Sub title',shop:'Shop name',addr:'Address',email:'Email line',contact:'Contact (right side)',tech:'Technician text',sg_staff:'Staff signature block (image + name + line)',staff_img:'Staff signature image',sg_cust:'Customer signature block',rcv_name:'Received by (delivery)',issue:'Issue reported text',remarks:'Remarks text',rules:'Rules text',auth:'Authorization text',delivery:'Delivery text',foot:'Footer text',foot_bar:'Footer bar'};
+const jeName=k=>JE_NAMES[k]||((/^a_/.test(k)?'Amount: ':/^v_/.test(k)?'Value: ':/^h_/.test(k)?'Section heading: ':'Label: ')+k.replace(/^(l_|h_|a_|v_|th_)/,'').replace(/_/g,' ').toUpperCase());
 const jeStyle=document.createElement('style');jeStyle.textContent='.jsb{position:fixed;right:18px;bottom:18px;width:310px;max-height:84vh;overflow:auto;background:#fff;border:1px solid #1a73e8;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:10px 12px;z-index:50}.jsb .jsh{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.jsb label{font-size:11.5px;display:block;margin:6px 0 2px}.jsb .r2{display:flex;gap:8px}.jsb .r2>div{flex:1}.jsb input[type=color]{width:100%;height:32px;padding:2px}.jsb input,.jsb select,.jsb textarea{width:100%}.jsb .tg{display:flex;gap:6px;margin-top:8px}.jsb .tg button{flex:1}';document.head.appendChild(jeStyle);
 PAGES.jobeditor=async()=>{
+  JE_MODE='job';JE_TEXTMAP=JE_TEXTMAP_JOB;
   const jl=getJL(),co=coInfo();JLLOGO=jl.logo||'';
   const ck=(id,v,l)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''} onchange="jePrev()"> ${l}</label>`;
   const ta=(id,l,v,r)=>`<div class="row" style="margin-top:8px"><label>${l}</label><textarea id="${id}" rows="${r||3}" oninput="jePrev()">${esc(v)}</textarea></div>`;
@@ -1456,6 +1465,7 @@ function jeRead(){
     g:Object.fromEntries(Object.keys(JE_GDEF).map(k=>[k,g('je_g_'+k).value])),st:JEST,showAcc:g('je_sa').checked,showRemarks:g('je_sr').checked,showRules:g('je_su').checked,showAuth:g('je_sh').checked,showDel:g('je_sd').checked,showFoot:g('je_sf').checked,showTechnician:g('je_sth').checked,showReceivedSignature:g('je_srs').checked,fontSize:+g('je_fs').value||0}};
 }
 function jePrev(){
+  if(JE_MODE==='slip')return slipPrev();
   const {co,jl}=jeRead();
   const j={job_no:'WR-00001',job_date:new Date().toISOString(),customer_name:'Sample Customer',customer_code:'CUS-0001',mobile:'0771234567',whatsapp:'0771234567',email:'sample@mail.com',brand_model:'ASUS Vivobook X1504VA',item_ref:'LAP-0001',serial_no:'SN1234567890',product_id:'P-1001',
     issue:'Laptop does not power on.\nBattery not charging.',remarks:'Small scratch on the lid.',checks:{product:[jl.products[0]],service:[jl.services[2]||jl.services[0]],accessories:[jl.accessories[0]],work:[jl.works[0]],technician:[(jl.technicians||[])[0]],purchase_date:new Date().toISOString().slice(0,10),invoice_no:'INV-00001',received_by:'Received Person',taken_by:'Staff Name',taken_sig:jeDemoSig()}};
@@ -1472,7 +1482,7 @@ function jeEl(k){const f=$('#je_pv');try{return f.contentDocument.querySelector(
 function jePanelFill(){
   const k=JE_SEL,el=jeEl(k),o=JEST[k]||{};if(!k||!el)return;
   $('#je_sel').style.display='block';$('#js_name').textContent=/^(h_|l_)/.test(k)?(/^h_/.test(k)?'Heading: ':'Label: ')+el.innerText.trim():jeName(k);
-  $('#js_txtw').style.display=JE_NOTEXT.includes(k)?'none':'';
+  $('#js_txtw').style.display=(JE_NOTEXT.includes(k)||/^(a_|v_)/.test(k))?'none':'';
   $('#js_t').value=el.innerText.replace(/\u00a0/g,' ').replace(/\n+$/,'');
   const cs=el.ownerDocument.defaultView.getComputedStyle(el);
   $('#js_c').value=o.c||rgbHex(cs.color)||'#000000';
@@ -1539,9 +1549,8 @@ async function jeSave(){
   $('#coName').textContent=settings.company_name||'Company';toast('Job note layout saved');
 }
 
-</script>
-<!-- ===== STAFF MANAGEMENT (paste this whole block just before </body>) ===== -->
-<script>
+
+
 /* ===== Staff management + salary + fingerprint attendance (admin only) ===== */
 PERMS.push(['staff','Staff management & salary']);
 const SF = {};
@@ -1549,12 +1558,6 @@ const stfTm = s => { const m = /^(\d{1,2}):(\d{2})/.exec(s || ''); return m ? +m
 const stfHm = n => n >= 60 ? Math.floor(n / 60) + 'h ' + (n % 60) + 'm' : n + ' min';
 const stfD = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 
-/* add the tab to the menu */
-const stfOldNav = window.buildNav;
-window.buildNav = function () {
-  stfOldNav();
-  if (hasP('staff')) $('#nav').insertAdjacentHTML('beforeend', `<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">Staff management &#9662;</a><div class="sub">${[['staff', 'Staff &amp; attendance'], ['staff_adv', 'Advances'], ['staff_sal', 'Salary sheet']].map(g => `<a id="n_${g[0]}" onclick="go('${g[0]}')">${g[1]}</a>`).join('')}</div></div>`);
-};
 
 /* month sums per staff: Salary = paid out, Advance/Deduction reduce pay, Bonus adds to pay */
 const stfZ = () => ({ adv: 0, bonus: 0, comm: 0, late: 0, leave: 0, ded: 0, paid: 0 });
@@ -1565,16 +1568,19 @@ function stfSal(s, mo) { const h = (SF.hist && SF.hist[s.id]) || []; let v = nul
 async function stfHistLoad() { const h = await run(sb.from('staff_salary').select('*').order('eff_date')); SF.hist = {}; h.forEach(x => (SF.hist[x.staff_id] = SF.hist[x.staff_id] || []).push(x)) }
 const stfNetM = (s, x, mo) => stfSal(s, mo) + Number(s.allowance || 0) + x.bonus + x.comm - x.adv - x.ded - x.late - x.leave;
 const stfNet = (s, x) => stfNetM(s, x, SF.mo);
-function stfCalc(s, att, f, t) {
+function stfCalc(s, att, f, t, last) {
   const m = {}; att.forEach(a => m[a.att_date] = a);
   const st = stfTm(s.start_time) ?? 570, gr = +s.grace_min || 0; let pres = 0, abs = 0, late = 0, lm = 0;
-  for (let d = new Date(f + 'T00:00:00'); stfD(d) <= t && stfD(d) <= today(); d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(f + 'T00:00:00'); stfD(d) <= t && stfD(d) <= today() && (!last || stfD(d) <= last); d.setDate(d.getDate() + 1)) {
     const a = m[stfD(d)];
     if (!a) { if (d.getDay() !== 0) abs++; continue }
     pres++; const i = stfTm(a.in_time); if (i !== null && i > st + gr) { late++; lm += i - st }
   }
   return { pres, abs, late, lm };
 }
+
+/* last day that has fingerprint data: later days are 'No data', not 'Absent' */
+async function stfLast() { const r = await run(sb.from('attendance').select('att_date').order('att_date', { ascending: false }).limit(1)); return (r[0] && r[0].att_date) || '' }
 
 /* ---------------- main page ---------------- */
 PAGES.staff = async () => {
@@ -1646,6 +1652,8 @@ async function stfDetail(id) {
   <div class="bar"><div><label>From</label><input id="sd_f" type="date" value="${SF.f}"></div><div><label>To</label><input id="sd_t" type="date" value="${SF.t}"></div>
    <div style="flex:0;white-space:nowrap"><button class="btn" onclick="stfLoad()">Show</button></div>
    <div style="flex:0;white-space:nowrap"><button class="btn sec sm" onclick="stfQuick('m')">This month</button></div><div style="flex:0;white-space:nowrap"><button class="btn sec sm" onclick="stfQuick('l')">Last month</button></div></div>
+  <div class="bar" style="margin-top:6px;align-items:flex-end"><div style="flex:0 0 190px"><label>Late if arrives after (time)</label><input id="sd_ls" type="time" value="${esc(s.start_time || '09:30')}" onchange="stfLoad()"></div>
+   <div class="mut" style="flex:3">Change this time to see who would be late for any start time (it does not change the saved shift). Grace: ${s.grace_min || 0} min.</div></div>
   <label class="chk" style="margin-top:6px"><input type="checkbox" id="sd_sun" checked onchange="stfLoad()"> Sundays are off (do not count as absent)</label>
   <div id="sd_body" style="margin-top:10px"><p class="mut">Loading…</p></div>
   <div class="bar" style="margin-top:10px;justify-content:flex-end"><div style="flex:0"><button class="btn sec" onclick="closeModal()">Close</button></div></div>`, '980px');
@@ -1663,11 +1671,12 @@ async function stfLoad() {
   const att = await allRows(() => sb.from('attendance').select('*').eq('staff_id', s.id).gte('att_date', f).lte('att_date', t).order('att_date'));
   const pays = await run(sb.from('staff_pay').select('*').eq('staff_id', s.id).order('pay_date', { ascending: false }).limit(60));
   const m = {}; att.forEach(a => m[a.att_date] = a);
-  const st = stfTm(s.start_time) ?? 570, en = stfTm(s.end_time) ?? 1080, gr = +s.grace_min || 0;
+  const st = stfTm($('#sd_ls').value) ?? stfTm(s.start_time) ?? 570, en = stfTm(s.end_time) ?? 1080, gr = +s.grace_min || 0, last = await stfLast();
   let pres = 0, abs = 0, late = 0, lateMin = 0, early = 0, noOut = 0; const rows = [], tg = (c, t) => `<span class="tag ${c}">${t}</span>`;
   for (let d = new Date(f + 'T00:00:00'); stfD(d) <= t && stfD(d) <= today(); d.setDate(d.getDate() + 1)) {
     const k = stfD(d), a = m[k], dn = d.toLocaleDateString('en-GB', { weekday: 'short' });
     if (!a) {
+      if (last && k > last) { rows.push(`<tr><td>${k}</td><td>${dn}</td><td>-</td><td>-</td><td class="mut">No fingerprint data imported yet</td></tr>`); continue }
       if (skip && d.getDay() === 0) rows.push(`<tr><td>${k}</td><td>${dn}</td><td>-</td><td>-</td><td class="mut">Sunday off</td></tr>`);
       else { abs++; rows.push(`<tr><td>${k}</td><td>${dn}</td><td>-</td><td>-</td><td>${tg('bad', 'Absent')}</td></tr>`) }
       continue;
@@ -1686,35 +1695,6 @@ async function stfLoad() {
   ${pays.map(p => `<tr><td>${p.pay_date}</td><td>${esc(p.pay_month)}</td><td>${esc(p.kind)}</td><td class="r">${money(p.amount)}</td><td>${esc(p.note)}</td><td><button class="btn sec sm" onclick="stfPayDel(${p.id},${s.id})">x</button></td></tr>`).join('') || '<tr><td colspan="6" class="mut">No payments yet.</td></tr>'}</tbody></table></div>
   <div class="top" style="margin-top:16px"><h3>Salary history</h3><button class="btn sm" onclick="stfInc(${s.id},1)">+ Increase salary</button></div>
   <div class="tw"><table><thead><tr><th>Effective from</th><th class="r">Salary</th><th>Note</th><th></th></tr></thead><tbody>${(SF.hist[s.id] || []).slice().reverse().map(h => `<tr><td>${h.eff_date === '2000-01-01' ? 'Start' : h.eff_date}</td><td class="r">${money(h.amount)}</td><td>${esc(h.note)}</td><td>${h.eff_date === '2000-01-01' ? '' : `<button class="btn sec sm" onclick="stfIncDel(${h.id},${s.id})">x</button>`}</td></tr>`).join('') || `<tr><td colspan="4" class="mut">No increases yet. Current salary Rs. ${money(s.salary)}.</td></tr>`}</tbody></table></div>`;
-}
-
-/* ---------------- Salary slip (A5, with letterhead) ---------------- */
-async function stfSlip(id) {
-  const mo = SF.mo || today().slice(0, 7), [y, m] = mo.split('-').map(Number);
-  const s = await run(sb.from('staff').select('*').eq('id', id).single()); await stfHistLoad();
-  const pays = await run(sb.from('staff_pay').select('*').eq('staff_id', id).eq('pay_month', mo).order('pay_date'));
-  const x = stfSums(pays)[id] || stfZ(), co = coInfo();
-  const sal = stfSal(s, mo), prev = stfSal(s, stfD(new Date(y, m - 2, 1)).slice(0, 7)), al = Number(s.allowance || 0);
-  const earn = sal + al + x.comm + x.bonus, dedT = x.late + x.leave + x.adv + x.ded, tot = earn - dedT, bal = tot - x.paid;
-  const h = (SF.hist[id] || []).filter(z => z.eff_date <= mo + '-31'), hr = h[h.length - 1];
-  const v = n => n ? money(n) : '----';
-  const I = (l, val) => `<tr><td class="lb">${l}</td><td colspan="1">${esc(val)}</td></tr>`;
-  const R = (l, n, c) => `<tr class="${c || ''}"><td>${l}</td><td class="r">${v(n)}</td></tr>`;
-  const SH = t => `<tr><td colspan="2" class="sh">${t}</td></tr><tr class="b"><td>Description</td><td class="r">Amount (LKR)</td></tr>`;
-  const notes = [];
-  if (sal !== prev && hr) notes.push(`Salary increased from Rs. ${money(prev)} to Rs. ${money(sal)} (effective ${hr.eff_date}).`);
-  const adv = pays.filter(p => p.kind === 'Advance'); if (adv.length) notes.push('Advance: ' + adv.map(p => `${p.pay_date} Rs. ${money(p.amount)}`).join(', ') + '.');
-  if (x.paid) notes.push(`Paid Rs. ${money(x.paid)}. Balance Rs. ${money(bal)}.`);
-  const ly = getLY(), contact = [co.p ? 'Mob : ' + co.p : '', ly.email ? 'Email : ' + ly.email : '', ly.web ? 'Website : ' + ly.web : ''].filter(Boolean).map(esc).join('&nbsp;&nbsp;&nbsp;');
-  const lh = `<div class="lh"><div><div class="nm">${esc(co.n)}</div>${String(co.a || '').split('\n').filter(Boolean).map(z => `<div>${esc(z)}</div>`).join('')}${contact ? `<div>${contact}</div>` : ''}</div>${ly.logo ? `<img src="${ly.logo}" style="height:${Math.min(+ly.logoH || 60, 50)}px">` : ''}</div>`;
-  const body = lh + `<table><tr><td colspan="2" class="t">${esc(co.n.replace(/\(?\s*pvt\s*\)?\s*ltd\.?/i, '').trim().toUpperCase())} STAFF SALARY</td></tr>
-  ${I('Company Name', (co.n || '').toUpperCase())}${I('Branch', (s.branch || '-').toUpperCase())}${I('Employee Name', (s.name || '').toUpperCase())}${I('Employee ID', s.fp_id || '-------------')}${I('Position', (s.position || '-').toUpperCase())}${I('Month & Year', '01/' + String(m).padStart(2, '0') + '/' + y)}
-  <tr><td colspan="2" class="sh">SALARY DETAILS</td></tr><tr class="b"><td>Description</td><td class="r">Amount (LKR)</td></tr>
-  ${R('Basic Salary', sal)}${R('Allowances', al)}${R('Commissions', x.comm)}${R('Bonus', x.bonus)}${R('Total Earnings', earn, 'b')}
-  <tr><td colspan="2" class="sh">DEDUCTIONS</td></tr><tr class="b"><td>Description</td><td class="r">Amount (LKR)</td></tr>
-  ${R('Late Attendance', x.late)}${R('Leave Deduction', x.leave)}${R('Advance Salary', x.adv)}${R('Other Deductions', x.ded)}${R('Total Deductions', dedT, 'b')}
-  ${R('Total Salary', tot, 'b big')}</table>${notes.length ? `<div style="margin-top:4px;font-size:9px">${notes.map(esc).join('<br>')}</div>` : ''}`;
-  printHtml('Salary slip ' + s.name + ' ' + mo, body, '@page{size:A5;margin:8mm}html,body{margin:0;padding:0}body{font-size:11px;line-height:1.2}table{border:1.5px solid #000;margin:0;page-break-inside:avoid}tr{page-break-inside:avoid}td,th{border:1px solid #000;padding:2px 7px}.t{font-size:15px;font-weight:700;text-align:center;padding:4px}.sh{background:#ddd;font-weight:700;text-align:center}tr.b td{font-weight:700;background:#f0f0f0}tr.big td{font-size:13px;background:#ddd}.lb{font-weight:700;width:45%}.lh{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:2px solid #000;padding-bottom:4px;margin-bottom:5px}.nm{font-size:17px;font-weight:700}');
 }
 
 /* ---------------- Salary increase ---------------- */
@@ -1784,9 +1764,9 @@ PAGES.staff_sal = async () => {
   const pays = await run(sb.from('staff_pay').select('staff_id,amount,kind').eq('pay_month', SF.mo));
   const att = await allRows(() => sb.from('attendance').select('staff_id,att_date,in_time').gte('att_date', f).lte('att_date', t));
   const by = {}; att.forEach(a => (by[a.staff_id] = by[a.staff_id] || []).push(a));
-  const sm = stfSums(pays);
+  const sm = stfSums(pays), last = await stfLast();
   SF.rows = SF.list.filter(s => s.active).map(s => {
-    const x = sm[s.id] || stfZ(), net = stfNet(s, x), c = by[s.id] ? stfCalc(s, by[s.id], f, t) : null;
+    const x = sm[s.id] || stfZ(), net = stfNet(s, x), c = by[s.id] ? stfCalc(s, by[s.id], f, t, last) : null;
     return { s, salary: stfSal(s, SF.mo), allow: Number(s.allowance || 0), bonus: x.bonus + x.comm, adv: x.adv, ded: x.ded + x.late + x.leave, net, paid: x.paid, bal: net - x.paid, at: c ? `${c.pres} present, ${c.abs} absent, ${c.late} late${c.lm ? ' (' + stfHm(c.lm) + ')' : ''}` : '-' };
   });
   $('#main').innerHTML = `<div class="top"><h2>Salary sheet</h2><button class="btn sec" onclick="stfSheetPrint()">Print</button></div>
@@ -1840,6 +1820,153 @@ async function stfImport(inp) {
     go('staff');
   } catch (e) { console.error(e); toast('Import failed: ' + (e.message || e), true) }
   inp.value = '';
+}
+
+function jeFrameScript(sel){return `<script>(function(){var ed=null;function post(o){parent.postMessage(o,'*')}
+var s=${JSON.stringify(sel||'')};if(s){var el=document.querySelector('[data-k="'+s+'"]');if(el)el.classList.add('jsel')}
+document.addEventListener('click',function(e){if(ed||window.__mv)return;var k=e.target.closest('[data-k]');if(!k)return;document.querySelectorAll('.jsel').forEach(function(x){x.classList.remove('jsel')});k.classList.add('jsel');post({jsel:k.getAttribute('data-k')})});
+document.addEventListener('dblclick',function(e){var k=e.target.closest('[data-k][data-ed]');if(!k)return;ed=k;k.setAttribute('contenteditable','true');k.focus();var r=document.createRange();r.selectNodeContents(k);var sl=getSelection();sl.removeAllRanges();sl.addRange(r)});
+function fin(){if(!ed)return;var k=ed;ed=null;k.removeAttribute('contenteditable');post({jtext:k.getAttribute('data-k'),text:k.innerText.replace(/\\u00a0/g,' ').replace(/\\n+$/,'')})}
+document.addEventListener('focusout',function(){setTimeout(fin,0)});
+document.addEventListener('keydown',function(e){
+if(ed){if(e.key==='Escape'){ed.blur()}if(e.key==='Enter'&&ed.getAttribute('data-ed')!=='m'){e.preventDefault();ed.blur()}return}
+var k=document.querySelector('.jsel');if(!k)return;var st=e.shiftKey?5:1,dx=0,dy=0;
+if(e.key==='ArrowLeft')dx=-st;else if(e.key==='ArrowRight')dx=st;else if(e.key==='ArrowUp')dy=-st;else if(e.key==='ArrowDown')dy=st;else return;
+e.preventDefault();var x=(parseFloat(k.style.left)||0)+dx,y=(parseFloat(k.style.top)||0)+dy;k.style.position='relative';k.style.left=x+'px';k.style.top=y+'px';post({jpos:k.getAttribute('data-k'),x:x,y:y})});
+var dg=null;
+document.addEventListener('mousedown',function(e){if(ed||e.button)return;var k=e.target.closest('[data-k]');if(!k)return;dg={k:k,sx:e.clientX,sy:e.clientY,bx:parseFloat(k.style.left)||0,by:parseFloat(k.style.top)||0,mv:false}});
+document.addEventListener('mousemove',function(e){if(!dg)return;var dx=e.clientX-dg.sx,dy=e.clientY-dg.sy;if(!dg.mv&&Math.abs(dx)+Math.abs(dy)<4)return;dg.mv=true;e.preventDefault();var k=dg.k;k.style.position='relative';k.style.left=Math.round(dg.bx+dx)+'px';k.style.top=Math.round(dg.by+dy)+'px'});
+document.addEventListener('mouseup',function(){if(!dg)return;var d=dg;dg=null;if(!d.mv)return;d.moved=true;window.__mv=1;setTimeout(function(){window.__mv=0},0);var k=d.k;document.querySelectorAll('.jsel').forEach(function(x){x.classList.remove('jsel')});k.classList.add('jsel');post({jsel:k.getAttribute('data-k')});post({jpos:k.getAttribute('data-k'),x:parseFloat(k.style.left)||0,y:parseFloat(k.style.top)||0})});
+})()<\/script>`}
+const jePanelHtml=()=>`
+  <div id="je_sel" class="jsb" style="display:none">
+   <div class="jsh" id="js_drag" style="cursor:move" title="Drag to move this box"><b id="js_name">Element</b><a onclick="jeSelClose()" style="cursor:pointer;font-size:18px;line-height:1">&times;</a></div>
+   <div id="js_txtw"><label>Text</label><textarea id="js_t" rows="2" oninput="jeSet('t',this.value)"></textarea></div>
+   <div class="r2"><div><label>Font</label><select id="js_f" onchange="jeSet('f',this.value)">${JE_FONTS.map(f=>`<option value="${esc(f[0])}">${f[1]}</option>`).join('')}</select></div><div style="flex:0 0 80px"><label>Size (px)</label><input id="js_s" type="number" min="5" max="90" step="0.5" oninput="jeSet('s',this.value)"></div></div>
+   <div class="r2"><div><label>Text colour</label><input id="js_c" type="color" oninput="jeSet('c',this.value)"></div><div><label>Background</label><input id="js_bg" type="color" oninput="jeSet('bg',this.value)"></div></div>
+   <div class="r2"><div><button class="btn sec sm" style="width:100%" onclick="jeSet('c','')">Reset colour</button></div><div><button class="btn sec sm" style="width:100%" onclick="jeSet('bg','')">Reset background</button></div></div>
+   <label>Move (arrow keys, Shift = 5px) or drag it in the preview</label>
+   <div class="r2" style="align-items:center"><div style="flex:0 0 112px;display:grid;grid-template-columns:repeat(3,34px);gap:3px"><span></span><button class="btn sec sm" onclick="jeNudge(0,-1)">&#9650;</button><span></span><button class="btn sec sm" onclick="jeNudge(-1,0)">&#9664;</button><button class="btn sec sm" onclick="jeNudge(0,1)">&#9660;</button><button class="btn sec sm" onclick="jeNudge(1,0)">&#9654;</button></div><div><label>X (px)</label><input id="js_x" type="number" step="1" oninput="jeSet('x',this.value)"></div><div><label>Y (px)</label><input id="js_y" type="number" step="1" oninput="jeSet('y',this.value)"></div></div>
+   <div class="tg"><button class="btn sec sm" id="js_b" onclick="jeToggle('b')">Bold</button><button class="btn sec sm" id="js_i" onclick="jeToggle('i')">Italic</button><select id="js_a" onchange="jeSet('a',this.value)" style="flex:1"><option value="">Align</option><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select></div>
+   <div style="margin-top:8px"><button class="btn sec sm" style="width:100%" onclick="jeSelReset()">Reset this element</button></div>
+  </div>
+`;
+/* ===================== Salary slip editor (same tools as the Job note editor) ===================== */
+const SL_GDEF={font:'',border:'#000000',headBg:'#dddddd',headText:'#000000',label:'#000000',value:'#000000',title:'#000000',rowBg:'#f0f0f0',accent:'#000000'};
+const SL_DEF={size:'A5',margin:8,fontSize:11,logoOn:true,logoH:50,useInvLogo:true,logo:'',title:'',footer:'',showLH:true,showBranch:true,showPos:true,showEmp:true,showMonth:true,showComm:true,showBonus:true,showNotes:true,showSig:false,g:{},st:{}};
+function getSL(){let o={};try{o=JSON.parse(settings.slip_layout||'{}')}catch(e){}return {...SL_DEF,...o}}
+let SLLOGO='';
+async function stfSlipData(id){
+  const mo=SF.mo||today().slice(0,7),[y,m]=mo.split('-').map(Number);
+  const s=await run(sb.from('staff').select('*').eq('id',id).single());await stfHistLoad();
+  const pays=await run(sb.from('staff_pay').select('*').eq('staff_id',id).eq('pay_month',mo).order('pay_date'));
+  const x=stfSums(pays)[id]||stfZ(),co=coInfo();
+  const sal=stfSal(s,mo),prev=stfSal(s,stfD(new Date(y,m-2,1)).slice(0,7)),al=Number(s.allowance||0);
+  const earn=sal+al+x.comm+x.bonus,dedT=x.late+x.leave+x.adv+x.ded,tot=earn-dedT,bal=tot-x.paid;
+  const h=(SF.hist[id]||[]).filter(z=>z.eff_date<=mo+'-31'),hr=h[h.length-1];
+  const notes=[];
+  if(sal!==prev&&hr)notes.push(`Salary increased from Rs. ${money(prev)} to Rs. ${money(sal)} (effective ${hr.eff_date}).`);
+  const adv=pays.filter(p=>p.kind==='Advance');if(adv.length)notes.push('Advance: '+adv.map(p=>`${p.pay_date} Rs. ${money(p.amount)}`).join(', ')+'.');
+  if(x.paid)notes.push(`Paid Rs. ${money(x.paid)}. Balance Rs. ${money(bal)}.`);
+  return {co,s,mo,y,m,sal,al,x,earn,dedT,tot,bal,notes};
+}
+function slipDoc(d,sl,pv,sel){
+  const G={...SL_GDEF,...(sl.g||{})},ST=sl.st||{},A4=sl.size==='A4',W=A4?210:148,HH=A4?297:210,M=+sl.margin>=0?+sl.margin:8,fs=+sl.fontSize||11,ff=G.font||'Arial, Helvetica, sans-serif';
+  const {co,s,m,y,x}=d,ly=getLY();
+  const T=(k,def)=>{const t=ST[k]&&ST[k].t;return t!=null&&t!==''?t:def};
+  const K=(k,base,ed)=>{const o=ST[k]||{};let b=base||'';if(o.c)b+=';color:'+o.c;if(o.bg)b+=';background:'+o.bg;if(+o.s)b+=';font-size:'+(+o.s)+'px';if(o.f)b+=';font-family:'+o.f;if(o.b===1)b+=';font-weight:800';if(o.b===0)b+=';font-weight:400';if(o.i)b+=';font-style:italic';if(o.a)b+=';text-align:'+o.a;if(o.x||o.y)b+=';position:relative;left:'+(+o.x||0)+'px;top:'+(+o.y||0)+'px';return ' data-k="'+k+'"'+(pv&&ed?' data-ed="'+ed+'"':'')+(b?' style="'+esc(b)+'"':'')};
+  const v=n=>n?money(n):'----';
+  const I=(l,val)=>{const k='l_'+jslug(l);return `<tr><td class="lb"${K(k,'',1)}>${esc(T(k,l))}</td><td${K('v_'+jslug(l))}>${esc(val)}</td></tr>`};
+  const R=(l,n,c)=>{const k=jslug(l);return `<tr class="${c||''}"><td${K('l_'+k,'',1)}>${esc(T('l_'+k,l))}</td><td class="r"${K('a_'+k)}>${v(n)}</td></tr>`};
+  const SH=(k,t)=>`<tr><td colspan="2" class="sh"${K('h_'+k,'',1)}>${esc(T('h_'+k,t))}</td></tr><tr class="b"><td${K('th_desc','',1)}>${esc(T('th_desc','Description'))}</td><td class="r"${K('th_amt','',1)}>${esc(T('th_amt','Amount (LKR)'))}</td></tr>`;
+  const defTitle=sl.title||(String(co.n||'').replace(/\(?\s*pvt\s*\)?\s*ltd\.?/i,'').trim().toUpperCase()+' STAFF SALARY');
+  const addr=String(co.a||'').split('\n').filter(Boolean).join('<br>').replace(/(<br>)?$/,'');
+  const contact=[co.p?'Mob : '+co.p:'',ly.email?'Email : '+ly.email:'',ly.web?'Website : '+ly.web:''].filter(Boolean).join('   ');
+  const logo=sl.useInvLogo?ly.logo:sl.logo;
+  const lh=sl.showLH?`<div class="lh"><div><div class="nm"${K('lh_name','',1)}>${esc(T('lh_name',co.n||''))}</div><div${K('lh_addr','',1)}>${esc(T('lh_addr',String(co.a||'').split('\n').filter(Boolean).join(', ')))}</div>${contact?`<div${K('lh_contact','',1)}>${esc(T('lh_contact',contact))}</div>`:''}</div>${sl.logoOn&&logo?`<img src="${logo}" style="height:${Math.min(+sl.logoH||50,120)}px">`:''}</div>`:'';
+  const body=`<table><tr><td colspan="2" class="t"${K('title','',1)}>${esc(T('title',defTitle))}</td></tr>
+  ${I('Company Name',(co.n||'').toUpperCase())}${sl.showBranch?I('Branch',(s.branch||'-').toUpperCase()):''}${I('Employee Name',(s.name||'').toUpperCase())}${sl.showEmp?I('Employee ID',s.fp_id||'-------------'):''}${sl.showPos?I('Position',(s.position||'-').toUpperCase()):''}${sl.showMonth?I('Month & Year','01/'+String(m).padStart(2,'0')+'/'+y):''}
+  ${SH('salary','SALARY DETAILS')}
+  ${R('Basic Salary',d.sal)}${R('Allowances',d.al)}${sl.showComm?R('Commissions',x.comm):''}${sl.showBonus?R('Bonus',x.bonus):''}${R('Total Earnings',d.earn,'b')}
+  ${SH('ded','DEDUCTIONS')}
+  ${R('Late Attendance',x.late)}${R('Leave Deduction',x.leave)}${R('Advance Salary',x.adv)}${R('Other Deductions',x.ded)}${R('Total Deductions',d.dedT,'b')}
+  ${R('Total Salary',d.tot,'b big')}</table>
+  ${sl.showNotes&&d.notes.length?`<div class="nt"${K('notes','',1)}>${d.notes.map(esc).join('<br>')}</div>`:''}
+  ${sl.showSig?`<div class="sigs"><div${K('l_prepared_by','',1)}>${esc(T('l_prepared_by','Prepared by'))}</div><div${K('l_employee_signature','',1)}>${esc(T('l_employee_signature','Employee signature'))}</div></div>`:''}
+  ${sl.footer?`<div class="ft"${K('footer','',1)}>${esc(T('footer',sl.footer))}</div>`:''}`;
+  const css=`@page{size:${A4?'A4':'A5'};margin:${M}mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0;padding:0}body{font:${fs}px/1.2 ${ff};color:${G.value};${pv?'background:#dfe3e8;':''}}
+.sheet{${pv?`width:${W}mm;min-height:${HH}mm;padding:${M}mm;background:#fff;margin:0 auto;`:''}}
+table{width:100%;border-collapse:collapse;border:1.5px solid ${G.border};page-break-inside:avoid}tr{page-break-inside:avoid}
+td{border:1px solid ${G.border};padding:2px 7px;font-size:${fs}px}
+.t{font-size:${fs*1.4}px;font-weight:700;text-align:center;padding:4px;color:${G.title}}
+.sh{background:${G.headBg};color:${G.headText};font-weight:700;text-align:center}
+tr.b td{font-weight:700;background:${G.rowBg}}tr.big td{font-size:${fs*1.2}px;background:${G.headBg};color:${G.headText}}
+.lb{font-weight:700;width:45%;color:${G.label}}.r{text-align:right}
+.lh{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:2px solid ${G.accent};padding-bottom:4px;margin-bottom:5px;font-size:${fs*.82}px}.nm{font-size:${fs*1.55}px;font-weight:700}
+.nt{margin-top:4px;font-size:${fs*.82}px}.ft{margin-top:6px;font-size:${fs*.82}px;text-align:center}
+.sigs{display:flex;justify-content:space-between;gap:20mm;margin-top:14mm;font-size:${fs*.82}px}.sigs>div{flex:1;border-top:1px solid ${G.border};text-align:center;padding-top:1mm}
+${pv?`[data-k]{cursor:pointer}[data-k]:hover{outline:1px dashed #1a73e8;outline-offset:1px}[data-k].jsel{outline:2px solid #1a73e8!important;outline-offset:1px}[contenteditable]{outline:2px solid #e8731a!important;background:#fffbe6;color:#000}`:''}`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Salary slip ${esc(s.name||'')}</title><style>${css}</style></head><body><div class="sheet">${lh}${body}</div>${pv?jeFrameScript(sel):''}</body></html>`;
+}
+function slipPrintDoc(html){
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
+  f.contentDocument.open();f.contentDocument.write(html);f.contentDocument.close();
+  setTimeout(()=>{f.contentWindow.focus();f.contentWindow.print();setTimeout(()=>f.remove(),60000)},500);
+}
+async function stfSlip(id){const d=await stfSlipData(id);slipPrintDoc(slipDoc(d,getSL(),false))}
+
+PAGES.slipeditor=async()=>{
+  const sl=getSL(),G={...SL_GDEF,...(sl.g||{})};SLLOGO=sl.logo||'';
+  JE_MODE='slip';JE_TEXTMAP={};JEST=JSON.parse(JSON.stringify(sl.st||{}));JE_SEL='';
+  const ck=(id,v,l)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''} onchange="jePrev()"> ${l}</label>`;
+  const colors=[['title','Title colour'],['label','Label colour'],['value','Text / value colour'],['headBg','Heading background'],['headText','Heading text'],['rowBg','Total rows background'],['border','Table border'],['accent','Letterhead line']];
+  $('#main').innerHTML=`<div class="top"><h2>Salary slip editor</h2><div class="bar"><div style="flex:0"><button class="btn" onclick="slipSave()">Save</button></div></div></div>
+  <div class="job-editor-grid"><div>
+   <div class="card"><b>Paper &amp; layout</b>
+    <div class="bar" style="margin-top:8px"><div><label>Paper size</label><select id="ss_sz" onchange="jePrev()"><option ${sl.size==='A5'?'selected':''}>A5</option><option ${sl.size==='A4'?'selected':''}>A4</option></select></div><div><label>Margin (mm)</label><input id="ss_mg" type="number" min="3" max="25" value="${sl.margin}" oninput="jePrev()"></div><div><label>Base font size (px)</label><input id="ss_fs" type="number" min="7" max="20" step="0.5" value="${sl.fontSize}" oninput="jePrev()"></div></div>
+    <div style="margin-top:8px"><label>Slip title (empty = COMPANY STAFF SALARY)</label><input id="ss_t" value="${esc(sl.title)}" oninput="jePrev()"></div>
+    <div style="margin-top:8px"><label>Footer text (optional)</label><input id="ss_ft" value="${esc(sl.footer)}" oninput="jePrev()"></div></div>
+   <div class="card"><b>Logo</b>
+    ${ck('ss_lo',sl.logoOn,'Show logo')}${ck('ss_ul',sl.useInvLogo,'Use the same logo as the invoice')}
+    <div class="row"><label>Or upload a different logo</label><input type="file" accept="image/*" onchange="slipLogo(this)"></div>
+    <div style="margin-top:8px;max-width:160px"><label>Logo height (px)</label><input id="ss_lh" type="number" min="20" max="120" value="${sl.logoH}" oninput="jePrev()"></div></div>
+   <div class="card"><b>Fonts &amp; colours (whole slip)</b>
+    <div class="mut" style="margin:6px 0">Tip: <b>click any text in the live preview</b> to change its font, size, colour, background, bold, align or position. <b>Double-click</b> to type over it. Arrow keys / drag move it.</div>
+    <div class="row"><label>Font for the whole slip</label><select id="ss_g_font" onchange="jePrev()">${JE_FONTS.map(f=>`<option value="${esc(f[0])}" ${(G.font||'')===f[0]?'selected':''}>${f[1]}</option>`).join('')}</select></div>
+    <div class="bar" style="margin-top:8px">${colors.map(([k,l])=>`<div style="min-width:140px"><label>${l}</label><input id="ss_g_${k}" type="color" value="${esc(G[k])}" oninput="jePrev()" style="padding:2px;height:34px"></div>`).join('')}</div>
+    <div style="margin-top:8px"><button class="btn sec sm" onclick="slGReset()">Reset fonts &amp; colours</button> <button class="btn sec sm" onclick="JEST={};jeSelClose();jePrev()">Clear all click-edits</button></div></div>
+   <div class="card"><b>Show / hide</b>${ck('ss_sh',sl.showLH,'Letterhead (name, address, logo)')}${ck('ss_sb',sl.showBranch,'Branch')}${ck('ss_sp',sl.showPos,'Position')}${ck('ss_se',sl.showEmp,'Employee ID')}${ck('ss_sm',sl.showMonth,'Month &amp; Year')}${ck('ss_sc',sl.showComm,'Commissions row')}${ck('ss_sbn',sl.showBonus,'Bonus row')}${ck('ss_sn',sl.showNotes,'Notes under the table (increase, advances, paid)')}${ck('ss_sg',sl.showSig,'Signature lines (Prepared by / Employee signature)')}</div>
+  </div><div class="job-preview-card">
+  <div class="card"><b>Live preview</b><div class="bar" style="margin:8px 0"><div style="flex:0 0 130px"><label>Zoom</label><select id="je_zoom" onchange="jePrev()"><option value="fit">Fit</option><option value="1">100%</option><option value="0.75">75%</option><option value="0.5">50%</option></select></div><div class="mut" style="flex:2">Sample data.</div></div><div id="jpw" class="job-preview-wrap"><iframe id="je_pv" style="width:660px;height:900px"></iframe></div></div></div></div>
+  ${jePanelHtml()}`;
+  jePrev();
+};
+function slipRead(){
+  const g=id=>$('#'+id),G={};['font','title','label','value','headBg','headText','rowBg','border','accent'].forEach(k=>G[k]=g('ss_g_'+k).value);
+  return {size:g('ss_sz').value,margin:+g('ss_mg').value||8,fontSize:+g('ss_fs').value||11,title:g('ss_t').value.trim(),footer:g('ss_ft').value.trim(),logoOn:g('ss_lo').checked,useInvLogo:g('ss_ul').checked,logo:SLLOGO,logoH:+g('ss_lh').value||50,
+   showLH:g('ss_sh').checked,showBranch:g('ss_sb').checked,showPos:g('ss_sp').checked,showEmp:g('ss_se').checked,showMonth:g('ss_sm').checked,showComm:g('ss_sc').checked,showBonus:g('ss_sbn').checked,showNotes:g('ss_sn').checked,showSig:g('ss_sg').checked,g:G,st:JEST};
+}
+function slipPrev(){
+  const sl=slipRead(),x={...stfZ(),comm:1500,bonus:2000,late:500,adv:10000};
+  const s={name:'Sample Staff',fp_id:'12',position:'Technician',branch:'Colombo 04'};
+  const sal=50000,al=3000,earn=sal+al+x.comm+x.bonus,dedT=x.late+x.leave+x.adv+x.ded,tot=earn-dedT;
+  const d={co:coInfo(),s,mo:'2026-06',y:2026,m:6,sal,al,x,earn,dedT,tot,bal:tot,notes:['Advance: 2026-06-10 Rs. 10,000.00.']};
+  const f=$('#je_pv'),W=sl.size==='A4'?210:148,px=Math.round(W*3.7795)+10,zs=$('#je_zoom').value,ww=$('#jpw').clientWidth||900,z=zs==='fit'?Math.min(1,(ww-20)/px):+zs;
+  f.style.width=px+'px';f.style.height=Math.round((sl.size==='A4'?297:210)*3.7795)+'px';
+  f.onload=()=>{if(JE_REFILL){JE_REFILL=false;jePanelFill()}};
+  f.srcdoc=slipDoc(d,sl,true,JE_SEL);
+  f.style.transform='scale('+z+')';f.style.transformOrigin='0 0';$('#jpw').style.height=Math.round(parseFloat(f.style.height)*z+24)+'px';
+}
+function slGReset(){Object.keys(SL_GDEF).forEach(k=>{$('#ss_g_'+k).value=SL_GDEF[k]});$('#ss_g_font').value='';jePrev()}
+function slipLogo(inp){
+  const f=inp.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,500/im.width),c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);SLLOGO=c.toDataURL('image/png');$('#ss_ul').checked=false;jePrev()};im.src=r.result};
+  r.readAsDataURL(f);
+}
+async function slipSave(){
+  const row={key:'slip_layout',value:JSON.stringify(slipRead())};
+  await run(sb.from('settings').upsert([row]));settings.slip_layout=row.value;toast('Salary slip layout saved');
 }
 
 </script>
