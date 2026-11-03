@@ -1167,25 +1167,36 @@ PAGES.job_repair=()=>jobList('repair');
 PAGES.job_service=()=>jobList('service');
 async function jobList(type){
   JTYPE=type;try{await loadSups()}catch(e){}
-  $('#main').innerHTML=`<div class="top"><h2>${JT[type]} job notes</h2><div class="bar"><div style="flex:0;white-space:nowrap"><button class="btn" onclick="jobNew('${type}')">+ New ${JT[type].toLowerCase()} job note</button></div><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="printJobBlank()">Print blank form</button></div></div></div>
+  $('#main').innerHTML=`<div class="top"><h2>${JT[type]} job notes</h2><div class="bar"><div style="flex:0;white-space:nowrap"><button class="btn" onclick="jobNew('${type}')">+ New ${JT[type].toLowerCase()} job note</button></div><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="printJobBlank()">Print blank form</button></div>${isAdmin()?'<div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="jsupEdit()">Supplier statuses</button></div>':''}</div></div>
   <div class="card"><div class="bar"><div><label>Status</label><select id="jf_s" onchange="jobLoad()"><option value="">All</option>${JSTAT.map(x=>`<option>${x}</option>`).join('')}</select></div>
    <div><label>From</label><input id="jf_f" type="date" onchange="jobLoad()"></div><div><label>To</label><input id="jf_t" type="date" onchange="jobLoad()"></div>
-   <div><label>Supplier</label><select id="jf_su" onchange="jobLoad()"><option value="">All</option><option value="__none">- none -</option>${(SUPS||[]).map(x=>`<option value="${esc(x.name)}">${esc(x.name)}</option>`).join('')}</select></div>
+   ${isAdmin()?`<div><label>Supplier</label><select id="jf_su" onchange="jobLoad()"><option value="">All</option><option value="__none">- none -</option>${(SUPS||[]).map(x=>`<option value="${esc(x.name)}">${esc(x.name)}</option>`).join('')}</select></div>`:''}
    <div style="flex:2"><label>Search (job no, customer, mobile, serial)</label><input id="jf_q" oninput="clearTimeout(JQ_T);JQ_T=setTimeout(jobLoad,300)"></div></div></div>
-  <div class="tw"><table><thead><tr><th>Job no</th><th>Date</th><th>Customer</th><th>Product</th><th>Issue</th><th>Supplier</th><th>Status</th><th></th></tr></thead><tbody id="jbt"></tbody></table></div>`;
+  <div class="tw"><table><thead><tr><th>Job no</th><th>Date</th><th>Customer</th><th>Product</th><th>Issue</th>${isAdmin()?'<th>Supplier / hand-over</th>':''}<th>Status</th><th></th></tr></thead><tbody id="jbt"></tbody></table></div>`;
   jobLoad();
 }
+let JROWS={};
+const JSUP_DEF=['Handed over to supplier','Still at supplier','Received back from supplier','Replaced by supplier','Rejected by supplier'];
+function jsupList(){try{const v=settings.job_sup_status||null;const a=typeof v==='string'?JSON.parse(v):v;if(Array.isArray(a)&&a.length)return a}catch(e){}return JSUP_DEF.slice()}
+async function jobSup(id,f,v){if(!isAdmin())return;const r=JROWS[id];if(!r)return;const ch=Object.assign({},r.checks||{});
+ if(f==='n'){if(!v){delete ch.supplier_name;delete ch.supplier_id;delete ch.supplier_status}else{const x=(SUPS||[]).find(q=>q.name===v);ch.supplier_name=v;ch.supplier_id=x?x.id:null;if(!ch.supplier_status)ch.supplier_status=jsupList()[0]}}
+ else ch.supplier_status=v;
+ const {error}=await sb.from('job_notes').update({checks:ch}).eq('id',id);if(error){toast(error.message,'err');return}
+ toast('Saved');jobLoad()}
+async function jsupEdit(){if(!isAdmin())return;openModal(`<h3>Supplier hand-over statuses</h3><p class="mut">One status per line</p><textarea id="jsu_t" rows="8" style="width:100%">${esc(jsupList().join('\n'))}</textarea><div style="margin-top:10px;display:flex;gap:8px"><button class="btn" onclick="jsupSave()">Save</button><button class="btn sec" onclick="closeModal()">Cancel</button></div>`)}
+async function jsupSave(){const a=$('#jsu_t').value.split('\n').map(x=>x.trim()).filter(Boolean);if(!a.length)return toast('Add at least one','err');
+ const {error}=await sb.from('settings').upsert({key:'job_sup_status',value:JSON.stringify(a)});if(error)return toast(error.message,'err');
+ settings.job_sup_status=JSON.stringify(a);closeModal();toast('Saved');jobLoad()}
 async function jobLoad(){
   let b=sb.from('job_notes').select('*').eq('job_type',JTYPE).order('id',{ascending:false}).limit(300);
   const s=$('#jf_s').value,f=$('#jf_f').value,t=$('#jf_t').value,q=$('#jf_q').value.trim().replace(/[,()%]/g,' ');
   if(s)b=b.eq('status',s);if(f)b=b.gte('job_date',f+'T00:00:00');if(t)b=b.lte('job_date',t+'T23:59:59');
   if(q)b=b.or(`job_no.ilike.%${q}%,customer_name.ilike.%${q}%,customer_code.ilike.%${q}%,mobile.ilike.%${q}%,serial_no.ilike.%${q}%`);
-  let d=await run(b);const su=$('#jf_su').value;
+  let d=await run(b);const su=isAdmin()?$('#jf_su').value:'';JROWS={};d.forEach(r=>JROWS[r.id]=r);
   if(su==='__none')d=d.filter(j=>!(j.checks&&j.checks.supplier_name));else if(su)d=d.filter(j=>j.checks&&j.checks.supplier_name===su);
   $('#jbt').innerHTML=d.map(j=>`<tr><td><b>${esc(j.job_no)}</b></td><td>${fmtDT(j.job_date)}</td><td>${esc(j.customer_name)}<div class="mut">${esc(j.customer_code)} ${esc(j.mobile)}</div></td>
-   <td>${esc(j.brand_model)}<div class="mut">${esc(j.serial_no)}</div></td><td style="max-width:260px">${esc(plainText(j.issue).slice(0,90))}</td><td>${j.checks&&j.checks.supplier_name?`<b>${esc(j.checks.supplier_name)}</b>${j.checks.supplier_ref?`<div class="mut">${esc(j.checks.supplier_ref)}</div>`:''}`:'<span class="mut">-</span>'}</td>
-   <td><select onchange="jobStatus(${j.id},this.value)">${JSTAT.map(x=>`<option ${x===j.status?'selected':''}>${x}</option>`).join('')}</select></td>
-   <td style="white-space:nowrap"><button class="btn sec sm" onclick="printJob(${j.id})">Print</button> ${isAdmin()?`<button class="btn sec sm" onclick="jobEdit(${j.id})">Edit</button> <button class="btn sec sm" onclick="jobDel(${j.id},'${esc(j.job_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8" class="mut">No job notes found.</td></tr>';
+   <td>${esc(j.brand_model)}<div class="mut">${esc(j.serial_no)}</div></td><td style="max-width:260px">${esc(plainText(j.issue).slice(0,90))}</td>${isAdmin()?`<td style="white-space:nowrap"><div style="display:flex;gap:6px;align-items:center"><select style="max-width:150px" onchange="jobSup(${j.id},'n',this.value)"><option value="">- supplier -</option>${(SUPS||[]).map(x=>`<option ${x.name===(j.checks||{}).supplier_name?'selected':''}>${esc(x.name)}</option>`).join('')}</select>${(j.checks||{}).supplier_name?`<select style="max-width:170px" onchange="jobSup(${j.id},'s',this.value)">${jsupList().concat(jsupList().includes((j.checks||{}).supplier_status)?[]:[(j.checks||{}).supplier_status].filter(Boolean)).map(x=>`<option ${x===(j.checks||{}).supplier_status?'selected':''}>${esc(x)}</option>`).join('')}</select>`:''}</div></td>`:''}<td><select onchange="jobStatus(${j.id},this.value)">${JSTAT.map(x=>`<option ${x===j.status?'selected':''}>${x}</option>`).join('')}</select></td>
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="printJob(${j.id})">Print</button> ${isAdmin()?`<button class="btn sec sm" onclick="jobEdit(${j.id})">Edit</button> <button class="btn sec sm" onclick="jobDel(${j.id},'${esc(j.job_no)}')">Delete</button>`:''}</td></tr>`).join('')||`<tr><td colspan="${isAdmin()?8:7}" class="mut">No job notes found.</td></tr>`;
 }
 async function jobStatus(id,v){await run(sb.from('job_notes').update({status:v}).eq('id',id));toast('Status updated')}
 async function jobDel(id,no){if(!confirm('Delete job note '+no+'?'))return;await run(sb.from('job_notes').delete().eq('id',id));toast('Deleted');jobLoad()}
@@ -1225,7 +1236,6 @@ PAGES.jobform=async()=>{
    ${jl.showTechnician?`<div style="margin-top:10px"><label>Technician / handler (tick one or more)</label><div class="chkrow">${(jl.technicians||[]).length?jcb('technician',jl.technicians):'<span class="mut">Add technician names in Job note editor.</span>'}</div></div>`:''}
    </div>
   ${jl.showRemarks?`<div class="card"><b>Remarks / condition notes</b><div style="margin-top:8px"><div class="jobrt"><div id="j_rm" class="jobrich" contenteditable="true" onpaste="jobPaste(event)" style="color:${esc(jl.remarksColor||'#d00000')}">${richDisplay(JF.remarks)}</div></div></div></div>`:''}
-  <div class="card"><b>Supplier (backend only - NOT printed on the job note)</b><div class="bar" style="margin-top:8px"><div style="flex:2"><label>Supplier (sent for warranty / repair)</label><select id="j_sup"><option value="">- none -</option>${(SUPS||[]).map(x=>`<option value="${x.id}" ${String(x.id)===String(JF.checks.supplier_id||'')?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div><div><label>Supplier claim / RMA no (optional)</label><input id="j_supref" value="${esc(JF.checks.supplier_ref||'')}"></div></div></div>
   <div class="card"><b>Laptop received by (staff) - signature</b><div class="bar" style="margin-top:8px"><div><label>Name shown in the brackets: RECEIVED BY (name) - empty = technician / handler ticked above</label><input id="j_taken" placeholder="Auto: technician name" value="${esc(JF.checks.taken_by||'')}"></div></div>
    <label style="margin-top:8px">Sign here (mouse, finger or pen)</label>
    <canvas id="j_pad" width="480" height="150" style="width:100%;max-width:480px;height:150px;border:1.5px dashed #98a2b3;border-radius:8px;background:#fff;touch-action:none;display:block"></canvas>
