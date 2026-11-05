@@ -2140,14 +2140,20 @@ function qJsonCands(o,c,d){d=d||0;if(d>14||o==null)return;
     if(v)c.push([qClean(nm),qClean(new DOMParser().parseFromString(v,'text/html').body.textContent)])}
   Object.keys(o).forEach(k=>{const v=o[k];if(typeof v==='string'&&v.length<500&&v.length>1&&!/^https?:/.test(v))c.push([qClean(k.replace(/_/g,' ')),qClean(v)]);else if(typeof v==='string'&&/<(table|tr|li|p)\b/i.test(v))c.push(['__html',v]);else qJsonCands(v,c,d+1)})}
 function qtParseText(text){
-  const {keys,match}=qMatcher(),L=String(text||'').replace(/\r/g,'').split('\n').map(x=>qClean(x)).filter(Boolean),got={};
+  const {keys,match}=qMatcher();
+  const names=keys.concat(Object.keys(QT_ALIAS).filter(a=>a.length>=5&&keys.some(k=>qNk(k)===QT_ALIAS[a]))).map(x=>x.toUpperCase().replace(/[.*+?^${}()|[\]\\\/]/g,'\\$&')).sort((a,b)=>b.length-a.length);
+  /* copied web pages often put everything on ONE line: break it before every CAPITAL-LETTER spec heading (not inside "I YEAR HARDWARE WARRANTY -") */
+  const kre=new RegExp('(^|[^A-Za-z0-9])('+names.join('|')+')(?![A-Za-z0-9])','g');
+  text=String(text||'').replace(kre,(m,pre,k,off,str)=>{const before=str.slice(Math.max(0,off-8),off+pre.length);if(/(YEARS?|YRS?)\s*$/i.test(before))return m;if(/^\s*[–—-]/.test(str.slice(off+m.length,off+m.length+3)))return m;return pre+'\n'+k+'\n'});
+  const L=String(text||'').replace(/\r/g,'').split('\n').map(x=>qClean(x)).filter(Boolean),got={};
   for(let i=0;i<L.length;i++){
     let m=L[i].match(/^([A-Za-z][A-Za-z0-9 \/&\-\.]{1,30}?)\s*[:\u2013\u2014]\s*(.{2,})$/),w=m&&match(m[1]);
     if(w){if(!got[w])got[w]=m[2];continue}
     const tab=String(L[i]).split(/\t+/);if(tab.length>=2&&(w=match(tab[0]))){if(!got[w])got[w]=tab.slice(1).join(' ');continue}
     if((w=match(L[i]))&&L[i].length<32&&!got[w]){const v=[];for(let j=i+1;j<L.length&&v.length<3;j++){if(match(L[j])&&L[j].length<32)break;if(/^(related|you may also|description|reviews?|add to cart|share|sku|categor|tags?|additional information|customers? (also|who)|recently viewed|buy now|compare|wishlist)/i.test(L[j]))break;v.push(L[j])}if(v.length)got[w]=v.join(' ')}
   }
-  return {matched:keys.filter(k=>got[k]).map(k=>[k,got[k]]),other:[]};
+  const cut=v=>v.replace(/\s+(Related products|You may also like|Customers (also|who)|Recently viewed|Reviews?\b|Add to cart|Additional information|Share this).*$/i,'').trim();
+  return {matched:keys.filter(k=>got[k]).map(k=>[k,cut(got[k])]),other:[]};
 }
 function qtParseSpecs(html){
   const doc=new DOMParser().parseFromString(String(html||''),'text/html');
