@@ -2097,7 +2097,7 @@ function qfDraw(){
    <div style="margin-top:10px"><b>Technical specifications</b> <span class="mut">(rows with an empty value are not printed)</span></div>
    ${(it.specs||[]).map((r,j)=>`<div class="bar" style="margin-top:4px;flex-wrap:nowrap"><div style="flex:1"><input value="${esc(r[0])}" placeholder="Name" oninput="QF.items[${i}].specs[${j}][0]=this.value"></div><div style="flex:3"><input value="${esc(r[1])}" placeholder="Value" oninput="QF.items[${i}].specs[${j}][1]=this.value"></div><div style="flex:0;white-space:nowrap"><button class="btn sec sm" onclick="qfSpecMove(${i},${j},-1)">&#9650;</button> <button class="btn sec sm" onclick="qfSpecMove(${i},${j},1)">&#9660;</button> <button class="btn sec sm" onclick="qfSpecDel(${i},${j})">&#10005;</button></div></div>`).join('')}
    <div style="margin-top:6px"><button class="btn sec sm" onclick="qfSpecAdd(${i})">+ Add row</button></div>
-   <div style="margin-top:8px"><label>Paste specs (one per line, "Name: value") then Import</label><textarea id="q_ps${i}" rows="3" style="width:100%" placeholder="Processor: Intel Core i5\nMemory: 16GB DDR4"></textarea><button class="btn sec sm" style="margin-top:4px" onclick="qfImport(${i})">Import lines</button></div></div>`).join('');
+   <div style="margin-top:8px"><label>Paste specs: the spec table, or the whole product page (Ctrl+A, Ctrl+C), or lines like "Name: value" - then Import</label><textarea id="q_ps${i}" rows="3" style="width:100%" placeholder="Processor: Intel Core i5\nMemory: 16GB DDR4"></textarea><button class="btn sec sm" style="margin-top:4px" onclick="qfImport(${i})">Import lines</button></div></div>`).join('');
   qfTot();
 }
 function qfAdd(){qfRead();QF.items.push(qNewItem());qfDraw()}
@@ -2108,6 +2108,8 @@ function qfSpecMove(i,j,d){const a=QF.items[i].specs,k=j+d;if(k<0||k>=a.length)r
 function qfSpecDel(i,j){QF.items[i].specs.splice(j,1);qfDraw()}
 function qfImport(i){
   const t=$('#q_ps'+i).value,sp=QF.items[i].specs;let last=null;
+  const pr=qtParseText(t);
+  if(pr.matched.length>=3){pr.matched.forEach(([k,v])=>{const ex=sp.find(r=>qNk(r[0])===qNk(k));if(ex)ex[1]=v;else sp.push([k,v])});$('#q_ps'+i).value='';qfDraw();const e=$('#q_fs'+i);if(e)e.textContent='Imported '+pr.matched.length+' key specifications. Please check them.';return}
   t.split(/\n/).forEach(l=>{if(!l.trim())return;const m=l.match(/^\s*([^:\t]{1,40})\s*[:\t]\s*(.*)$/);
     if(m){const k=m[1].trim(),v=m[2].trim(),ex=sp.find(r=>String(r[0]).trim().toLowerCase()===k.toLowerCase());if(ex){ex[1]=v;last=ex}else{last=[k,v];sp.push(last)}}
     else if(last)last[1]=(last[1]+' '+l.trim()).trim()});
@@ -2128,12 +2130,33 @@ async function qfSave(print){
 const QT_ALIAS={cpu:'processor',ram:'memory','memory ram':'memory',ssd:'storage','hard disk':'storage',hdd:'storage',gpu:'graphics','graphic':'graphics','graphics card':'graphics',screen:'display','display size':'display','wi fi':'wireless',wifi:'wireless','wi-fi':'wireless',os:'operating system',opertaing_system:'operating system',webcam:'camera','hardware warranty':'hardware warranty','service warranty':'service warranty','i/o ports':'ports',port:'ports','power adapter':'adapter',charger:'adapter',gift:'free',freebies:'free'};
 const qNk=s=>String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
 const qClean=s=>String(s||'').replace(/ /g,' ').replace(/\s+/g,' ').trim();
+function qMatcher(){const keys=qSpecKeys(),map={};keys.forEach(k=>map[qNk(k)]=k);
+  const match=k=>{const n=qNk(k);if(!n)return null;if(map[n])return map[n];const a=QT_ALIAS[n]||QT_ALIAS[String(k).toLowerCase().trim()];if(a&&map[a])return map[a];for(const w of Object.keys(map)){if(n.startsWith(w+' ')||(w.length>4&&n===w+'s'))return map[w]}return null};
+  return {keys,match}}
+function qJsonCands(o,c,d){d=d||0;if(d>14||o==null)return;
+  if(Array.isArray(o)){o.forEach(x=>qJsonCands(x,c,d+1));return}
+  if(typeof o!=='object')return;
+  const nm=o.name||o.label||o.key||o.title||o.attribute,vl=o.value!=null?o.value:(o.values||o.terms||o.options||o.description);
+  if(typeof nm==='string'&&vl!=null){const v=Array.isArray(vl)?vl.map(x=>typeof x==='string'?x:(x&&(x.name||x.value||x.label))||'').join(', '):(typeof vl==='string'||typeof vl==='number'?String(vl):'');
+    if(v)c.push([qClean(nm),qClean(new DOMParser().parseFromString(v,'text/html').body.textContent)])}
+  Object.keys(o).forEach(k=>{const v=o[k];if(typeof v==='string'&&v.length<500&&v.length>1&&!/^https?:/.test(v))c.push([qClean(k.replace(/_/g,' ')),qClean(v)]);else if(typeof v==='string'&&/<(table|tr|li|p)\b/i.test(v))c.push(['__html',v]);else qJsonCands(v,c,d+1)})}
+function qtParseText(text){
+  const {keys,match}=qMatcher(),L=String(text||'').replace(/\r/g,'').split('\n').map(x=>qClean(x)).filter(Boolean),got={};
+  for(let i=0;i<L.length;i++){
+    let m=L[i].match(/^([A-Za-z][A-Za-z0-9 \/&\-\.]{1,30}?)\s*[:\u2013\u2014]\s*(.{2,})$/),w=m&&match(m[1]);
+    if(w){if(!got[w])got[w]=m[2];continue}
+    const tab=String(L[i]).split(/\t+/);if(tab.length>=2&&(w=match(tab[0]))){if(!got[w])got[w]=tab.slice(1).join(' ');continue}
+    if((w=match(L[i]))&&L[i].length<32&&!got[w]){const v=[];for(let j=i+1;j<L.length&&v.length<3;j++){if(match(L[j])&&L[j].length<32)break;if(/^(related|you may also|description|reviews?|add to cart|share|sku|categor|tags?|additional information|customers? (also|who)|recently viewed|buy now|compare|wishlist)/i.test(L[j]))break;v.push(L[j])}if(v.length)got[w]=v.join(' ')}
+  }
+  return {matched:keys.filter(k=>got[k]).map(k=>[k,got[k]]),other:[]};
+}
 function qtParseSpecs(html){
-  const doc=new DOMParser().parseFromString(String(html||''),'text/html');doc.querySelectorAll('script,style,noscript').forEach(n=>n.remove());
+  const doc=new DOMParser().parseFromString(String(html||''),'text/html');
+  const jc=[];doc.querySelectorAll('script').forEach(sc=>{const t=sc.textContent||'';if(!/json/i.test(sc.type||'')&&!/__NEXT_DATA__|__NUXT__/.test(sc.id+t.slice(0,40)))return;try{qJsonCands(JSON.parse(t),jc)}catch(e){}});
+  doc.querySelectorAll('script,style,noscript').forEach(n=>n.remove());
   doc.querySelectorAll('br').forEach(b=>b.replaceWith('\n'));
-  const keys=qSpecKeys(),map={};keys.forEach(k=>map[qNk(k)]=k);
-  const match=k=>{const n=qNk(k);if(map[n])return map[n];const a=QT_ALIAS[n]||QT_ALIAS[String(k).toLowerCase().trim()];if(a&&map[a])return map[a];for(const w of Object.keys(map)){if(n.startsWith(w+' ')||(w.length>4&&n===w+'s'))return map[w]}return null};
-  const cand=[];
+  const {keys,match}=qMatcher();
+  const cand=[];jc.forEach(c=>{if(c[0]==='__html'){const r=qtParseSpecs(c[1]);r.matched.forEach(x=>cand.push(x))}else cand.push(c)});
   doc.querySelectorAll('tr').forEach(tr=>{const c=[...tr.children].filter(x=>/^(TD|TH)$/.test(x.tagName));if(c.length>=2)cand.push([qClean(c[0].textContent),qClean(c.slice(1).map(x=>x.textContent).join(' '))])});
   doc.querySelectorAll('dt').forEach(dt=>{const dd=dt.nextElementSibling;if(dd&&dd.tagName==='DD')cand.push([qClean(dt.textContent),qClean(dd.textContent)])});
   doc.querySelectorAll('li,p,div,span').forEach(el=>{if(el.querySelector('li,p,div,table'))return;String(el.textContent).split('\n').forEach(l=>{const m=l.match(/^\s*([A-Za-z][A-Za-z0-9 \/&\-\.]{1,30}?)\s*[:–—]\s*(.{2,})$/);if(m)cand.push([qClean(m[1]),qClean(m[2])])})});
@@ -2145,8 +2168,9 @@ async function qfFetch(i){
   const it=QF.items[i],st=$('#q_fs'+i),say=t=>{if(st)st.textContent=t};
   const u=String(it.url||'').trim();let U;try{U=new URL(u)}catch(e){return toast('Paste the full product link (https://...)',true)}
   say('Fetching...');
-  const J=async url=>{try{const r=await fetch(url);return r.ok?await r.json():null}catch(e){return null}};
-  const X=async url=>{try{const r=await fetch(url);if(!r.ok)return null;const t=await r.text();return t.length>800?t:null}catch(e){return null}};
+  const log=[],short=url=>url.replace(/^https?:\/\//,'').slice(0,40);
+  const J=async url=>{try{const r=await fetch(url);log.push(short(url)+' -> '+r.status);return r.ok?await r.json():null}catch(e){log.push(short(url)+' -> blocked');return null}};
+  const X=async url=>{try{const r=await fetch(url);log.push(short(url)+' -> '+r.status);if(!r.ok)return null;const t=await r.text();return t.length>800?t:null}catch(e){log.push(short(url)+' -> blocked');return null}};
   const segs=U.pathname.split('/').filter(Boolean),slug=decodeURIComponent(segs[segs.length-1]||''),pid=U.searchParams.get('p')||U.searchParams.get('product_id');
   let name='',price='',frags=[];
   let sa=pid?await J(U.origin+'/wp-json/wc/store/v1/products/'+pid):await J(U.origin+'/wp-json/wc/store/v1/products?slug='+encodeURIComponent(slug));
@@ -2164,7 +2188,7 @@ async function qfFetch(i){
       if(r.matched.length>=4)break;
     }
   }
-  if(!r.matched.length){say('Could not read the specifications from that page (the site may block access from this page, or the specs are inside an image). Copy the spec table from the page and paste it in "Paste specs" below, then Import.');return}
+  if(!r.matched.length){say('Could not read the specs automatically ('+log.join('; ')+'). Easy way: open the product page, press Ctrl+A then Ctrl+C, paste everything in the "Paste specs" box below and click Import lines - it picks only the key specifications.');return}
   const found=Object.fromEntries(r.matched);
   const old=(it.specs||[]).filter(x=>x&&String(x[1]||'').trim()&&!qSpecKeys().some(k=>qNk(k)===qNk(x[0])));
   it.specs=qSpecKeys().map(k=>[k,found[k]||'']).concat(old);
