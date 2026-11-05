@@ -23,6 +23,7 @@
     </div>
 
     <div id="v_up" style="display:none">
+      <div class="f"><label>Company name</label><input id="scn" autocomplete="organization" placeholder="Your company name" required></div>
       <div class="f"><label>Username</label><input id="su" autocomplete="username"></div>
       <div class="f"><label>Email</label><input id="se" type="email" autocomplete="email"></div>
       <div class="f"><label>Password (min 6 characters)</label><div class="pw"><input id="sp" type="password" autocomplete="new-password"><button type="button" class="eye" onclick="eye('sp',this)" aria-label="Show or hide password">&#128065;</button></div></div>
@@ -138,7 +139,9 @@ async function doSignup(){
   if(p.length<6)return msg('Password must be at least 6 characters');
   if(p!==p2)return msg('Passwords do not match');
   if(await emailFor(u))return msg('That username is already taken');
-  const {error}=await sb.auth.signUp({email:em,password:p,options:{data:{username:u}}});
+  const companyName=$('#scn').value.trim();
+  if(!companyName)return msg('Enter your company name');
+  const {error}=await sb.auth.signUp({email:em,password:p,options:{data:{username:u,company_name:companyName,registration_type:'company_admin'}}});
   if(error)return msg(error.message);
   await sb.auth.signOut();
   lview('in');msg('Account created. You can sign in after an admin approves it.',true);
@@ -189,11 +192,18 @@ function buildNav(){
   $('#nav').innerHTML=a.join('');
 }
 async function afterLogin(uid){
+  // Multi-company bootstrap: creates the first company workspace for a new company registrant.
+  const {error:bootErr}=await sb.rpc('ensure_company_for_current_user');
+  if(bootErr){console.error('Company workspace setup:',bootErr.message);msg('Company setup error: '+bootErr.message);return}
   const {data:pr}=await sb.from('profiles').select('*').eq('id',uid).maybeSingle();
   if(!pr||!pr.active){await sb.auth.signOut();msg('Your account is waiting for admin approval, or it was disabled.');return}
   me=pr;
   const {data:st}=await sb.from('settings').select('*');
   settings={};(st||[]).forEach(r=>settings[r.key]=r.value);
+  const {data:membership,error:memErr}=await sb.from('company_members').select('company_id,role,active,companies(name)').eq('user_id',uid).eq('active',true).maybeSingle();
+  if(memErr||!membership){await sb.auth.signOut();msg('No active company workspace found. Ask your company administrator.');return}
+  window.ACTIVE_COMPANY_ID=membership.company_id;
+  if(membership.companies?.name)settings.company_name=membership.companies.name;
   $('#coName').textContent=settings.company_name||'Company';
   $('#meName').textContent=me.username+' ('+me.role+')';
   $('#login').style.display='none';$('#app').style.display='block';
