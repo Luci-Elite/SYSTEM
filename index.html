@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stock & Invoice System</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 <div id="cssWarn" style="background:#b42318;color:#fff;padding:12px 16px;font:14px Arial,sans-serif">style.css was not found. Upload <b>style.css</b> into the same folder as index.html on GitHub (same level, same name), then reload this page.</div>
@@ -180,12 +180,12 @@ function buildNav(){
   a.push(L('dash','Dashboard'));
   [['stock','Stock check','stock'],['serial','Serial check','serial'],['invoice','New invoice','invoice'],['invoices','Invoices','invoices'],['grn','GRN','grn'],['reports','Sales report','reports']].forEach(([k,l,pm])=>{if(hasP(pm))a.push(L(k,l))});
   const gen=[['items','Items','items'],['cats','Categories','items'],['customers','Customers','customers'],['suppliers','Suppliers','suppliers'],['reps','Sales reps','ADMIN']].filter(x=>x[2]==='ADMIN'?isAdmin():hasP(x[2]));
-  if(gen.length)a.push(`<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">General &#9662;</a><div class="sub">${gen.map(g=>L(g[0],g[1])).join('')}</div></div>`);
-  if(hasP('jobs'))a.push(`<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">Job note &#9662;</a><div class="sub">${[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
+  if(gen.length)a.push(`<div class="grp"><a onclick="grpToggle(this)">General &#9662;</a><div class="sub">${gen.map(g=>L(g[0],g[1])).join('')}</div></div>`);
+  if(hasP('jobs'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Job note &#9662;</a><div class="sub">${[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(hasP('quotes'))a.push(L('quotes','Quotations'));
-  if(hasP('staff'))a.push(`<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">Staff management &#9662;</a><div class="sub">${[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
+  if(hasP('staff'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Staff management &#9662;</a><div class="sub">${[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(isAdmin())a.push(L('users','Users'));
-  if(isAdmin())a.push(`<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">Editors &#9662;</a><div class="sub">${[['settings','Invoice editor'],['jobeditor','Job note editor'],['slipeditor','Salary slip editor'],['quoteeditor','Quotation editor']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
+  if(isAdmin())a.push(`<div class="grp"><a onclick="grpToggle(this)">Editors &#9662;</a><div class="sub">${[['settings','Invoice editor'],['jobeditor','Job note editor'],['slipeditor','Salary slip editor'],['quoteeditor','Quotation editor']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
   $('#nav').innerHTML=a.join('');
 }
 async function afterLogin(uid){
@@ -203,11 +203,12 @@ async function afterLogin(uid){
 async function logout(){await sb.auth.signOut();location.reload()}
 
 const PAGES={};
+function grpToggle(a){const g=a.parentNode,was=g.classList.contains('open');document.querySelectorAll('#nav .grp.open').forEach(x=>x.classList.remove('open'));if(!was)g.classList.add('open')}
 async function go(p){
   const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quoteform:'quotes'};
   if((need[p]&&!hasP(need[p]))||((p==='users'||p==='settings'||p==='reps'||p==='jobeditor'||p==='slipeditor'||p==='quoteeditor')&&!isAdmin()))p='dash';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
-  const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('open')}
+  document.querySelectorAll('#nav .grp').forEach(g=>g.classList.remove('has-on'));const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('has-on')}
   $('#main').innerHTML='<p class="mut">Loading…</p>';
   try{await PAGES[p]()}catch(e){console.error(e)}
 }
