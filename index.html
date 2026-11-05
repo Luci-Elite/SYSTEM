@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stock & Invoice System</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 <div id="cssWarn" style="background:#b42318;color:#fff;padding:12px 16px;font:14px Arial,sans-serif">style.css was not found. Upload <b>style.css</b> into the same folder as index.html on GitHub (same level, same name), then reload this page.</div>
@@ -76,7 +76,7 @@ const today = () => { const d = new Date(); return d.getFullYear() + '-' + Strin
 let sb, me, items = [], settings = {};
 const isAdmin = () => me && me.role === 'admin';
 const hasP = k => isAdmin() || (me && (me.perms || []).includes(k));
-const PERMS=[['invoice','Create invoice'],['invoices','View / reprint invoices'],['stock','Stock check'],['serial','Serial number check'],['grn','GRN (goods received)'],['items','Add items and categories'],['customers','Create customers'],['suppliers','Create suppliers'],['reports','Sales reports'],['jobs','Job notes (create, change status)'],['cost','See cost prices'],['profit','See profit in sales report'],['price','Change price on invoice'],['backdate','Change invoice / GRN date']];
+const PERMS=[['invoice','Create invoice'],['invoices','View / reprint invoices'],['stock','Stock check'],['serial','Serial number check'],['grn','GRN (goods received)'],['items','Add items and categories'],['customers','Create customers'],['suppliers','Create suppliers'],['reports','Sales reports'],['jobs','Job notes (create, change status)'],['cost','See cost prices'],['profit','See profit in sales report'],['price','Change price on invoice'],['backdate','Change invoice / GRN date'],['quotes','Quotations (create, print)']];
 const DEF_PERMS=['invoice','invoices'];
 const permBoxes=(pre,sel)=>PERMS.map(([k,l])=>`<label class="chk"><input type="checkbox" id="${pre}_${k}" ${sel.includes(k)?'checked':''}> ${l}</label>`).join('');
 const permRead=pre=>PERMS.filter(([k])=>$('#'+pre+'_'+k).checked).map(([k])=>k);
@@ -180,10 +180,12 @@ function buildNav(){
   a.push(L('dash','Dashboard'));
   [['stock','Stock check','stock'],['serial','Serial check','serial'],['invoice','New invoice','invoice'],['invoices','Invoices','invoices'],['grn','GRN','grn'],['reports','Sales report','reports']].forEach(([k,l,pm])=>{if(hasP(pm))a.push(L(k,l))});
   const gen=[['items','Items','items'],['cats','Categories','items'],['customers','Customers','customers'],['suppliers','Suppliers','suppliers'],['reps','Sales reps','ADMIN']].filter(x=>x[2]==='ADMIN'?isAdmin():hasP(x[2]));
-  if(gen.length)a.push(`<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">General &#9662;</a><div class="sub">${gen.map(g=>L(g[0],g[1])).join('')}</div></div>`);
-  if(hasP('jobs'))a.push(`<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">Job note &#9662;</a><div class="sub">${[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
-  if(hasP('staff'))a.push(`<div class="grp"><a onclick="this.parentNode.classList.toggle('open')">Staff management &#9662;</a><div class="sub">${[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
-  if(isAdmin())a.push(L('users','Users'),L('settings','Invoice editor'),L('jobeditor','Job note editor'));
+  if(gen.length)a.push(`<div class="grp"><a onclick="grpToggle(this)">General &#9662;</a><div class="sub">${gen.map(g=>L(g[0],g[1])).join('')}</div></div>`);
+  if(hasP('jobs'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Job note &#9662;</a><div class="sub">${[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
+  if(hasP('quotes'))a.push(L('quotes','Quotations'));
+  if(hasP('staff'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Staff management &#9662;</a><div class="sub">${[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
+  if(isAdmin())a.push(L('users','Users'));
+  if(isAdmin())a.push(`<div class="grp"><a onclick="grpToggle(this)">Editors &#9662;</a><div class="sub">${[['settings','Invoice editor'],['jobeditor','Job note editor'],['slipeditor','Salary slip editor'],['quoteeditor','Quotation editor']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
   $('#nav').innerHTML=a.join('');
 }
 async function afterLogin(uid){
@@ -201,11 +203,12 @@ async function afterLogin(uid){
 async function logout(){await sb.auth.signOut();location.reload()}
 
 const PAGES={};
+function grpToggle(a){const g=a.parentNode,was=g.classList.contains('open');document.querySelectorAll('#nav .grp.open').forEach(x=>x.classList.remove('open'));if(!was)g.classList.add('open')}
 async function go(p){
-  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs'};
-  if((need[p]&&!hasP(need[p]))||((p==='users'||p==='settings'||p==='reps'||p==='jobeditor')&&!isAdmin()))p='dash';
+  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quoteform:'quotes'};
+  if((need[p]&&!hasP(need[p]))||((p==='users'||p==='settings'||p==='reps'||p==='jobeditor'||p==='slipeditor'||p==='quoteeditor')&&!isAdmin()))p='dash';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
-  const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('open')}
+  document.querySelectorAll('#nav .grp').forEach(g=>g.classList.remove('has-on'));const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('has-on')}
   $('#main').innerHTML='<p class="mut">Loading…</p>';
   try{await PAGES[p]()}catch(e){console.error(e)}
 }
@@ -1165,24 +1168,37 @@ PAGES.job_warranty=()=>jobList('warranty');
 PAGES.job_repair=()=>jobList('repair');
 PAGES.job_service=()=>jobList('service');
 async function jobList(type){
-  JTYPE=type;
-  $('#main').innerHTML=`<div class="top"><h2>${JT[type]} job notes</h2><div class="bar"><div style="flex:0;white-space:nowrap"><button class="btn" onclick="jobNew('${type}')">+ New ${JT[type].toLowerCase()} job note</button></div><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="printJobBlank()">Print blank form</button></div></div></div>
+  JTYPE=type;try{await loadSups()}catch(e){}
+  $('#main').innerHTML=`<div class="top"><h2>${JT[type]} job notes</h2><div class="bar"><div style="flex:0;white-space:nowrap"><button class="btn" onclick="jobNew('${type}')">+ New ${JT[type].toLowerCase()} job note</button></div><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="printJobBlank()">Print blank form</button></div>${isAdmin()?'<div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="jsupEdit()">Supplier statuses</button></div>':''}</div></div>
   <div class="card"><div class="bar"><div><label>Status</label><select id="jf_s" onchange="jobLoad()"><option value="">All</option>${JSTAT.map(x=>`<option>${x}</option>`).join('')}</select></div>
    <div><label>From</label><input id="jf_f" type="date" onchange="jobLoad()"></div><div><label>To</label><input id="jf_t" type="date" onchange="jobLoad()"></div>
+   ${hasP('jobs')?`<div><label>Supplier</label><select id="jf_su" onchange="jobLoad()"><option value="">All</option><option value="__none">- none -</option>${(SUPS||[]).map(x=>`<option value="${esc(x.name)}">${esc(x.name)}</option>`).join('')}</select></div>`:''}
    <div style="flex:2"><label>Search (job no, customer, mobile, serial)</label><input id="jf_q" oninput="clearTimeout(JQ_T);JQ_T=setTimeout(jobLoad,300)"></div></div></div>
-  <div class="tw"><table><thead><tr><th>Job no</th><th>Date</th><th>Customer</th><th>Product</th><th>Issue</th><th>Status</th><th></th></tr></thead><tbody id="jbt"></tbody></table></div>`;
+  <div class="tw"><table><thead><tr><th>Job no</th><th>Date</th><th>Customer</th><th>Product</th><th>Issue</th>${hasP('jobs')?'<th>Supplier / hand-over</th>':''}<th>Status</th><th></th></tr></thead><tbody id="jbt"></tbody></table></div>`;
   jobLoad();
 }
+let JROWS={};
+const JSUP_DEF=['Handed over to supplier','Still at supplier','Received back from supplier','Replaced by supplier','Rejected by supplier'];
+function jsupList(){try{const v=settings.job_sup_status||null;const a=typeof v==='string'?JSON.parse(v):v;if(Array.isArray(a)&&a.length)return a}catch(e){}return JSUP_DEF.slice()}
+async function jobSup(id,f,v){if(!hasP('jobs'))return;const r=JROWS[id];if(!r)return;const ch=Object.assign({},r.checks||{});
+ if(f==='n'){if(!v){delete ch.supplier_name;delete ch.supplier_id;delete ch.supplier_status}else{const x=(SUPS||[]).find(q=>q.name===v);ch.supplier_name=v;ch.supplier_id=x?x.id:null;if(!ch.supplier_status)ch.supplier_status=jsupList()[0]}}
+ else ch.supplier_status=v;
+ const {error}=await sb.from('job_notes').update({checks:ch}).eq('id',id);if(error){toast(error.message,'err');return}
+ toast('Saved');jobLoad()}
+async function jsupEdit(){if(!isAdmin())return;openModal(`<h3>Supplier hand-over statuses</h3><p class="mut">One status per line</p><textarea id="jsu_t" rows="8" style="width:100%">${esc(jsupList().join('\n'))}</textarea><div style="margin-top:10px;display:flex;gap:8px"><button class="btn" onclick="jsupSave()">Save</button><button class="btn sec" onclick="closeModal()">Cancel</button></div>`)}
+async function jsupSave(){const a=$('#jsu_t').value.split('\n').map(x=>x.trim()).filter(Boolean);if(!a.length)return toast('Add at least one','err');
+ const {error}=await sb.from('settings').upsert({key:'job_sup_status',value:JSON.stringify(a)});if(error)return toast(error.message,'err');
+ settings.job_sup_status=JSON.stringify(a);closeModal();toast('Saved');jobLoad()}
 async function jobLoad(){
   let b=sb.from('job_notes').select('*').eq('job_type',JTYPE).order('id',{ascending:false}).limit(300);
   const s=$('#jf_s').value,f=$('#jf_f').value,t=$('#jf_t').value,q=$('#jf_q').value.trim().replace(/[,()%]/g,' ');
   if(s)b=b.eq('status',s);if(f)b=b.gte('job_date',f+'T00:00:00');if(t)b=b.lte('job_date',t+'T23:59:59');
   if(q)b=b.or(`job_no.ilike.%${q}%,customer_name.ilike.%${q}%,customer_code.ilike.%${q}%,mobile.ilike.%${q}%,serial_no.ilike.%${q}%`);
-  const d=await run(b);
+  let d=await run(b);const su=$('#jf_su')?$('#jf_su').value:'';JROWS={};d.forEach(r=>JROWS[r.id]=r);
+  if(su==='__none')d=d.filter(j=>!(j.checks&&j.checks.supplier_name));else if(su)d=d.filter(j=>j.checks&&j.checks.supplier_name===su);
   $('#jbt').innerHTML=d.map(j=>`<tr><td><b>${esc(j.job_no)}</b></td><td>${fmtDT(j.job_date)}</td><td>${esc(j.customer_name)}<div class="mut">${esc(j.customer_code)} ${esc(j.mobile)}</div></td>
-   <td>${esc(j.brand_model)}<div class="mut">${esc(j.serial_no)}</div></td><td style="max-width:260px">${esc(plainText(j.issue).slice(0,90))}</td>
-   <td><select onchange="jobStatus(${j.id},this.value)">${JSTAT.map(x=>`<option ${x===j.status?'selected':''}>${x}</option>`).join('')}</select></td>
-   <td style="white-space:nowrap"><button class="btn sec sm" onclick="printJob(${j.id})">Print</button> ${isAdmin()?`<button class="btn sec sm" onclick="jobEdit(${j.id})">Edit</button> <button class="btn sec sm" onclick="jobDel(${j.id},'${esc(j.job_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mut">No job notes found.</td></tr>';
+   <td>${esc(j.brand_model)}<div class="mut">${esc(j.serial_no)}</div></td><td style="max-width:260px">${esc(plainText(j.issue).slice(0,90))}</td>${hasP('jobs')?`<td style="white-space:nowrap"><div style="display:flex;gap:6px;align-items:center"><select style="max-width:150px" onchange="jobSup(${j.id},'n',this.value)"><option value="">- supplier -</option>${(SUPS||[]).map(x=>`<option ${x.name===(j.checks||{}).supplier_name?'selected':''}>${esc(x.name)}</option>`).join('')}</select>${(j.checks||{}).supplier_name?`<select style="max-width:170px" onchange="jobSup(${j.id},'s',this.value)">${jsupList().concat(jsupList().includes((j.checks||{}).supplier_status)?[]:[(j.checks||{}).supplier_status].filter(Boolean)).map(x=>`<option ${x===(j.checks||{}).supplier_status?'selected':''}>${esc(x)}</option>`).join('')}</select>`:''}</div></td>`:''}<td><select onchange="jobStatus(${j.id},this.value)">${JSTAT.map(x=>`<option ${x===j.status?'selected':''}>${x}</option>`).join('')}</select></td>
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="printJob(${j.id})">Print</button> ${isAdmin()?`<button class="btn sec sm" onclick="jobEdit(${j.id})">Edit</button> <button class="btn sec sm" onclick="jobDel(${j.id},'${esc(j.job_no)}')">Delete</button>`:''}</td></tr>`).join('')||`<tr><td colspan="${hasP('jobs')?8:7}" class="mut">No job notes found.</td></tr>`;
 }
 async function jobStatus(id,v){await run(sb.from('job_notes').update({status:v}).eq('id',id));toast('Status updated')}
 async function jobDel(id,no){if(!confirm('Delete job note '+no+'?'))return;await run(sb.from('job_notes').delete().eq('id',id));toast('Deleted');jobLoad()}
@@ -1195,9 +1211,10 @@ const jobRichStyle=document.createElement('style');jobRichStyle.textContent=`.jo
 PAGES.jobform=async()=>{
   const jl=getJL(),id=window._jobId||null,nt=window._jobNew||'repair';window._jobId=null;window._jobNew=null;
   let j={job_type:nt,job_date:new Date().toISOString(),customer_id:null,customer_code:'',customer_name:'',mobile:'',whatsapp:'',email:'',brand_model:'',item_ref:'',serial_no:'',product_id:'',issue:'',remarks:'',status:'Received',job_no:'',checks:{}};
+  try{await loadSups()}catch(e){}
   if(id)j=await run(sb.from('job_notes').select('*').eq('id',id).single());
   else{j.checks={service:nt==='warranty'?['Warranty']:nt==='service'?['Chargeable']:[],work:nt==='repair'?['Repair']:nt==='service'?['Diagnosis']:[]}}
-  JF={...j,id,checks:{product:[],service:[],accessories:[],work:[],technician:[],product_other:'',accessories_other:'',work_other:'',received_by:'',received_signature:'',taken_by:'',taken_sig:'',purchase_date:'',invoice_no:'',...(j.checks||{})}};
+  JF={...j,id,checks:{product:[],service:[],accessories:[],work:[],technician:[],product_other:'',accessories_other:'',work_other:'',received_by:'',received_signature:'',taken_by:'',taken_sig:'',purchase_date:'',invoice_no:'',supplier_id:'',supplier_name:'',supplier_ref:'',...(j.checks||{})}};
   if(!Array.isArray(JF.checks.technician))JF.checks.technician=[];
   const inp=(i,l,v,ex='')=>`<div><label>${l}</label><input id="${i}" value="${esc(v)}" ${ex}></div>`;
   $('#main').innerHTML=`<div class="top"><h2>${id?'Edit job note '+esc(j.job_no):'New '+JT[nt].toLowerCase()+' job note'}</h2><button class="btn sec" onclick="go('job_${JF.job_type}')">Back to list</button></div>
@@ -1284,6 +1301,7 @@ function jobPadInit(){
 }
 function jobPadClear(){const c=$('#j_pad');if(!c)return;c.getContext('2d').clearRect(0,0,c.width,c.height);JF.checks.taken_sig='';JF.padDirty=false;JF.padCleared=true}
 async function jobSave(print,openWhatsApp=false){
+  if($('#j_sup')){const sid=$('#j_sup').value,sp=(SUPS||[]).find(x=>String(x.id)===sid);JF.checks.supplier_id=sid;JF.checks.supplier_name=sp?sp.name:'';JF.checks.supplier_ref=$('#j_supref').value.trim()}
   if($('#j_pd'))JF.checks.purchase_date=$('#j_pd').value;if($('#j_inv'))JF.checks.invoice_no=$('#j_inv').value.trim();
   if($('#j_taken'))JF.checks.taken_by=$('#j_taken').value.trim();
   if($('#j_pad')&&JF.padDirty)JF.checks.taken_sig=$('#j_pad').toDataURL('image/png');
@@ -1398,12 +1416,14 @@ document.addEventListener('mouseup',function(){if(!dg)return;var d=dg;dg=null;if
 
 /* ----- Job note editor (admin) ----- */
 let JLLOGO='',JE_SEL='',JEST={},JE_REFILL=false;
-const JE_TEXTMAP={title:'je_t1',subtitle:'je_t2',contact:'je_ct',foot:'je_ft',rules:'je_ru',auth:'je_au',delivery:'je_de',shop:'je_n',addr:'je_a',email:'je_em'};
+const JE_TEXTMAP_JOB={title:'je_t1',subtitle:'je_t2',contact:'je_ct',foot:'je_ft',rules:'je_ru',auth:'je_au',delivery:'je_de',shop:'je_n',addr:'je_a',email:'je_em'};
+let JE_TEXTMAP=JE_TEXTMAP_JOB,JE_MODE='job';
 const JE_NOTEXT=['foot_bar','tech','issue','remarks'];
-const JE_NAMES={title:'Title',subtitle:'Sub title',shop:'Shop name',addr:'Address',email:'Email line',contact:'Contact (right side)',tech:'Technician text',sg_staff:'Staff signature block (image + name + line)',staff_img:'Staff signature image',sg_cust:'Customer signature block',rcv_name:'Received by (delivery)',issue:'Issue reported text',remarks:'Remarks text',rules:'Rules text',auth:'Authorization text',delivery:'Delivery text',foot:'Footer text',foot_bar:'Footer bar'};
-const jeName=k=>JE_NAMES[k]||((/^h_/.test(k)?'Section heading: ':'Label: ')+k.replace(/^(l_|h_)/,'').replace(/_/g,' ').toUpperCase());
+const JE_NAMES={lh_name:'Shop name',lh_addr:'Address',lh_contact:'Contact line',notes:'Notes under the table',footer:'Footer text',title:'Title',subtitle:'Sub title',shop:'Shop name',addr:'Address',email:'Email line',contact:'Contact (right side)',tech:'Technician text',sg_staff:'Staff signature block (image + name + line)',staff_img:'Staff signature image',sg_cust:'Customer signature block',rcv_name:'Received by (delivery)',issue:'Issue reported text',remarks:'Remarks text',rules:'Rules text',auth:'Authorization text',delivery:'Delivery text',foot:'Footer text',foot_bar:'Footer bar'};
+const jeName=k=>JE_NAMES[k]||((/^a_/.test(k)?'Amount: ':/^v_/.test(k)?'Value: ':/^h_/.test(k)?'Section heading: ':'Label: ')+k.replace(/^(l_|h_|a_|v_|th_)/,'').replace(/_/g,' ').toUpperCase());
 const jeStyle=document.createElement('style');jeStyle.textContent='.jsb{position:fixed;right:18px;bottom:18px;width:310px;max-height:84vh;overflow:auto;background:#fff;border:1px solid #1a73e8;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:10px 12px;z-index:50}.jsb .jsh{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.jsb label{font-size:11.5px;display:block;margin:6px 0 2px}.jsb .r2{display:flex;gap:8px}.jsb .r2>div{flex:1}.jsb input[type=color]{width:100%;height:32px;padding:2px}.jsb input,.jsb select,.jsb textarea{width:100%}.jsb .tg{display:flex;gap:6px;margin-top:8px}.jsb .tg button{flex:1}';document.head.appendChild(jeStyle);
 PAGES.jobeditor=async()=>{
+  JE_MODE='job';JE_TEXTMAP=JE_TEXTMAP_JOB;
   const jl=getJL(),co=coInfo();JLLOGO=jl.logo||'';
   const ck=(id,v,l)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''} onchange="jePrev()"> ${l}</label>`;
   const ta=(id,l,v,r)=>`<div class="row" style="margin-top:8px"><label>${l}</label><textarea id="${id}" rows="${r||3}" oninput="jePrev()">${esc(v)}</textarea></div>`;
@@ -1457,6 +1477,8 @@ function jeRead(){
     g:Object.fromEntries(Object.keys(JE_GDEF).map(k=>[k,g('je_g_'+k).value])),st:JEST,showAcc:g('je_sa').checked,showRemarks:g('je_sr').checked,showRules:g('je_su').checked,showAuth:g('je_sh').checked,showDel:g('je_sd').checked,showFoot:g('je_sf').checked,showTechnician:g('je_sth').checked,showReceivedSignature:g('je_srs').checked,fontSize:+g('je_fs').value||0}};
 }
 function jePrev(){
+  if(JE_MODE==='slip')return slipPrev();
+  if(JE_MODE==='quote')return qtPrev();
   const {co,jl}=jeRead();
   const j={job_no:'WR-00001',job_date:new Date().toISOString(),customer_name:'Sample Customer',customer_code:'CUS-0001',mobile:'0771234567',whatsapp:'0771234567',email:'sample@mail.com',brand_model:'ASUS Vivobook X1504VA',item_ref:'LAP-0001',serial_no:'SN1234567890',product_id:'P-1001',
     issue:'Laptop does not power on.\nBattery not charging.',remarks:'Small scratch on the lid.',checks:{product:[jl.products[0]],service:[jl.services[2]||jl.services[0]],accessories:[jl.accessories[0]],work:[jl.works[0]],technician:[(jl.technicians||[])[0]],purchase_date:new Date().toISOString().slice(0,10),invoice_no:'INV-00001',received_by:'Received Person',taken_by:'Staff Name',taken_sig:jeDemoSig()}};
@@ -1473,7 +1495,7 @@ function jeEl(k){const f=$('#je_pv');try{return f.contentDocument.querySelector(
 function jePanelFill(){
   const k=JE_SEL,el=jeEl(k),o=JEST[k]||{};if(!k||!el)return;
   $('#je_sel').style.display='block';$('#js_name').textContent=/^(h_|l_)/.test(k)?(/^h_/.test(k)?'Heading: ':'Label: ')+el.innerText.trim():jeName(k);
-  $('#js_txtw').style.display=JE_NOTEXT.includes(k)?'none':'';
+  $('#js_txtw').style.display=(JE_NOTEXT.includes(k)||/^(a_|v_)/.test(k))?'none':'';
   $('#js_t').value=el.innerText.replace(/\u00a0/g,' ').replace(/\n+$/,'');
   const cs=el.ownerDocument.defaultView.getComputedStyle(el);
   $('#js_c').value=o.c||rgbHex(cs.color)||'#000000';
@@ -1688,35 +1710,6 @@ async function stfLoad() {
   <div class="tw"><table><thead><tr><th>Effective from</th><th class="r">Salary</th><th>Note</th><th></th></tr></thead><tbody>${(SF.hist[s.id] || []).slice().reverse().map(h => `<tr><td>${h.eff_date === '2000-01-01' ? 'Start' : h.eff_date}</td><td class="r">${money(h.amount)}</td><td>${esc(h.note)}</td><td>${h.eff_date === '2000-01-01' ? '' : `<button class="btn sec sm" onclick="stfIncDel(${h.id},${s.id})">x</button>`}</td></tr>`).join('') || `<tr><td colspan="4" class="mut">No increases yet. Current salary Rs. ${money(s.salary)}.</td></tr>`}</tbody></table></div>`;
 }
 
-/* ---------------- Salary slip (A5, with letterhead) ---------------- */
-async function stfSlip(id) {
-  const mo = SF.mo || today().slice(0, 7), [y, m] = mo.split('-').map(Number);
-  const s = await run(sb.from('staff').select('*').eq('id', id).single()); await stfHistLoad();
-  const pays = await run(sb.from('staff_pay').select('*').eq('staff_id', id).eq('pay_month', mo).order('pay_date'));
-  const x = stfSums(pays)[id] || stfZ(), co = coInfo();
-  const sal = stfSal(s, mo), prev = stfSal(s, stfD(new Date(y, m - 2, 1)).slice(0, 7)), al = Number(s.allowance || 0);
-  const earn = sal + al + x.comm + x.bonus, dedT = x.late + x.leave + x.adv + x.ded, tot = earn - dedT, bal = tot - x.paid;
-  const h = (SF.hist[id] || []).filter(z => z.eff_date <= mo + '-31'), hr = h[h.length - 1];
-  const v = n => n ? money(n) : '----';
-  const I = (l, val) => `<tr><td class="lb">${l}</td><td colspan="1">${esc(val)}</td></tr>`;
-  const R = (l, n, c) => `<tr class="${c || ''}"><td>${l}</td><td class="r">${v(n)}</td></tr>`;
-  const SH = t => `<tr><td colspan="2" class="sh">${t}</td></tr><tr class="b"><td>Description</td><td class="r">Amount (LKR)</td></tr>`;
-  const notes = [];
-  if (sal !== prev && hr) notes.push(`Salary increased from Rs. ${money(prev)} to Rs. ${money(sal)} (effective ${hr.eff_date}).`);
-  const adv = pays.filter(p => p.kind === 'Advance'); if (adv.length) notes.push('Advance: ' + adv.map(p => `${p.pay_date} Rs. ${money(p.amount)}`).join(', ') + '.');
-  if (x.paid) notes.push(`Paid Rs. ${money(x.paid)}. Balance Rs. ${money(bal)}.`);
-  const ly = getLY(), contact = [co.p ? 'Mob : ' + co.p : '', ly.email ? 'Email : ' + ly.email : '', ly.web ? 'Website : ' + ly.web : ''].filter(Boolean).map(esc).join('&nbsp;&nbsp;&nbsp;');
-  const lh = `<div class="lh"><div><div class="nm">${esc(co.n)}</div>${String(co.a || '').split('\n').filter(Boolean).map(z => `<div>${esc(z)}</div>`).join('')}${contact ? `<div>${contact}</div>` : ''}</div>${ly.logo ? `<img src="${ly.logo}" style="height:${Math.min(+ly.logoH || 60, 50)}px">` : ''}</div>`;
-  const body = lh + `<table><tr><td colspan="2" class="t">${esc(co.n.replace(/\(?\s*pvt\s*\)?\s*ltd\.?/i, '').trim().toUpperCase())} STAFF SALARY</td></tr>
-  ${I('Company Name', (co.n || '').toUpperCase())}${I('Branch', (s.branch || '-').toUpperCase())}${I('Employee Name', (s.name || '').toUpperCase())}${I('Employee ID', s.fp_id || '-------------')}${I('Position', (s.position || '-').toUpperCase())}${I('Month & Year', '01/' + String(m).padStart(2, '0') + '/' + y)}
-  <tr><td colspan="2" class="sh">SALARY DETAILS</td></tr><tr class="b"><td>Description</td><td class="r">Amount (LKR)</td></tr>
-  ${R('Basic Salary', sal)}${R('Allowances', al)}${R('Commissions', x.comm)}${R('Bonus', x.bonus)}${R('Total Earnings', earn, 'b')}
-  <tr><td colspan="2" class="sh">DEDUCTIONS</td></tr><tr class="b"><td>Description</td><td class="r">Amount (LKR)</td></tr>
-  ${R('Late Attendance', x.late)}${R('Leave Deduction', x.leave)}${R('Advance Salary', x.adv)}${R('Other Deductions', x.ded)}${R('Total Deductions', dedT, 'b')}
-  ${R('Total Salary', tot, 'b big')}</table>${notes.length ? `<div style="margin-top:4px;font-size:9px">${notes.map(esc).join('<br>')}</div>` : ''}`;
-  printHtml('Salary slip ' + s.name + ' ' + mo, body, '@page{size:A5;margin:8mm}html,body{margin:0;padding:0}body{font-size:11px;line-height:1.2}table{border:1.5px solid #000;margin:0;page-break-inside:avoid}tr{page-break-inside:avoid}td,th{border:1px solid #000;padding:2px 7px;font-size:11px}.t{font-size:15px;font-weight:700;text-align:center;padding:4px}.sh{background:#ddd;font-weight:700;text-align:center}tr.b td{font-weight:700;background:#f0f0f0}tr.big td{font-size:13px;background:#ddd}.lb{font-weight:700;width:45%}.lh{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:2px solid #000;padding-bottom:4px;margin-bottom:5px}.nm{font-size:17px;font-weight:700}');
-}
-
 /* ---------------- Salary increase ---------------- */
 function stfInc(id, back) {
   const s = SF.list.find(x => x.id === id) || SF.cur, cur = stfSal(s, today().slice(0, 7)), bk = typeof back === 'string' ? `'${back}'` : (back ? 1 : 0);
@@ -1840,6 +1833,498 @@ async function stfImport(inp) {
     go('staff');
   } catch (e) { console.error(e); toast('Import failed: ' + (e.message || e), true) }
   inp.value = '';
+}
+
+function jeFrameScript(sel){return `<script>(function(){var ed=null;function post(o){parent.postMessage(o,'*')}
+var s=${JSON.stringify(sel||'')};if(s){var el=document.querySelector('[data-k="'+s+'"]');if(el)el.classList.add('jsel')}
+document.addEventListener('click',function(e){if(ed||window.__mv)return;var k=e.target.closest('[data-k]');if(!k)return;document.querySelectorAll('.jsel').forEach(function(x){x.classList.remove('jsel')});k.classList.add('jsel');post({jsel:k.getAttribute('data-k')})});
+document.addEventListener('dblclick',function(e){var k=e.target.closest('[data-k][data-ed]');if(!k)return;ed=k;k.setAttribute('contenteditable','true');k.focus();var r=document.createRange();r.selectNodeContents(k);var sl=getSelection();sl.removeAllRanges();sl.addRange(r)});
+function fin(){if(!ed)return;var k=ed;ed=null;k.removeAttribute('contenteditable');post({jtext:k.getAttribute('data-k'),text:k.innerText.replace(/\\u00a0/g,' ').replace(/\\n+$/,'')})}
+document.addEventListener('focusout',function(){setTimeout(fin,0)});
+document.addEventListener('keydown',function(e){
+if(ed){if(e.key==='Escape'){ed.blur()}if(e.key==='Enter'&&ed.getAttribute('data-ed')!=='m'){e.preventDefault();ed.blur()}return}
+var k=document.querySelector('.jsel');if(!k)return;var st=e.shiftKey?5:1,dx=0,dy=0;
+if(e.key==='ArrowLeft')dx=-st;else if(e.key==='ArrowRight')dx=st;else if(e.key==='ArrowUp')dy=-st;else if(e.key==='ArrowDown')dy=st;else return;
+e.preventDefault();var x=(parseFloat(k.style.left)||0)+dx,y=(parseFloat(k.style.top)||0)+dy;k.style.position='relative';k.style.left=x+'px';k.style.top=y+'px';post({jpos:k.getAttribute('data-k'),x:x,y:y})});
+var dg=null;
+document.addEventListener('mousedown',function(e){if(ed||e.button)return;var k=e.target.closest('[data-k]');if(!k)return;dg={k:k,sx:e.clientX,sy:e.clientY,bx:parseFloat(k.style.left)||0,by:parseFloat(k.style.top)||0,mv:false}});
+document.addEventListener('mousemove',function(e){if(!dg)return;var dx=e.clientX-dg.sx,dy=e.clientY-dg.sy;if(!dg.mv&&Math.abs(dx)+Math.abs(dy)<4)return;dg.mv=true;e.preventDefault();var k=dg.k;k.style.position='relative';k.style.left=Math.round(dg.bx+dx)+'px';k.style.top=Math.round(dg.by+dy)+'px'});
+document.addEventListener('mouseup',function(){if(!dg)return;var d=dg;dg=null;if(!d.mv)return;d.moved=true;window.__mv=1;setTimeout(function(){window.__mv=0},0);var k=d.k;document.querySelectorAll('.jsel').forEach(function(x){x.classList.remove('jsel')});k.classList.add('jsel');post({jsel:k.getAttribute('data-k')});post({jpos:k.getAttribute('data-k'),x:parseFloat(k.style.left)||0,y:parseFloat(k.style.top)||0})});
+})()<\/script>`}
+const jePanelHtml=()=>`
+  <div id="je_sel" class="jsb" style="display:none">
+   <div class="jsh" id="js_drag" style="cursor:move" title="Drag to move this box"><b id="js_name">Element</b><a onclick="jeSelClose()" style="cursor:pointer;font-size:18px;line-height:1">&times;</a></div>
+   <div id="js_txtw"><label>Text</label><textarea id="js_t" rows="2" oninput="jeSet('t',this.value)"></textarea></div>
+   <div class="r2"><div><label>Font</label><select id="js_f" onchange="jeSet('f',this.value)">${JE_FONTS.map(f=>`<option value="${esc(f[0])}">${f[1]}</option>`).join('')}</select></div><div style="flex:0 0 80px"><label>Size (px)</label><input id="js_s" type="number" min="5" max="90" step="0.5" oninput="jeSet('s',this.value)"></div></div>
+   <div class="r2"><div><label>Text colour</label><input id="js_c" type="color" oninput="jeSet('c',this.value)"></div><div><label>Background</label><input id="js_bg" type="color" oninput="jeSet('bg',this.value)"></div></div>
+   <div class="r2"><div><button class="btn sec sm" style="width:100%" onclick="jeSet('c','')">Reset colour</button></div><div><button class="btn sec sm" style="width:100%" onclick="jeSet('bg','')">Reset background</button></div></div>
+   <label>Move (arrow keys, Shift = 5px) or drag it in the preview</label>
+   <div class="r2" style="align-items:center"><div style="flex:0 0 112px;display:grid;grid-template-columns:repeat(3,34px);gap:3px"><span></span><button class="btn sec sm" onclick="jeNudge(0,-1)">&#9650;</button><span></span><button class="btn sec sm" onclick="jeNudge(-1,0)">&#9664;</button><button class="btn sec sm" onclick="jeNudge(0,1)">&#9660;</button><button class="btn sec sm" onclick="jeNudge(1,0)">&#9654;</button></div><div><label>X (px)</label><input id="js_x" type="number" step="1" oninput="jeSet('x',this.value)"></div><div><label>Y (px)</label><input id="js_y" type="number" step="1" oninput="jeSet('y',this.value)"></div></div>
+   <div class="tg"><button class="btn sec sm" id="js_b" onclick="jeToggle('b')">Bold</button><button class="btn sec sm" id="js_i" onclick="jeToggle('i')">Italic</button><select id="js_a" onchange="jeSet('a',this.value)" style="flex:1"><option value="">Align</option><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select></div>
+   <div style="margin-top:8px"><button class="btn sec sm" style="width:100%" onclick="jeSelReset()">Reset this element</button></div>
+  </div>
+`;
+/* ===================== Salary slip editor (same tools as the Job note editor) ===================== */
+const SL_GDEF={font:'',border:'#000000',headBg:'#dddddd',headText:'#000000',label:'#000000',value:'#000000',title:'#000000',rowBg:'#f0f0f0',accent:'#000000'};
+const SL_DEF={size:'A5',margin:8,fontSize:11,logoOn:true,logoH:50,useInvLogo:true,logo:'',title:'',footer:'',showLH:true,showBranch:true,showPos:true,showEmp:true,showMonth:true,showComm:true,showBonus:true,showNotes:true,showSig:false,g:{},st:{}};
+function getSL(){let o={};try{o=JSON.parse(settings.slip_layout||'{}')}catch(e){}return {...SL_DEF,...o}}
+let SLLOGO='';
+async function stfSlipData(id){
+  const mo=SF.mo||today().slice(0,7),[y,m]=mo.split('-').map(Number);
+  const s=await run(sb.from('staff').select('*').eq('id',id).single());await stfHistLoad();
+  const pays=await run(sb.from('staff_pay').select('*').eq('staff_id',id).eq('pay_month',mo).order('pay_date'));
+  const x=stfSums(pays)[id]||stfZ(),co=coInfo();
+  const sal=stfSal(s,mo),prev=stfSal(s,stfD(new Date(y,m-2,1)).slice(0,7)),al=Number(s.allowance||0);
+  const earn=sal+al+x.comm+x.bonus,dedT=x.late+x.leave+x.adv+x.ded,tot=earn-dedT,bal=tot-x.paid;
+  const h=(SF.hist[id]||[]).filter(z=>z.eff_date<=mo+'-31'),hr=h[h.length-1];
+  const notes=[];
+  if(sal!==prev&&hr)notes.push(`Salary increased from Rs. ${money(prev)} to Rs. ${money(sal)} (effective ${hr.eff_date}).`);
+  const adv=pays.filter(p=>p.kind==='Advance');if(adv.length)notes.push('Advance: '+adv.map(p=>`${p.pay_date} Rs. ${money(p.amount)}`).join(', ')+'.');
+  if(x.paid)notes.push(`Paid Rs. ${money(x.paid)}. Balance Rs. ${money(bal)}.`);
+  return {co,s,mo,y,m,sal,al,x,earn,dedT,tot,bal,notes};
+}
+function slipDoc(d,sl,pv,sel){
+  const G={...SL_GDEF,...(sl.g||{})},ST=sl.st||{},A4=sl.size==='A4',W=A4?210:148,HH=A4?297:210,M=+sl.margin>=0?+sl.margin:8,fs=+sl.fontSize||11,ff=G.font||'Arial, Helvetica, sans-serif';
+  const {co,s,m,y,x}=d,ly=getLY();
+  const T=(k,def)=>{const t=ST[k]&&ST[k].t;return t!=null&&t!==''?t:def};
+  const K=(k,base,ed)=>{const o=ST[k]||{};let b=base||'';if(o.c)b+=';color:'+o.c;if(o.bg)b+=';background:'+o.bg;if(+o.s)b+=';font-size:'+(+o.s)+'px';if(o.f)b+=';font-family:'+o.f;if(o.b===1)b+=';font-weight:800';if(o.b===0)b+=';font-weight:400';if(o.i)b+=';font-style:italic';if(o.a)b+=';text-align:'+o.a;if(o.x||o.y)b+=';position:relative;left:'+(+o.x||0)+'px;top:'+(+o.y||0)+'px';return ' data-k="'+k+'"'+(pv&&ed?' data-ed="'+ed+'"':'')+(b?' style="'+esc(b)+'"':'')};
+  const v=n=>n?money(n):'----';
+  const I=(l,val)=>{const k='l_'+jslug(l);return `<tr><td class="lb"${K(k,'',1)}>${esc(T(k,l))}</td><td${K('v_'+jslug(l))}>${esc(val)}</td></tr>`};
+  const R=(l,n,c)=>{const k=jslug(l);return `<tr class="${c||''}"><td${K('l_'+k,'',1)}>${esc(T('l_'+k,l))}</td><td class="r"${K('a_'+k)}>${v(n)}</td></tr>`};
+  const SH=(k,t)=>`<tr><td colspan="2" class="sh"${K('h_'+k,'',1)}>${esc(T('h_'+k,t))}</td></tr><tr class="b"><td${K('th_desc','',1)}>${esc(T('th_desc','Description'))}</td><td class="r"${K('th_amt','',1)}>${esc(T('th_amt','Amount (LKR)'))}</td></tr>`;
+  const defTitle=sl.title||(String(co.n||'').replace(/\(?\s*pvt\s*\)?\s*ltd\.?/i,'').trim().toUpperCase()+' STAFF SALARY');
+  const addr=String(co.a||'').split('\n').filter(Boolean).join('<br>').replace(/(<br>)?$/,'');
+  const contact=[co.p?'Mob : '+co.p:'',ly.email?'Email : '+ly.email:'',ly.web?'Website : '+ly.web:''].filter(Boolean).join('   ');
+  const logo=sl.useInvLogo?ly.logo:sl.logo;
+  const lh=sl.showLH?`<div class="lh"><div><div class="nm"${K('lh_name','',1)}>${esc(T('lh_name',co.n||''))}</div><div${K('lh_addr','',1)}>${esc(T('lh_addr',String(co.a||'').split('\n').filter(Boolean).join(', ')))}</div>${contact?`<div${K('lh_contact','',1)}>${esc(T('lh_contact',contact))}</div>`:''}</div>${sl.logoOn&&logo?`<img src="${logo}" style="height:${Math.min(+sl.logoH||50,120)}px">`:''}</div>`:'';
+  const body=`<table><tr><td colspan="2" class="t"${K('title','',1)}>${esc(T('title',defTitle))}</td></tr>
+  ${I('Company Name',(co.n||'').toUpperCase())}${sl.showBranch?I('Branch',(s.branch||'-').toUpperCase()):''}${I('Employee Name',(s.name||'').toUpperCase())}${sl.showEmp?I('Employee ID',s.fp_id||'-------------'):''}${sl.showPos?I('Position',(s.position||'-').toUpperCase()):''}${sl.showMonth?I('Month & Year','01/'+String(m).padStart(2,'0')+'/'+y):''}
+  ${SH('salary','SALARY DETAILS')}
+  ${R('Basic Salary',d.sal)}${R('Allowances',d.al)}${sl.showComm?R('Commissions',x.comm):''}${sl.showBonus?R('Bonus',x.bonus):''}${R('Total Earnings',d.earn,'b')}
+  ${SH('ded','DEDUCTIONS')}
+  ${R('Late Attendance',x.late)}${R('Leave Deduction',x.leave)}${R('Advance Salary',x.adv)}${R('Other Deductions',x.ded)}${R('Total Deductions',d.dedT,'b')}
+  ${R('Total Salary',d.tot,'b big')}</table>
+  ${sl.showNotes&&d.notes.length?`<div class="nt"${K('notes','',1)}>${d.notes.map(esc).join('<br>')}</div>`:''}
+  ${sl.showSig?`<div class="sigs"><div${K('l_prepared_by','',1)}>${esc(T('l_prepared_by','Prepared by'))}</div><div${K('l_employee_signature','',1)}>${esc(T('l_employee_signature','Employee signature'))}</div></div>`:''}
+  ${sl.footer?`<div class="ft"${K('footer','',1)}>${esc(T('footer',sl.footer))}</div>`:''}`;
+  const css=`@page{size:${A4?'A4':'A5'};margin:${M}mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0;padding:0}body{font:${fs}px/1.2 ${ff};color:${G.value};${pv?'background:#dfe3e8;':''}}
+.sheet{${pv?`width:${W}mm;min-height:${HH}mm;padding:${M}mm;background:#fff;margin:0 auto;`:''}}
+table{width:100%;border-collapse:collapse;border:1.5px solid ${G.border};page-break-inside:avoid}tr{page-break-inside:avoid}
+td{border:1px solid ${G.border};padding:2px 7px;font-size:${fs}px}
+.t{font-size:${fs*1.4}px;font-weight:700;text-align:center;padding:4px;color:${G.title}}
+.sh{background:${G.headBg};color:${G.headText};font-weight:700;text-align:center}
+tr.b td{font-weight:700;background:${G.rowBg}}tr.big td{font-size:${fs*1.2}px;background:${G.headBg};color:${G.headText}}
+.lb{font-weight:700;width:45%;color:${G.label}}.r{text-align:right}
+.lh{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:2px solid ${G.accent};padding-bottom:4px;margin-bottom:5px;font-size:${fs*.82}px}.nm{font-size:${fs*1.55}px;font-weight:700}
+.nt{margin-top:4px;font-size:${fs*.82}px}.ft{margin-top:6px;font-size:${fs*.82}px;text-align:center}
+.sigs{display:flex;justify-content:space-between;gap:20mm;margin-top:14mm;font-size:${fs*.82}px}.sigs>div{flex:1;border-top:1px solid ${G.border};text-align:center;padding-top:1mm}
+${pv?`[data-k]{cursor:pointer}[data-k]:hover{outline:1px dashed #1a73e8;outline-offset:1px}[data-k].jsel{outline:2px solid #1a73e8!important;outline-offset:1px}[contenteditable]{outline:2px solid #e8731a!important;background:#fffbe6;color:#000}`:''}`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Salary slip ${esc(s.name||'')}</title><style>${css}</style></head><body><div class="sheet">${lh}${body}</div>${pv?jeFrameScript(sel):''}</body></html>`;
+}
+function slipPrintDoc(html){
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
+  f.contentDocument.open();f.contentDocument.write(html);f.contentDocument.close();
+  setTimeout(()=>{f.contentWindow.focus();f.contentWindow.print();setTimeout(()=>f.remove(),60000)},500);
+}
+async function stfSlip(id){const d=await stfSlipData(id);slipPrintDoc(slipDoc(d,getSL(),false))}
+
+PAGES.slipeditor=async()=>{
+  const sl=getSL(),G={...SL_GDEF,...(sl.g||{})};SLLOGO=sl.logo||'';
+  JE_MODE='slip';JE_TEXTMAP={};JEST=JSON.parse(JSON.stringify(sl.st||{}));JE_SEL='';
+  const ck=(id,v,l)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''} onchange="jePrev()"> ${l}</label>`;
+  const colors=[['title','Title colour'],['label','Label colour'],['value','Text / value colour'],['headBg','Heading background'],['headText','Heading text'],['rowBg','Total rows background'],['border','Table border'],['accent','Letterhead line']];
+  $('#main').innerHTML=`<div class="top"><h2>Salary slip editor</h2><div class="bar"><div style="flex:0"><button class="btn" onclick="slipSave()">Save</button></div></div></div>
+  <div class="job-editor-grid"><div>
+   <div class="card"><b>Paper &amp; layout</b>
+    <div class="bar" style="margin-top:8px"><div><label>Paper size</label><select id="ss_sz" onchange="jePrev()"><option ${sl.size==='A5'?'selected':''}>A5</option><option ${sl.size==='A4'?'selected':''}>A4</option></select></div><div><label>Margin (mm)</label><input id="ss_mg" type="number" min="3" max="25" value="${sl.margin}" oninput="jePrev()"></div><div><label>Base font size (px)</label><input id="ss_fs" type="number" min="7" max="20" step="0.5" value="${sl.fontSize}" oninput="jePrev()"></div></div>
+    <div style="margin-top:8px"><label>Slip title (empty = COMPANY STAFF SALARY)</label><input id="ss_t" value="${esc(sl.title)}" oninput="jePrev()"></div>
+    <div style="margin-top:8px"><label>Footer text (optional)</label><input id="ss_ft" value="${esc(sl.footer)}" oninput="jePrev()"></div></div>
+   <div class="card"><b>Logo</b>
+    ${ck('ss_lo',sl.logoOn,'Show logo')}${ck('ss_ul',sl.useInvLogo,'Use the same logo as the invoice')}
+    <div class="row"><label>Or upload a different logo</label><input type="file" accept="image/*" onchange="slipLogo(this)"></div>
+    <div style="margin-top:8px;max-width:160px"><label>Logo height (px)</label><input id="ss_lh" type="number" min="20" max="120" value="${sl.logoH}" oninput="jePrev()"></div></div>
+   <div class="card"><b>Fonts &amp; colours (whole slip)</b>
+    <div class="mut" style="margin:6px 0">Tip: <b>click any text in the live preview</b> to change its font, size, colour, background, bold, align or position. <b>Double-click</b> to type over it. Arrow keys / drag move it.</div>
+    <div class="row"><label>Font for the whole slip</label><select id="ss_g_font" onchange="jePrev()">${JE_FONTS.map(f=>`<option value="${esc(f[0])}" ${(G.font||'')===f[0]?'selected':''}>${f[1]}</option>`).join('')}</select></div>
+    <div class="bar" style="margin-top:8px">${colors.map(([k,l])=>`<div style="min-width:140px"><label>${l}</label><input id="ss_g_${k}" type="color" value="${esc(G[k])}" oninput="jePrev()" style="padding:2px;height:34px"></div>`).join('')}</div>
+    <div style="margin-top:8px"><button class="btn sec sm" onclick="slGReset()">Reset fonts &amp; colours</button> <button class="btn sec sm" onclick="JEST={};jeSelClose();jePrev()">Clear all click-edits</button></div></div>
+   <div class="card"><b>Show / hide</b>${ck('ss_sh',sl.showLH,'Letterhead (name, address, logo)')}${ck('ss_sb',sl.showBranch,'Branch')}${ck('ss_sp',sl.showPos,'Position')}${ck('ss_se',sl.showEmp,'Employee ID')}${ck('ss_sm',sl.showMonth,'Month &amp; Year')}${ck('ss_sc',sl.showComm,'Commissions row')}${ck('ss_sbn',sl.showBonus,'Bonus row')}${ck('ss_sn',sl.showNotes,'Notes under the table (increase, advances, paid)')}${ck('ss_sg',sl.showSig,'Signature lines (Prepared by / Employee signature)')}</div>
+  </div><div class="job-preview-card">
+  <div class="card"><b>Live preview</b><div class="bar" style="margin:8px 0"><div style="flex:0 0 130px"><label>Zoom</label><select id="je_zoom" onchange="jePrev()"><option value="fit">Fit</option><option value="1">100%</option><option value="0.75">75%</option><option value="0.5">50%</option></select></div><div class="mut" style="flex:2">Sample data.</div></div><div id="jpw" class="job-preview-wrap"><iframe id="je_pv" style="width:660px;height:900px"></iframe></div></div></div></div>
+  ${jePanelHtml()}`;
+  jePrev();
+};
+function slipRead(){
+  const g=id=>$('#'+id),G={};['font','title','label','value','headBg','headText','rowBg','border','accent'].forEach(k=>G[k]=g('ss_g_'+k).value);
+  return {size:g('ss_sz').value,margin:+g('ss_mg').value||8,fontSize:+g('ss_fs').value||11,title:g('ss_t').value.trim(),footer:g('ss_ft').value.trim(),logoOn:g('ss_lo').checked,useInvLogo:g('ss_ul').checked,logo:SLLOGO,logoH:+g('ss_lh').value||50,
+   showLH:g('ss_sh').checked,showBranch:g('ss_sb').checked,showPos:g('ss_sp').checked,showEmp:g('ss_se').checked,showMonth:g('ss_sm').checked,showComm:g('ss_sc').checked,showBonus:g('ss_sbn').checked,showNotes:g('ss_sn').checked,showSig:g('ss_sg').checked,g:G,st:JEST};
+}
+function slipPrev(){
+  const sl=slipRead(),x={...stfZ(),comm:1500,bonus:2000,late:500,adv:10000};
+  const s={name:'Sample Staff',fp_id:'12',position:'Technician',branch:'Colombo 04'};
+  const sal=50000,al=3000,earn=sal+al+x.comm+x.bonus,dedT=x.late+x.leave+x.adv+x.ded,tot=earn-dedT;
+  const d={co:coInfo(),s,mo:'2026-06',y:2026,m:6,sal,al,x,earn,dedT,tot,bal:tot,notes:['Advance: 2026-06-10 Rs. 10,000.00.']};
+  const f=$('#je_pv'),W=sl.size==='A4'?210:148,px=Math.round(W*3.7795)+10,zs=$('#je_zoom').value,ww=$('#jpw').clientWidth||900,z=zs==='fit'?Math.min(1,(ww-20)/px):+zs;
+  f.style.width=px+'px';f.style.height=Math.round((sl.size==='A4'?297:210)*3.7795)+'px';
+  f.onload=()=>{if(JE_REFILL){JE_REFILL=false;jePanelFill()}};
+  f.srcdoc=slipDoc(d,sl,true,JE_SEL);
+  f.style.transform='scale('+z+')';f.style.transformOrigin='0 0';$('#jpw').style.height=Math.round(parseFloat(f.style.height)*z+24)+'px';
+}
+function slGReset(){Object.keys(SL_GDEF).forEach(k=>{$('#ss_g_'+k).value=SL_GDEF[k]});$('#ss_g_font').value='';jePrev()}
+function slipLogo(inp){
+  const f=inp.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,500/im.width),c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);SLLOGO=c.toDataURL('image/png');$('#ss_ul').checked=false;jePrev()};im.src=r.result};
+  r.readAsDataURL(f);
+}
+async function slipSave(){
+  const row={key:'slip_layout',value:JSON.stringify(slipRead())};
+  await run(sb.from('settings').upsert([row]));settings.slip_layout=row.value;toast('Salary slip layout saved');
+}
+
+/* ===================== Quotations (list, form, print, editor) ===================== */
+const QT_LOGO='data:image/png;base64,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';
+const QT_GDEF={font:'',name:'#323E4F',title:'#323E4F',accent:'#BF8F00',value:'#262626',border:'#000000',line:'#bfbfbf',headBg:'#ffffff',headText:'#000000'};
+const QT_DEF={size:'A4',margin:12,fontSize:12,logoOn:true,logoH:36,useInvLogo:false,logo:'',showLH:true,showAbout:true,showWhy:true,showClosing:true,showCheque:true,specUpper:true,specLines:true,showDetails:true,
+ emailSub:'Quotation {no} - {company}',emailBody:'Dear Sir/Madam,\n\nPlease find attached our quotation {no} for {subject}.\n\nFor any clarification or assistance, please feel free to contact us.\n\nBest Regards,\n{company}\n{phone}',
+ specKeys:'Processor\nMemory\nStorage\nGraphics\nDisplay\nWireless\nKeyboard\nCamera\nAudio\nPorts\nBattery\nAdapter\nWeight\nOperating System\nHardware Warranty\nService Warranty\nFree',
+ about:"Laptopcare.lk stands proudly as one of the leading laptop resellers in Sri Lanka, offering a carefully curated and unique collection of Brand New laptops to suit every need and budget. Whether you are a student, business professional, creative designer, or gamer, we provide high-performance devices from globally recognized brands, ensuring reliability, durability, and value for money.\nAt Laptopcare.lk, customer satisfaction is at the heart of everything we do. We are committed to delivering top-notch service to our valued customers, guiding you to find the perfect laptop that matches your requirements.\nWhat sets us apart is our Dedicated service center, located right next to our showroom. Our experienced technicians are always ready to provide professional repairs, upgrades, and maintenance services, ensuring your device performs at its best long after your purchase.\nWith a strong reputation built on trust, quality, and exceptional after-sales support, Laptopcare.lk continues to be a preferred choice for customers across Sri Lanka seeking dependable laptops and expert service under one roof.\nOur commitment is simple: Quality • Trust • Customer Satisfaction",
+ why:"Genuine Products with Warranty\nCompetitive Market Pricing\nDedicated Service Center in-house\nReliable After-Sales Support",
+ closing:"We hope this quotation meets your requirements. We look forward to providing you with high-quality IT solutions tailored to your needs.\nFor any clarification or assistance, please feel free to contact us.",
+ g:{},st:{}};
+function getQL(){let o={};try{o=JSON.parse(settings.quote_layout||'{}')}catch(e){}return {...QT_DEF,...o}}
+const QT_MON=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+const qtDate=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?(+m[3])+' '+QT_MON[+m[2]-1]+' '+m[1]:String(s||'')};
+function qtTotal(items){return (items||[]).reduce((t,i)=>t+(+i.price||0)*(+i.qty||0),0)}
+function qtDoc(q,ql,pv,sel){
+  const G={...QT_GDEF,...(ql.g||{})},ST=ql.st||{},LET=ql.size==='Letter',W=LET?215.9:210,HH=LET?279.4:297,M=+ql.margin>=0?+ql.margin:12,fs=+ql.fontSize||12,ff=G.font||'Calibri, Arial, Helvetica, sans-serif';
+  const co=coInfo(),ly=getLY();
+  const T=(k,def)=>{const t=ST[k]&&ST[k].t;return t!=null&&t!==''?t:def};
+  const K=(k,base,ed)=>{const o=ST[k]||{};let b=base||'';if(o.c)b+=';color:'+o.c;if(o.bg)b+=';background:'+o.bg;if(+o.s)b+=';font-size:'+(+o.s)+'px';if(o.f)b+=';font-family:'+o.f;if(o.b===1)b+=';font-weight:800';if(o.b===0)b+=';font-weight:400';if(o.i)b+=';font-style:italic';if(o.a)b+=';text-align:'+o.a;if(o.x||o.y)b+=';position:relative;left:'+(+o.x||0)+'px;top:'+(+o.y||0)+'px';return ' data-k="'+k+'"'+(pv&&ed?' data-ed="'+ed+'"':'')+(b?' style="'+esc(b)+'"':'')};
+  const P=t=>String(t||'').split(/\n+/).map(x=>x.trim()).filter(Boolean).map(x=>`<div class="pp">${esc(x)}</div>`).join('');
+  const Ck=t=>String(t||'').split(/\n+/).map(x=>x.trim()).filter(Boolean).map(x=>`<div class="ck">${esc(x)}</div>`).join('');
+  const items=q.items||[];
+  const logo=ql.useInvLogo?(ly.logo||QT_LOGO):(ql.logo||QT_LOGO);
+  const addr=String(co.a||'').split('\n').filter(Boolean).join(', ');
+  const lh=ql.showLH?`<div class="lh">${ql.logoOn?`<img${K('lh_logo','')} src="${logo}" style="height:${Math.min(+ql.logoH||36,120)}px">`:''}
+   <div${K('lh_name','',1)} class="nm">${esc(T('lh_name',co.n||''))}</div>
+   ${addr?`<div${K('lh_addr','',1)}>${esc(T('lh_addr',addr))}</div>`:''}
+   ${co.p?`<div${K('lh_phone','',1)}>${esc(T('lh_phone','Tel: '+co.p))}</div>`:''}
+   ${ly.email?`<div${K('lh_email','',1)}>${esc(T('lh_email','Email: '+ly.email))}</div>`:''}
+   ${ly.web?`<div${K('lh_web','',1)}>${esc(T('lh_web',ly.web))}</div>`:''}</div>`:'';
+  const head=`<div class="t0"${K('title','',1)}>${esc(T('title','QUOTATION'))}</div>
+   <div class="ib"><div><b${K('l_date','',1)}>${esc(T('l_date','Date:'))}</b> <span${K('v_date')}>${esc(qtDate(q.q_date))}</span></div>
+   ${q.quote_no?`<div><b${K('l_ref','',1)}>${esc(T('l_ref','Quotation No:'))}</b> <span${K('v_ref')}>${esc(q.quote_no)}</span></div>`:''}
+   <div><b${K('l_for','',1)}>${esc(T('l_for','Prepared For:'))}</b> <b${K('v_for')}>${esc(String(q.customer_name||'').toUpperCase())}</b></div>
+   ${q.customer_address?`<div><b${K('l_addr','',1)}>${esc(T('l_addr','Address:'))}</b> <span${K('v_addr')}>${esc(q.customer_address).replace(/\n/g,', ')}</span></div>`:''}
+   ${q.subject?`<div><b${K('l_subj','',1)}>${esc(T('l_subj','Subject:'))}</b> <b class="ac"${K('v_subj')}>${esc(String(q.subject).toUpperCase())}</b></div>`:''}</div>`;
+  const about=ql.showAbout?`<div class="sec"><div class="hd"${K('h_about','',1)}>${esc(T('h_about','ABOUT US'))}</div><div${K('about','',"m")}>${P(T('about',ql.about))}</div></div>`:'';
+  const prod=items.length?`<div class="sec"><div class="hd"${K('h_product','',1)}>${esc(T('h_product','PRODUCT DETAILS'))}</div>${items.map(it=>{
+    const sp=(it.specs||[]).filter(r=>r&&String(r[0]||'').trim()&&String(r[1]||'').trim());
+    return `<div class="model"><b${K('l_model','',1)}>${esc(T('l_model','MODEL:'))}</b> <span${K('v_model')}>${esc(String(it.model||'').toUpperCase())}</span></div>
+    ${sp.length?`<div class="spt"${K('th_spec','',1)}>${esc(T('th_spec','TECHNICAL SPECIFICATIONS'))}</div><table class="spec">${ql.showDetails!==false?`<tr><td colspan="2" class="dh"${K('th_details','',1)}>${esc(T('th_details','DETAILS'))}</td></tr>`:''}${sp.map(r=>`<tr><td class="sk"${K('spec_k')}>${esc(r[0])}</td><td${K('spec_v')}>${esc(r[1])}</td></tr>`).join('')}</table>`:''}`}).join('')}</div>`:'';
+  const tot=qtTotal(items);
+  const price=items.length?`<div class="sec"><div class="hd"${K('h_price','',1)}>${esc(T('h_price','PRICING SUMMARY'))}</div><table class="pr"><tr class="ph"><td${K('th_desc','',1)}>${esc(T('th_desc','Description'))}</td><td class="r"${K('th_unit','',1)}>${esc(T('th_unit','Unit Price (LKR)'))}</td><td class="c"${K('th_qty','',1)}>${esc(T('th_qty','Qty'))}</td><td class="r"${K('th_tot','',1)}>${esc(T('th_tot','Total (LKR)'))}</td></tr>
+   ${items.map(it=>`<tr><td${K('pr_desc')}>${esc(it.desc||it.model||'')}</td><td class="r"${K('pr_unit')}>${money(it.price)}</td><td class="c"${K('pr_qty')}>${String(+it.qty||0).padStart(2,'0')}</td><td class="r"${K('pr_tot')}>${money((+it.price||0)*(+it.qty||0))}</td></tr>`).join('')}
+   <tr class="gt"><td colspan="3"${K('l_total','',1)}>${esc(T('l_total','Total Amount'))}</td><td class="r"${K('a_total')}>${money(tot)}</td></tr></table>
+   <div class="pn"${K('pnote','',1)}>${esc(T('pnote','✔ All prices are inclusive of applicable charges — no hidden costs.'))}</div>
+   ${q.note?`<div class="pn"${K('note','',"m")}>${esc(q.note).replace(/\n/g,'<br>')}</div>`:''}</div>`:'';
+  const why=ql.showWhy?`<div class="sec"><div class="hd"${K('h_why','',1)}>${esc(T('h_why','WHY CHOOSE LAPTOPCARE'))}</div><div${K('why','',"m")}>${Ck(T('why',ql.why))}</div></div>`:'';
+  const clo=ql.showClosing?`<div class="sec"><div class="hd"${K('h_closing','',1)}>${esc(T('h_closing','CLOSING NOTE'))}</div><div${K('closing','',"m")}>${P(T('closing',ql.closing))}</div></div>`:'';
+  const sig=`<div class="sec sg"><div><b${K('sg_best','',1)}>${esc(T('sg_best','Best Regards,'))}</b></div><div><b${K('sg_name','',1)}>${esc(T('sg_name',String(co.n||'').toUpperCase()))}</b></div>
+   ${co.p?`<div${K('sg_phone','',1)}>${esc(T('sg_phone','Tel: '+co.p))}</div>`:''}${ly.email?`<div${K('sg_email','',1)}>${esc(T('sg_email',ly.email))}</div>`:''}
+   ${ql.showCheque?`<div class="chq"><span${K('cheque_pre','',1)}>${esc(T('cheque_pre','Note: Cheques should be drawn in favor of'))}</span> <b class="ac"${K('cheque_name','',1)}>${esc(T('cheque_name','Laptopcare (Pvt) Ltd'))}</b></div>`:''}</div>`;
+  const css=`@page{size:${LET?'Letter':'A4'};margin:${M}mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0;padding:0}body{font:${fs}px/1.3 ${ff};color:${G.value};${pv?'background:#dfe3e8;':''}}
+.sheet{${pv?`width:${W}mm;min-height:${HH}mm;padding:${M}mm;background:#fff;margin:0 auto;`:''}}
+table.pg{width:100%;border-collapse:collapse}table.pg>thead{display:table-header-group}table.pg>thead>tr>td,table.pg>tbody>tr>td{border:0;padding:0}
+.lh{border-bottom:2px solid ${G.accent};padding-bottom:6px;margin-bottom:10px;font-size:${fs*.92}px;line-height:1.3}.lh img{display:block;margin-bottom:3px}.nm{font-size:${fs*1.05}px;font-weight:700;color:${G.name}}
+.t0{font-size:${fs*1.15}px;font-weight:700;color:${G.title};margin:2px 0 7px}.ib>div{margin:2px 0}.ac{color:${G.accent}}
+.sec{border-top:1px solid ${G.line};margin-top:9px;padding-top:7px;page-break-inside:avoid}.hd{font-weight:700;color:${G.title};margin-bottom:5px}
+.pp{margin:0 0 4px;font-size:${fs*.9}px;line-height:1.4}.ck{margin:2px 0}.ck:before{content:"\\2714\\00a0";color:${G.title}}
+.model{margin:2px 0 6px}.spt{text-align:center;font-weight:700;color:${G.title};font-size:${fs*1.05}px;margin:8px 0 6px}
+table.spec{width:100%;border-collapse:collapse;border:1px solid ${G.border};page-break-inside:auto}table.spec td{padding:3px 8px;font-size:${fs*.88}px;vertical-align:top;border:0;${ql.specLines!==false?`border-top:1px solid ${G.line};`:''}}table.spec tr:first-child td{border-top:0}.sk{font-weight:700;width:26%;${ql.specUpper!==false?'text-transform:uppercase;':''}}.dh{text-align:center;font-weight:700;background:${G.headBg};color:${G.headText}}
+table.pr{width:100%;border-collapse:collapse;border:1px solid ${G.border}}table.pr td{border:1px solid ${G.border};padding:3px 8px;font-size:${fs*.95}px}.ph td{font-weight:700;background:${G.headBg};color:${G.headText}}.gt td{font-weight:700}.r{text-align:right}.c{text-align:center}
+.pn{margin-top:8px;font-style:italic;font-size:${fs*.9}px}.sg>div{margin:1px 0}.chq{margin-top:8px;font-size:${fs*.9}px}
+${pv?`[data-k]{cursor:pointer}[data-k]:hover{outline:1px dashed #1a73e8;outline-offset:1px}[data-k].jsel{outline:2px solid #1a73e8!important;outline-offset:1px}[contenteditable]{outline:2px solid #e8731a!important;background:#fffbe6;color:#000}`:''}`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quotation ${esc(q.quote_no||'')} ${esc(q.customer_name||'')}</title><style>${css}</style></head><body><div class="sheet"><table class="pg"><thead><tr><td>${lh}</td></tr></thead><tbody><tr><td>${head}${about}${prod}${price}${why}${clo}${sig}</td></tr></tbody></table></div>${pv?jeFrameScript(sel):''}</body></html>`;
+}
+/* ---------- list ---------- */
+let QF=null,QT_CUS=[],QROWS={};
+PAGES.quotes=async()=>{
+  $('#main').innerHTML=`<div class="top"><h2>Quotations</h2><div class="bar"><div style="flex:2"><input id="qs" placeholder="Search customer / quotation no" oninput="qLoad()"></div><div style="flex:0;white-space:nowrap"><button class="btn" onclick="qNew()">+ New quotation</button></div></div></div>
+  <div class="tw"><table><thead><tr><th>No</th><th>Date</th><th>Customer</th><th>Subject</th><th class="r">Total (LKR)</th><th></th></tr></thead><tbody id="qbt"></tbody></table></div>`;
+  qLoad();
+};
+async function qLoad(){
+  const d=await run(sb.from('quotations').select('*').order('created_at',{ascending:false}).limit(300));
+  const s=($('#qs')&&$('#qs').value||'').trim().toLowerCase();QROWS={};d.forEach(r=>QROWS[r.id]=r);
+  const rows=d.filter(r=>!s||String(r.customer_name||'').toLowerCase().includes(s)||String(r.quote_no||'').toLowerCase().includes(s));
+  $('#qbt').innerHTML=rows.map(r=>`<tr><td><b>${esc(r.quote_no)}</b></td><td>${esc(r.q_date)}</td><td>${esc(r.customer_name)}<div class="mut">${esc(r.customer_address)}${r.data&&r.data.customer_email?' | '+esc(r.data.customer_email):''}</div></td><td>${esc(r.subject)}</td><td class="r">${money(r.total)}</td>
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="qPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="qPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="qMail(${r.id})">Email</button> <button class="btn sec sm" onclick="qCopy(${r.id})">Copy</button>${isAdmin()?` <button class="btn sec sm" onclick="qEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="qDel(${r.id},'${esc(r.quote_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">No quotations yet.</td></tr>';
+}
+const qRecToQ=r=>({quote_no:r.quote_no,q_date:r.q_date,customer_name:r.customer_name,customer_address:r.customer_address,subject:r.subject,items:(r.data&&r.data.items)||[],note:(r.data&&r.data.note)||'',customer_email:(r.data&&r.data.customer_email)||''});
+async function qPrint(id){const r=QROWS[id]||await run(sb.from('quotations').select('*').eq('id',id).single());slipPrintDoc(qtDoc(qRecToQ(r),getQL(),false))}
+async function qDel(id,no){if(!isAdmin()||!confirm('Delete quotation '+no+'?'))return;await run(sb.from('quotations').delete().eq('id',id));toast('Deleted');qLoad()}
+const qSpecKeys=()=>String(getQL().specKeys||'').split(/\n/).map(x=>x.trim()).filter(Boolean);
+const qNewItem=()=>({model:'',desc:'',url:'',price:'',qty:1,specs:qSpecKeys().map(k=>[k,''])});
+const qBlank=()=>({id:null,quote_no:'',q_date:today(),customer_name:'',customer_address:'',customer_email:'',subject:'LAPTOP SUPPLY PROPOSAL',note:'',items:[qNewItem()]});
+function qNew(){QF=qBlank();go('quoteform')}
+function qEdit(id){if(!isAdmin())return;const r=QROWS[id];if(!r)return;QF={...qRecToQ(r),id:r.id};QF.items=JSON.parse(JSON.stringify(QF.items));go('quoteform')}
+function qCopy(id){const r=QROWS[id];if(!r)return;QF={...qRecToQ(r),id:null,quote_no:'',q_date:today()};QF.items=JSON.parse(JSON.stringify(QF.items));go('quoteform')}
+/* ---------- form ---------- */
+PAGES.quoteform=async()=>{
+  if(!QF)QF=qBlank();
+  try{QT_CUS=await sb.from('customers').select('name,address,email').order('name').limit(1000).then(r=>r.data||[])}catch(e){QT_CUS=[]}
+  $('#main').innerHTML=`<div class="top"><h2>${QF.id?'Edit quotation '+esc(QF.quote_no):'New quotation'}</h2><div class="bar"><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="go('quotes')">Back</button> <button class="btn sec" onclick="qfPreview()">Preview</button> <button class="btn" onclick="qfSave(false)">Save</button> <button class="btn" onclick="qfSave(true)">Save &amp; print</button> <button class="btn" onclick="qfSave('pdf')">Save &amp; PDF</button> <button class="btn" onclick="qfSave('email')">Save &amp; email</button></div></div></div>
+  <div class="card"><b>Customer</b>
+   <div class="bar" style="margin-top:8px"><div style="flex:2"><label>Customer name (type anything, or pick a saved customer)</label><input id="q_cn" list="q_cl" value="${esc(QF.customer_name)}" oninput="qfCus(this.value)"><datalist id="q_cl">${QT_CUS.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist></div>
+   <div style="flex:1"><label>Customer email (for sending the quotation)</label><input id="q_ce" type="email" value="${esc(QF.customer_email||'')}"></div><div style="flex:0 0 170px"><label>Date</label><input id="q_dt" type="date" value="${esc(QF.q_date)}"></div></div>
+   <div style="margin-top:8px"><label>Customer address</label><textarea id="q_ca" rows="2" style="width:100%">${esc(QF.customer_address)}</textarea></div>
+   <div class="bar" style="margin-top:8px"><div><label>Subject</label><input id="q_sj" value="${esc(QF.subject)}"></div></div>
+   <div style="margin-top:8px"><label>Extra note for this quotation (optional - shown under the pricing)</label><textarea id="q_nt" rows="2" style="width:100%">${esc(QF.note)}</textarea></div></div>
+  <div id="q_items"></div>
+  <div style="margin:10px 0"><button class="btn sec" onclick="qfAdd()">+ Add another product</button></div>
+  <div class="card" id="q_tot"></div>`;
+  qfDraw();
+};
+function qfCus(v){const c=QT_CUS.find(x=>x.name===v);if(!c)return;if(c.address&&!$('#q_ca').value.trim())$('#q_ca').value=c.address;if(c.email&&!$('#q_ce').value.trim())$('#q_ce').value=c.email}
+function qfRead(){QF.customer_name=$('#q_cn').value.trim();QF.q_date=$('#q_dt').value||today();QF.customer_address=$('#q_ca').value.trim();QF.customer_email=$('#q_ce').value.trim();QF.subject=$('#q_sj').value.trim();QF.note=$('#q_nt').value.trim()}
+function qfTot(){const e=$('#q_tot');if(e)e.innerHTML=`<div style="text-align:right;font-size:16px"><b>Total: LKR ${money(qtTotal(QF.items))}</b></div>`}
+function qfDraw(){
+  $('#q_items').innerHTML=QF.items.map((it,i)=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b>Product ${i+1}</b><span><button class="btn sec sm" onclick="qfDup(${i})">Duplicate</button> ${QF.items.length>1?`<button class="btn sec sm" onclick="qfDel(${i})">Remove</button>`:''}</span></div>
+   <div class="bar" style="margin-top:8px"><div style="flex:3"><label>Model / product name</label><input value="${esc(it.model)}" oninput="QF.items[${i}].model=this.value"></div><div><label>Unit price (LKR)</label><input type="number" step="0.01" value="${esc(it.price)}" oninput="QF.items[${i}].price=this.value;qfTot()"></div><div style="flex:0 0 90px"><label>Qty</label><input type="number" min="1" value="${esc(it.qty)}" oninput="QF.items[${i}].qty=this.value;qfTot()"></div></div>
+   <div style="margin-top:8px"><label>Description in the price table (empty = model name)</label><input value="${esc(it.desc)}" oninput="QF.items[${i}].desc=this.value"></div>
+   <div style="margin-top:10px"><b>Technical specifications</b> <span class="mut">(rows with an empty value are not printed)</span></div>
+   ${(it.specs||[]).map((r,j)=>`<div class="bar" style="margin-top:4px;flex-wrap:nowrap"><div style="flex:1"><input value="${esc(r[0])}" placeholder="Name" oninput="QF.items[${i}].specs[${j}][0]=this.value"></div><div style="flex:3"><input value="${esc(r[1])}" placeholder="Value" oninput="QF.items[${i}].specs[${j}][1]=this.value"></div><div style="flex:0;white-space:nowrap"><button class="btn sec sm" onclick="qfSpecMove(${i},${j},-1)">&#9650;</button> <button class="btn sec sm" onclick="qfSpecMove(${i},${j},1)">&#9660;</button> <button class="btn sec sm" onclick="qfSpecDel(${i},${j})">&#10005;</button></div></div>`).join('')}
+   <div style="margin-top:6px"><button class="btn sec sm" onclick="qfSpecAdd(${i})">+ Add row</button></div>
+   <div id="q_fs${i}" class="mut"></div><div style="margin-top:8px"><label>Paste specs: the spec table, or the whole product page (Ctrl+A, Ctrl+C), or lines like "Name: value" - then Import</label><textarea id="q_ps${i}" rows="3" style="width:100%" placeholder="Processor: Intel Core i5\nMemory: 16GB DDR4"></textarea><button class="btn sec sm" style="margin-top:4px" onclick="qfImport(${i})">Import lines</button></div></div>`).join('');
+  qfTot();
+}
+function qfAdd(){qfRead();QF.items.push(qNewItem());qfDraw()}
+function qfDup(i){qfRead();QF.items.splice(i+1,0,JSON.parse(JSON.stringify(QF.items[i])));qfDraw()}
+function qfDel(i){QF.items.splice(i,1);qfDraw()}
+function qfSpecAdd(i){QF.items[i].specs.push(['','']);qfDraw()}
+function qfSpecMove(i,j,d){const a=QF.items[i].specs,k=j+d;if(k<0||k>=a.length)return;[a[j],a[k]]=[a[k],a[j]];qfDraw()}
+function qfSpecDel(i,j){QF.items[i].specs.splice(j,1);qfDraw()}
+function qfImport(i){
+  const t=$('#q_ps'+i).value,sp=QF.items[i].specs;let last=null;
+  const pr=qtParseText(t);
+  if(pr.matched.length>=3){pr.matched.forEach(([k,v])=>{const ex=sp.find(r=>qNk(r[0])===qNk(k));if(ex)ex[1]=v;else sp.push([k,v])});$('#q_ps'+i).value='';qfDraw();const e=$('#q_fs'+i);if(e)e.textContent='Imported '+pr.matched.length+' key specifications. Please check them.';return}
+  t.split(/\n/).forEach(l=>{if(!l.trim())return;const m=l.match(/^\s*([^:\t]{1,40})\s*[:\t]\s*(.*)$/);
+    if(m){const k=m[1].trim(),v=m[2].trim(),ex=sp.find(r=>String(r[0]).trim().toLowerCase()===k.toLowerCase());if(ex){ex[1]=v;last=ex}else{last=[k,v];sp.push(last)}}
+    else if(last)last[1]=(last[1]+' '+l.trim()).trim()});
+  qfDraw();
+}
+function qfPreview(){qfRead();openModal(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Preview</h3><button class="btn" onclick="closeModal()">Close &#10005;</button></div><iframe id="q_pvf" style="width:100%;height:70vh;border:1px solid #ccc;margin:8px 0"></iframe><div style="text-align:right"><button class="btn" onclick="closeModal()">Close</button></div>`,'900px');$('#q_pvf').srcdoc=qtDoc(QF,getQL(),false)}
+async function qfSave(print){
+  qfRead();if(!QF.customer_name)return toast('Enter the customer name',true);if(print==='email'&&!QF.customer_email)return toast('Enter the customer email',true);
+  if(!QF.items.length||!QF.items.some(i=>String(i.model||'').trim()))return toast('Enter at least one product model',true);
+  const row={q_date:QF.q_date,customer_name:QF.customer_name,customer_address:QF.customer_address,subject:QF.subject,data:{items:QF.items,note:QF.note,customer_email:QF.customer_email},total:qtTotal(QF.items)};
+  const rec=QF.id?await run(sb.from('quotations').update(row).eq('id',QF.id).select().single()):await run(sb.from('quotations').insert(row).select().single());
+  toast('Quotation saved: '+rec.quote_no);
+  if(print===true)slipPrintDoc(qtDoc(qRecToQ(rec),getQL(),false));
+  else if(print==='pdf')await qtPdfDownload(qRecToQ(rec));
+  else if(print==='email')await qtEmail(qRecToQ(rec));
+  QF=null;go('quotes');
+}
+
+/* ---------- fetch specs from a product page ---------- */
+const QT_ALIAS={cpu:'processor',ram:'memory','memory ram':'memory',ssd:'storage','hard disk':'storage',hdd:'storage',gpu:'graphics','graphic':'graphics','graphics card':'graphics',screen:'display','display size':'display','wi fi':'wireless',wifi:'wireless','wi-fi':'wireless',os:'operating system',opertaing_system:'operating system',webcam:'camera','hardware warranty':'hardware warranty','service warranty':'service warranty','i/o ports':'ports',port:'ports','power adapter':'adapter',charger:'adapter',gift:'free',freebies:'free'};
+const qNk=s=>String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+const qClean=s=>String(s||'').replace(/ /g,' ').replace(/\s+/g,' ').trim();
+function qMatcher(){const keys=qSpecKeys(),map={};keys.forEach(k=>map[qNk(k)]=k);
+  const match=k=>{const n=qNk(k);if(!n)return null;if(map[n])return map[n];const a=QT_ALIAS[n]||QT_ALIAS[String(k).toLowerCase().trim()];if(a&&map[a])return map[a];for(const w of Object.keys(map)){if(n.startsWith(w+' ')||(w.length>4&&n===w+'s'))return map[w]}return null};
+  return {keys,match}}
+function qJsonCands(o,c,d){d=d||0;if(d>14||o==null)return;
+  if(Array.isArray(o)){o.forEach(x=>qJsonCands(x,c,d+1));return}
+  if(typeof o!=='object')return;
+  const nm=o.name||o.label||o.key||o.title||o.attribute,vl=o.value!=null?o.value:(o.values||o.terms||o.options||o.description);
+  if(typeof nm==='string'&&vl!=null){const v=Array.isArray(vl)?vl.map(x=>typeof x==='string'?x:(x&&(x.name||x.value||x.label))||'').join(', '):(typeof vl==='string'||typeof vl==='number'?String(vl):'');
+    if(v)c.push([qClean(nm),qClean(new DOMParser().parseFromString(v,'text/html').body.textContent)])}
+  Object.keys(o).forEach(k=>{const v=o[k];if(typeof v==='string'&&v.length<500&&v.length>1&&!/^https?:/.test(v))c.push([qClean(k.replace(/_/g,' ')),qClean(v)]);else if(typeof v==='string'&&/<(table|tr|li|p)\b/i.test(v))c.push(['__html',v]);else qJsonCands(v,c,d+1)})}
+function qtParseText(text){
+  const {keys,match}=qMatcher();
+  const names=keys.concat(Object.keys(QT_ALIAS).filter(a=>a.length>=5&&keys.some(k=>qNk(k)===QT_ALIAS[a]))).map(x=>x.toUpperCase().replace(/[.*+?^${}()|[\]\\\/]/g,'\\$&')).sort((a,b)=>b.length-a.length);
+  /* copied web pages often put everything on ONE line: break it before every CAPITAL-LETTER spec heading (not inside "I YEAR HARDWARE WARRANTY -") */
+  const kre=new RegExp('(^|[^A-Za-z0-9])('+names.join('|')+')(?![A-Za-z0-9])','g');
+  text=String(text||'').replace(kre,(m,pre,k,off,str)=>{const before=str.slice(Math.max(0,off-8),off+pre.length);if(/(YEARS?|YRS?)\s*$/i.test(before))return m;if(/^\s*[–—-]/.test(str.slice(off+m.length,off+m.length+3)))return m;return pre+'\n'+k+'\n'});
+  const L=String(text||'').replace(/\r/g,'').split('\n').map(x=>qClean(x)).filter(Boolean),got={};
+  for(let i=0;i<L.length;i++){
+    let m=L[i].match(/^([A-Za-z][A-Za-z0-9 \/&\-\.]{1,30}?)\s*[:\u2013\u2014]\s*(.{2,})$/),w=m&&match(m[1]);
+    if(w){if(!got[w])got[w]=m[2];continue}
+    const tab=String(L[i]).split(/\t+/);if(tab.length>=2&&(w=match(tab[0]))){if(!got[w])got[w]=tab.slice(1).join(' ');continue}
+    if((w=match(L[i]))&&L[i].length<32&&!got[w]){const v=[];for(let j=i+1;j<L.length&&v.length<3;j++){if(match(L[j])&&L[j].length<32)break;if(/^(related|you may also|description|reviews?|add to cart|share|sku|categor|tags?|additional information|customers? (also|who)|recently viewed|buy now|compare|wishlist)/i.test(L[j]))break;v.push(L[j])}if(v.length)got[w]=v.join(' ')}
+  }
+  const cut=v=>v.replace(/\s+(Related products|You may also like|Customers (also|who)|Recently viewed|Reviews?\b|Add to cart|Additional information|Share this).*$/i,'').trim();
+  return {matched:keys.filter(k=>got[k]).map(k=>[k,cut(got[k])]),other:[]};
+}
+function qtParseSpecs(html){
+  const doc=new DOMParser().parseFromString(String(html||''),'text/html');
+  const jc=[];doc.querySelectorAll('script').forEach(sc=>{const t=sc.textContent||'';if(!/json/i.test(sc.type||'')&&!/__NEXT_DATA__|__NUXT__/.test(sc.id+t.slice(0,40)))return;try{qJsonCands(JSON.parse(t),jc)}catch(e){}});
+  doc.querySelectorAll('script,style,noscript').forEach(n=>n.remove());
+  doc.querySelectorAll('br').forEach(b=>b.replaceWith('\n'));
+  const {keys,match}=qMatcher();
+  const cand=[];jc.forEach(c=>{if(c[0]==='__html'){const r=qtParseSpecs(c[1]);r.matched.forEach(x=>cand.push(x))}else cand.push(c)});
+  doc.querySelectorAll('tr').forEach(tr=>{const c=[...tr.children].filter(x=>/^(TD|TH)$/.test(x.tagName));if(c.length>=2)cand.push([qClean(c[0].textContent),qClean(c.slice(1).map(x=>x.textContent).join(' '))])});
+  doc.querySelectorAll('dt').forEach(dt=>{const dd=dt.nextElementSibling;if(dd&&dd.tagName==='DD')cand.push([qClean(dt.textContent),qClean(dd.textContent)])});
+  doc.querySelectorAll('li,p,div,span').forEach(el=>{if(el.querySelector('li,p,div,table'))return;String(el.textContent).split('\n').forEach(l=>{const m=l.match(/^\s*([A-Za-z][A-Za-z0-9 \/&\-\.]{1,30}?)\s*[:–—]\s*(.{2,})$/);if(m)cand.push([qClean(m[1]),qClean(m[2])])})});
+  const got={},any=[];
+  cand.forEach(([k,v])=>{if(!k||!v||v.length>500)return;const w=match(k);if(w){if(!got[w])got[w]=v}else if(!any.find(a=>a[0]===k))any.push([k,v])});
+  return {matched:keys.filter(k=>got[k]).map(k=>[k,got[k]]),other:any};
+}
+async function qfFetch(i){
+  const it=QF.items[i],st=$('#q_fs'+i),say=t=>{if(st)st.textContent=t};
+  const u=String(it.url||'').trim();let U;try{U=new URL(u)}catch(e){return toast('Paste the full product link (https://...)',true)}
+  say('Fetching...');
+  const log=[],short=url=>url.replace(/^https?:\/\//,'').slice(0,40);
+  const J=async url=>{try{const r=await fetch(url);log.push(short(url)+' -> '+r.status);return r.ok?await r.json():null}catch(e){log.push(short(url)+' -> blocked');return null}};
+  const X=async url=>{try{const r=await fetch(url);log.push(short(url)+' -> '+r.status);if(!r.ok)return null;const t=await r.text();return t.length>800?t:null}catch(e){log.push(short(url)+' -> blocked');return null}};
+  const segs=U.pathname.split('/').filter(Boolean),slug=decodeURIComponent(segs[segs.length-1]||''),pid=U.searchParams.get('p')||U.searchParams.get('product_id');
+  let name='',price='',frags=[];
+  let sa=pid?await J(U.origin+'/wp-json/wc/store/v1/products/'+pid):await J(U.origin+'/wp-json/wc/store/v1/products?slug='+encodeURIComponent(slug));
+  if(Array.isArray(sa))sa=sa[0];
+  if(sa&&sa.name){name=qClean(new DOMParser().parseFromString(sa.name,'text/html').body.textContent);if(sa.prices&&sa.prices.price)price=(+sa.prices.price)/Math.pow(10,sa.prices.currency_minor_unit==null?2:sa.prices.currency_minor_unit);
+    frags.push(sa.short_description||'',sa.description||'');(sa.attributes||[]).forEach(a=>frags.push('<table><tr><td>'+a.name+'</td><td>'+(a.terms||[]).map(t=>t.name).join(', ')+'</td></tr></table>'))}
+  else{let w=pid?await J(U.origin+'/wp-json/wp/v2/product/'+pid):await J(U.origin+'/wp-json/wp/v2/product?slug='+encodeURIComponent(slug));if(Array.isArray(w))w=w[0];if(w&&w.content){name=qClean(new DOMParser().parseFromString((w.title||{}).rendered||'','text/html').body.textContent);frags.push(w.content.rendered||'',(w.excerpt||{}).rendered||'')}}
+  let r=qtParseSpecs(frags.join('\n'));
+  if(r.matched.length<4){
+    for(const link of [u,'https://api.allorigins.win/raw?url='+encodeURIComponent(u),'https://corsproxy.io/?url='+encodeURIComponent(u)]){
+      const html=await X(link);if(!html)continue;
+      const r2=qtParseSpecs(html);
+      if(!name){const d=new DOMParser().parseFromString(html,'text/html');name=qClean((d.querySelector('h1.product_title,h1')||{}).textContent||'')}
+      if(r2.matched.length>r.matched.length)r=r2;
+      if(r.matched.length>=4)break;
+    }
+  }
+  if(!r.matched.length){say('Could not read the specs automatically ('+log.join('; ')+'). Easy way: open the product page, press Ctrl+A then Ctrl+C, paste everything in the "Paste specs" box below and click Import lines - it picks only the key specifications.');return}
+  const found=Object.fromEntries(r.matched);
+  const old=(it.specs||[]).filter(x=>x&&String(x[1]||'').trim()&&!qSpecKeys().some(k=>qNk(k)===qNk(x[0])));
+  it.specs=qSpecKeys().map(k=>[k,found[k]||'']).concat(old);
+  if(name&&!String(it.model||'').trim())it.model=name;
+  if(price&&!(+it.price))it.price=price;
+  qfDraw();const s2=$('#q_fs'+i);if(s2)s2.textContent='Done: '+r.matched.length+' specifications fetched. Please check them, and fill any empty rows manually.';
+}
+/* ---------- PDF download + e-mail (no external libraries) ---------- */
+async function qtPdfBlob(q,ql){
+  const LET=ql.size==='Letter',Wmm=LET?215.9:210,Hmm=LET?279.4:297,M=+ql.margin>=0?+ql.margin:12,cw=Wmm-2*M,px=Math.round(cw*96/25.4),mmpx=cw/px,S=2;
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;left:-20000px;top:0;border:0;width:'+px+'px;height:1200px';document.body.appendChild(f);
+  try{
+    await new Promise(r=>{f.onload=r;f.srcdoc=qtDoc(q,ql,false)});await new Promise(r=>setTimeout(r,250));
+    const d=f.contentDocument,win=f.contentWindow;f.style.height=Math.ceil(d.documentElement.scrollHeight)+'px';
+    const H=Math.ceil(Math.max(d.documentElement.scrollHeight,d.body.scrollHeight));
+    const top=el=>el.getBoundingClientRect().top+win.scrollY;
+    const hdrEl=d.querySelector('table.pg>thead>tr>td'),hdrH=hdrEl?Math.ceil(hdrEl.getBoundingClientRect().height):0;
+    const L1=[...d.querySelectorAll('.sec')].map(top),L2=[...d.querySelectorAll('.sec tr,.pp,.ck,.model,.spt,.pn,.sg>div')].map(top);
+    const Hpx=(Hmm-2*M)/mmpx,pages=[];let start=0,first=true;
+    while(start<H-1){const cap=first?Hpx:Hpx-hdrH,lim=start+cap;if(H<=lim){pages.push([start,H]);break}
+      let c=Math.max(0,...L1.filter(t=>t>start+cap*.35&&t<=lim));if(!c)c=Math.max(0,...L2.filter(t=>t>start+cap*.2&&t<=lim));if(!c)c=lim;
+      pages.push([start,c]);start=c+2;first=false}
+    const styles=[...d.querySelectorAll('style')].map(s=>new XMLSerializer().serializeToString(s)).join(''),body=new XMLSerializer().serializeToString(d.body);
+    const svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+px+'" height="'+H+'"><foreignObject x="0" y="0" width="'+px+'" height="'+H+'"><div xmlns="http://www.w3.org/1999/xhtml" style="width:'+px+'px">'+styles+body+'</div></foreignObject></svg>';
+    const img=new Image();await new Promise((ok,bad)=>{img.onload=ok;img.onerror=()=>bad(new Error('render failed'));img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg)});
+    const full=document.createElement('canvas');full.width=px*S;full.height=H*S;const fx=full.getContext('2d');fx.fillStyle='#fff';fx.fillRect(0,0,full.width,full.height);fx.drawImage(img,0,0,px*S,H*S);
+    const out=[];
+    pages.forEach(([a,b],i)=>{const hh=(b-a)+(i?hdrH:0),c=document.createElement('canvas');c.width=px*S;c.height=Math.max(1,Math.round(hh*S));const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
+      if(i){x.drawImage(full,0,0,px*S,hdrH*S,0,0,px*S,hdrH*S);x.drawImage(full,0,a*S,px*S,(b-a)*S,0,hdrH*S,px*S,(b-a)*S)}else x.drawImage(full,0,a*S,px*S,(b-a)*S,0,0,px*S,(b-a)*S);
+      const u=c.toDataURL('image/jpeg',.92).split(',')[1],bin=atob(u),by=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)by[k]=bin.charCodeAt(k);
+      out.push({jpg:by,w:c.width,h:c.height,wmm:cw,hmm:hh*mmpx})});
+    return qtPdfBuild(out,Wmm,Hmm,M);
+  }finally{f.remove()}
+}
+function qtPdfBuild(pg,Wmm,Hmm,M){
+  const pt=m=>m*72/25.4,enc=new TextEncoder(),ch=[],off=[];let len=0;
+  const add=b=>{if(typeof b==='string')b=enc.encode(b);ch.push(b);len+=b.length};
+  const obj=(n,fn)=>{off[n]=len;add(n+' 0 obj\n');fn();add('\nendobj\n')};
+  const N=2+pg.length*3,W=pt(Wmm).toFixed(2),H=pt(Hmm).toFixed(2);
+  add('%PDF-1.4\n');
+  obj(1,()=>add('<</Type/Catalog/Pages 2 0 R>>'));
+  obj(2,()=>add('<</Type/Pages/Count '+pg.length+'/Kids['+pg.map((_,i)=>(3+i*3)+' 0 R').join(' ')+']>>'));
+  pg.forEach((p,i)=>{const pn=3+i*3,cn=pn+1,im=pn+2,w=pt(p.wmm),h=pt(p.hmm),y=pt(Hmm)-pt(M)-h;
+    obj(pn,()=>add('<</Type/Page/Parent 2 0 R/MediaBox[0 0 '+W+' '+H+']/Contents '+cn+' 0 R/Resources<</XObject<</Im0 '+im+' 0 R>>>>>>'));
+    const cs='q '+w.toFixed(2)+' 0 0 '+h.toFixed(2)+' '+pt(M).toFixed(2)+' '+y.toFixed(2)+' cm /Im0 Do Q';
+    obj(cn,()=>add('<</Length '+cs.length+'>>\nstream\n'+cs+'\nendstream'));
+    obj(im,()=>{add('<</Type/XObject/Subtype/Image/Width '+p.w+'/Height '+p.h+'/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length '+p.jpg.length+'>>\nstream\n');add(p.jpg);add('\nendstream')})});
+  const xr=len;add('xref\n0 '+(N+1)+'\n0000000000 65535 f \n');for(let n=1;n<=N;n++)add(String(off[n]).padStart(10,'0')+' 00000 n \n');
+  add('trailer\n<</Size '+(N+1)+'/Root 1 0 R>>\nstartxref\n'+xr+'\n%%EOF');
+  return new Blob(ch,{type:'application/pdf'});
+}
+const qFileName=q=>('Quotation-'+(q.quote_no||'draft')+'-'+String(q.customer_name||'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')).slice(0,80)+'.pdf';
+async function qtPdfDownload(q){
+  toast('Creating PDF...');
+  try{const blob=await qtPdfBlob(q,getQL()),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=qFileName(q);document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href)},4000);toast('PDF downloaded: '+a.download);return true}
+  catch(e){console.error(e);toast('PDF failed: '+e.message,true);return false}
+}
+async function qtEmail(q){
+  const to=String(q.customer_email||'').trim();if(!to)return toast('Enter the customer email first',true);
+  const ok=await qtPdfDownload(q);if(!ok)return;
+  const ql=getQL(),co=coInfo(),ly=getLY(),fill=t=>String(t||'').replace(/\{no\}/g,q.quote_no||'').replace(/\{customer\}/g,q.customer_name||'').replace(/\{subject\}/g,q.subject||'').replace(/\{company\}/g,co.n||'').replace(/\{phone\}/g,co.p||'').replace(/\{email\}/g,ly.email||'');
+  const url='mailto:'+encodeURIComponent(to).replace(/%40/g,'@')+'?subject='+encodeURIComponent(fill(ql.emailSub))+'&body='+encodeURIComponent(fill(ql.emailBody)).replace(/%0A/g,'%0D%0A');
+  setTimeout(()=>{location.href=url},700);
+  toast('Outlook is opening - attach the downloaded PDF to the email (drag it in or use Attach).');
+}
+async function qPdf(id){const r=QROWS[id]||await run(sb.from('quotations').select('*').eq('id',id).single());return qtPdfDownload(qRecToQ(r))}
+async function qMail(id){const r=QROWS[id]||await run(sb.from('quotations').select('*').eq('id',id).single());return qtEmail(qRecToQ(r))}
+/* ---------- editor ---------- */
+Object.assign(JE_NAMES,{lh_logo:'Logo',spec_k:'Spec names (left column)',spec_v:'Spec values',pr_desc:'Price table: description',pr_unit:'Price table: unit price',pr_qty:'Price table: qty',pr_tot:'Price table: total',a_total:'Total amount',about:'About us text',why:'Why choose list',closing:'Closing note text',note:'Extra note',pnote:'Price note',cheque_pre:'Cheque note',cheque_name:'Cheque name (highlight)',sg_best:'Best regards',sg_name:'Company name (sign-off)',sg_phone:'Phone (sign-off)',sg_email:'Email (sign-off)',v_date:'Date value',v_ref:'Quotation no value',v_for:'Customer name value',v_addr:'Customer address value',v_subj:'Subject value',v_model:'Model value'});
+JE_NOTEXT.push('lh_logo','spec_k','spec_v','pr_desc','pr_unit','pr_qty','pr_tot','a_total','v_date','v_ref','v_for','v_addr','v_subj','v_model');
+let QTLOGO='';
+PAGES.quoteeditor=async()=>{
+  const ql=getQL(),G={...QT_GDEF,...(ql.g||{})};QTLOGO=ql.logo||'';
+  JE_MODE='quote';JE_TEXTMAP={about:'qe_about',why:'qe_why',closing:'qe_closing'};JEST=JSON.parse(JSON.stringify(ql.st||{}));JE_SEL='';
+  const ck=(id,v,l)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''} onchange="jePrev()"> ${l}</label>`;
+  const colors=[['name','Company name colour'],['title','Headings colour'],['accent','Gold accent / letterhead line'],['value','Text colour'],['border','Table border'],['line','Section lines'],['headBg','Table heading background'],['headText','Table heading text']];
+  $('#main').innerHTML=`<div class="top"><h2>Quotation editor</h2><div class="bar"><div style="flex:0"><button class="btn" onclick="qtSave()">Save</button></div></div></div>
+  <div class="job-editor-grid"><div>
+   <div class="card"><b>Paper &amp; layout</b>
+    <div class="bar" style="margin-top:8px"><div><label>Paper size</label><select id="qe_sz" onchange="jePrev()"><option ${ql.size!=='Letter'?'selected':''}>A4</option><option ${ql.size==='Letter'?'selected':''}>Letter</option></select></div><div><label>Margin (mm)</label><input id="qe_mg" type="number" min="5" max="30" value="${ql.margin}" oninput="jePrev()"></div><div><label>Base font size (px)</label><input id="qe_fs" type="number" min="8" max="20" step="0.5" value="${ql.fontSize}" oninput="jePrev()"></div></div></div>
+   <div class="card"><b>Letterhead logo</b>
+    ${ck('qe_lo',ql.logoOn,'Show logo')}${ck('qe_ul',ql.useInvLogo,'Use the invoice logo instead')}
+    <div class="row"><label>Upload a different logo (empty = the logo from your sample)</label><input type="file" accept="image/*" onchange="qtLogo(this)"> <button class="btn sec sm" onclick="QTLOGO='';jePrev()">Use default logo</button></div>
+    <div style="margin-top:8px;max-width:160px"><label>Logo height (px)</label><input id="qe_lh" type="number" min="20" max="120" value="${ql.logoH}" oninput="jePrev()"></div></div>
+   <div class="card"><b>Fonts &amp; colours</b>
+    <div class="mut" style="margin:6px 0">Tip: <b>click any text in the live preview</b> to change its font, size, colour, background, bold, align or position. <b>Double-click</b> to type over it. Arrow keys / drag move it.</div>
+    <div class="row"><label>Font for the whole quotation</label><select id="qe_g_font" onchange="jePrev()">${JE_FONTS.map(f=>`<option value="${esc(f[0])}" ${(G.font||'')===f[0]?'selected':''}>${f[1]}</option>`).join('')}</select></div>
+    <div class="bar" style="margin-top:8px">${colors.map(([k,l])=>`<div style="min-width:140px"><label>${l}</label><input id="qe_g_${k}" type="color" value="${esc(G[k])}" oninput="jePrev()" style="padding:2px;height:34px"></div>`).join('')}</div>
+    <div style="margin-top:8px"><button class="btn sec sm" onclick="qtGReset()">Reset fonts &amp; colours</button> <button class="btn sec sm" onclick="JEST={};jeSelClose();jePrev()">Clear all click-edits</button></div></div>
+   <div class="card"><b>Standard texts (used on every quotation)</b>
+    <div style="margin-top:8px"><label>About us (one paragraph per line)</label><textarea id="qe_about" rows="6" style="width:100%" oninput="jePrev()">${esc(ql.about)}</textarea></div>
+    <div style="margin-top:8px"><label>Why choose us (one tick point per line)</label><textarea id="qe_why" rows="4" style="width:100%" oninput="jePrev()">${esc(ql.why)}</textarea></div>
+    <div style="margin-top:8px"><label>Closing note (one paragraph per line)</label><textarea id="qe_closing" rows="3" style="width:100%" oninput="jePrev()">${esc(ql.closing)}</textarea></div></div>
+   <div class="card"><b>Email text (Email button)</b><div class="mut" style="margin:6px 0">You can use {no} {customer} {subject} {company} {phone} {email}.</div>
+    <label>Subject</label><input id="qe_emsub" value="${esc(ql.emailSub)}"><div style="margin-top:8px"><label>Message</label><textarea id="qe_embody" rows="7" style="width:100%">${esc(ql.emailBody)}</textarea></div></div>
+   <div class="card"><b>Technical specifications</b>
+    <div class="mut" style="margin:6px 0">These rows (in this order) are used for every new product and for the website fetch - only these key specifications are taken from your website. One per line, first line = first row.</div>
+    <textarea id="qe_speck" rows="9" style="width:100%" oninput="jePrev()">${esc(ql.specKeys)}</textarea>
+    ${ck('qe_su',ql.specUpper!==false,'Names in CAPITAL letters')}${ck('qe_sl',ql.specLines!==false,'Line between rows')}${ck('qe_sd',ql.showDetails!==false,'"DETAILS" heading row')}</div>
+   <div class="card"><b>Show / hide</b>${ck('qe_sh',ql.showLH,'Letterhead')}${ck('qe_sa',ql.showAbout,'About us')}${ck('qe_sw',ql.showWhy,'Why choose us')}${ck('qe_sc',ql.showClosing,'Closing note')}${ck('qe_sq',ql.showCheque,'Cheque note')}</div>
+  </div><div class="job-preview-card">
+  <div class="card"><b>Live preview</b><div class="bar" style="margin:8px 0"><div style="flex:0 0 130px"><label>Zoom</label><select id="je_zoom" onchange="jePrev()"><option value="fit">Fit</option><option value="1">100%</option><option value="0.75">75%</option><option value="0.5">50%</option></select></div><div class="mut" style="flex:2">Sample data. Pages break automatically when printing and the letterhead repeats on every page.</div></div><div id="jpw" class="job-preview-wrap"><iframe id="je_pv" style="width:800px;height:1100px"></iframe></div></div></div></div>
+  ${jePanelHtml()}`;
+  jePrev();
+};
+function qtRead(){
+  const g=id=>$('#'+id),G={};Object.keys(QT_GDEF).forEach(k=>G[k]=g('qe_g_'+k).value);
+  return {size:g('qe_sz').value,margin:+g('qe_mg').value||12,fontSize:+g('qe_fs').value||12,logoOn:g('qe_lo').checked,useInvLogo:g('qe_ul').checked,logo:QTLOGO,logoH:+g('qe_lh').value||36,
+   showLH:g('qe_sh').checked,showAbout:g('qe_sa').checked,showWhy:g('qe_sw').checked,showClosing:g('qe_sc').checked,showCheque:g('qe_sq').checked,specKeys:g('qe_speck').value,emailSub:g('qe_emsub').value,emailBody:g('qe_embody').value,specUpper:g('qe_su').checked,specLines:g('qe_sl').checked,showDetails:g('qe_sd').checked,about:g('qe_about').value,why:g('qe_why').value,closing:g('qe_closing').value,g:G,st:JEST};
+}
+function qtPrev(){
+  const ql=qtRead();
+  const q={quote_no:'QT-00001',q_date:today(),customer_name:'Sample Customer Pvt Ltd',customer_address:'No 10, Main Street, Colombo 03',subject:'Laptop supply proposal',note:'',items:[{model:'HP Victus FA2082WM',desc:'',price:312000,qty:1,specs:[['Operating System','Windows 11 64 Bit'],['Processor','Intel Core i5-13420H (up to 4.60 GHz) - 8 Cores, 12 Threads, 12MB Cache'],['Graphics','NVIDIA GeForce RTX 4050 Laptop GPU (6 GB GDDR6 dedicated)'],['Memory','16GB DDR4-3200 MHz RAM Max Up to 40 GB'],['Storage','512GB NVMe SSD'],['Display','39.6 cm (15.6") diagonal, FHD (1920 x 1080), 144 Hz, IPS'],['Warranty','1 Year Hardware + 2 Year Service Warranty']]}]};
+  const f=$('#je_pv'),LET=ql.size==='Letter',px=Math.round((LET?215.9:210)*3.7795)+10,zs=$('#je_zoom').value,ww=$('#jpw').clientWidth||900,z=zs==='fit'?Math.min(1,(ww-20)/px):+zs;
+  f.style.width=px+'px';f.style.transform='scale('+z+')';f.style.transformOrigin='0 0';
+  f.onload=()=>{try{const h=Math.max(900,f.contentDocument.documentElement.scrollHeight+10);f.style.height=h+'px';$('#jpw').style.height=Math.round(h*z+24)+'px'}catch(e){}if(JE_REFILL){JE_REFILL=false;jePanelFill()}};
+  f.srcdoc=qtDoc(q,ql,true,JE_SEL);
+}
+function qtGReset(){Object.keys(QT_GDEF).forEach(k=>{$('#qe_g_'+k).value=QT_GDEF[k]});$('#qe_g_font').value='';jePrev()}
+function qtLogo(inp){
+  const f=inp.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,600/im.width),c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);QTLOGO=c.toDataURL('image/png');$('#qe_ul').checked=false;jePrev()};im.src=r.result};
+  r.readAsDataURL(f);
+}
+async function qtSave(){
+  const row={key:'quote_layout',value:JSON.stringify(qtRead())};
+  await run(sb.from('settings').upsert([row]));settings.quote_layout=row.value;toast('Quotation layout saved');
 }
 
 </script>
