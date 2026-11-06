@@ -6,7 +6,7 @@
 <title>Stock & Invoice System</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="config.js?v=1"></script>
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 <div id="cssWarn" style="background:#b42318;color:#fff;padding:12px 16px;font:14px Arial,sans-serif">style.css was not found. Upload <b>style.css</b> into the same folder as index.html on GitHub (same level, same name), then reload this page.</div>
@@ -589,7 +589,7 @@ PAGES.invoice=async()=>{
    <div><label>PO No</label><input id="v_po" value="${esc(inv.po_no)}"></div>
    <div><label>Sales rep</label><select id="v_rep"><option value="">-</option>${reps.map(r=>`<option ${r===inv.rep_name?'selected':''}>${esc(r)}</option>`).join('')}</select></div></div></div>
   <div class="card"><b>Customer</b>
-   <div style="position:relative;margin-top:8px"><label>Search customer (name, code or phone)</label><input id="cs" placeholder="Type to search…" oninput="custSearch(this.value)" autocomplete="off"><div id="cs_res" class="sresbox"></div></div>
+   <div class="cbwrap" style="position:relative;margin-top:8px"><label>Search customer (name, code or phone)</label><input id="cs" placeholder="Click to choose a customer, or type to search…" oninput="cbSearch('cs',this.value)" onfocus="cbSearch('cs',this.value,1)" onclick="cbSearch('cs',this.value,1)" onkeydown="cbKey(event,'cs')" autocomplete="new-password" name="cs_find"><div id="cs_res" class="sresbox"></div></div>
    <div class="bar" style="margin-top:8px"><div style="flex:0 0 130px"><label>Code</label><input id="v_cc" readonly value="${esc(CUST.code)}"></div><div style="flex:2"><label>Name</label><input id="v_cn" value="${esc(inv.customer_name)}"></div>
     <div><label>Phone</label><input id="v_ph" value="${esc(inv.phone)}"></div><div style="flex:2"><label>Address</label><input id="v_ad" value="${esc(inv.address)}"></div></div>
    <div style="margin-top:8px">${hasP('customers')?'<button class="btn sec sm" onclick="customerModal(0,custFill)">+ New customer</button> ':''}<button class="btn sec sm" onclick="custClear()">Clear customer</button></div></div>
@@ -613,16 +613,38 @@ PAGES.invoice=async()=>{
   invRender();
 };
 function fmtOptions(){const cur=localStorage.getItem('fmt')||getLY().fmt||'a4';return [['a4','A4'],['a5','A5'],['th80','Thermal 80mm'],['dotf','Dot matrix - full page (9.5x11in)'],['doth','Dot matrix - half page (9.5x5.5in)']].map(f=>`<option value="${f[0]}" ${f[0]===cur?'selected':''}>${f[1]}</option>`).join('')}
-function custSearch(v){
-  clearTimeout(CS_T);
-  CS_T=setTimeout(async()=>{
-    const s=v.replace(/[,()%]/g,' ').trim(),box=$('#cs_res');
-    if(!s){box.innerHTML='';return}
-    CS_LIST=await run(sb.from('customers').select('*').or(`name.ilike.%${s}%,code.ilike.%${s}%,phone.ilike.%${s}%`).limit(8));
-    box.innerHTML=CS_LIST.map((c,i)=>`<div class="sres" onclick="custPick(${i})"><b>${esc(c.name)}</b> <span class="mut">${esc(c.code)} ${esc(c.phone)}</span></div>`).join('')||'<div class="sres mut">No customer found. Type the name below for a walk-in customer.</div>';
-  },250);
+/* ---- customer drop-down box (used on invoice, job note, quotation) ---- */
+const CB={},CB_T={};
+function cbSearch(p,v,now){
+  clearTimeout(CB_T[p]);
+  CB_T[p]=setTimeout(async()=>{
+    const q=String(v||'').replace(/[,()%]/g,' ').trim();
+    let r=sb.from('customers').select('*').order('name').limit(q?20:40);
+    if(q)r=r.or(`name.ilike.%${q}%,code.ilike.%${q}%,phone.ilike.%${q}%`);
+    const d=await run(r);CB[p]={list:d||[],idx:-1,q};cbDraw(p);
+  },now?0:220);
 }
-function custPick(i){custFill(CS_LIST[i])}
+function cbDraw(p){
+  const box=$('#'+p+'_res'),st=CB[p];if(!box||!st)return;
+  const rows=st.list.map((c,i)=>`<div class="sres2${i===st.idx?' on':''}" onmousedown="event.preventDefault();cbPick('${p}',${i})"><div class="nm2">${esc(c.name)}</div><div class="sub2">${[c.code,c.phone,c.address].filter(Boolean).map(esc).join(' &middot; ')}</div></div>`).join('');
+  box.innerHTML=`<div class="cbhead">${st.q?'Search results':'Saved customers'} (${st.list.length})${st.list.length>=(st.q?20:40)?' - type to narrow down':''}</div>`+(rows||'<div class="cbnone">No customer found. You can type the name below for a walk-in customer.</div>');
+}
+function cbPick(p,i){
+  const st=CB[p];if(!st||!st.list[i])return;const c=st.list[i];
+  if(p==='cs')custFill(c);else if(p==='jcs')jobCustFill(c);
+  else if(p==='q_cn'){$('#q_cn').value=c.name||'';$('#q_ca').value=c.address||$('#q_ca').value;if(c.email)$('#q_ce').value=c.email}
+  cbClose(p);
+}
+function cbClose(p){const b=$('#'+p+'_res');if(b)b.innerHTML='';if(CB[p])CB[p].idx=-1}
+function cbKey(e,p){
+  const st=CB[p];if(!st)return;const n=st.list.length;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();if(!$('#'+p+'_res').innerHTML)return cbSearch(p,e.target.value,1);st.idx=(st.idx+(e.key==='ArrowDown'?1:-1)+n)%n;cbDraw(p);const el=$('#'+p+'_res .sres2.on');if(el)el.scrollIntoView({block:'nearest'})}
+  else if(e.key==='Enter'&&st.idx>=0&&$('#'+p+'_res').innerHTML){e.preventDefault();cbPick(p,st.idx)}
+  else if(e.key==='Escape'||e.key==='Tab')cbClose(p);
+}
+document.addEventListener('mousedown',e=>{if(e.target.closest&&e.target.closest('.cbwrap'))return;['cs','jcs','q_cn'].forEach(cbClose)});
+function custSearch(v){cbSearch('cs',v)}
+function custPick(i){cbPick('cs',i)}
 function custFill(c){CUST={id:c.id,code:c.code};$('#v_cc').value=c.code||'';$('#v_cn').value=c.name||'';$('#v_ph').value=c.phone||'';$('#v_ad').value=c.address||'';$('#cs').value='';$('#cs_res').innerHTML=''}
 function custClear(){CUST={id:null,code:''};['v_cc','v_cn','v_ph','v_ad','cs'].forEach(x=>$('#'+x).value='');$('#cs_res').innerHTML=''}
 async function invPick(){
@@ -1223,7 +1245,7 @@ PAGES.jobform=async()=>{
     <div><label>Date / time${hasP('backdate')?'':' (now)'}</label><input id="j_dt" type="datetime-local" value="${toLocalDT(JF.job_date)}" ${hasP('backdate')?'':'disabled'}></div>
     <div><label>Job no</label><input readonly value="${esc(j.job_no||'(automatic)')}"></div>
     <div><label>Status</label><select id="j_st">${JSTAT.map(x=>`<option ${x===JF.status?'selected':''}>${x}</option>`).join('')}</select></div></div>
-   <div style="position:relative;margin-top:10px"><label>Search customer (name, code or phone)</label><input id="jcs" placeholder="Type to search…" oninput="jobCustSearch(this.value)" autocomplete="off"><div id="jcs_res" class="sresbox"></div></div>
+   <div class="cbwrap" style="position:relative;margin-top:10px"><label>Search customer (name, code or phone)</label><input id="jcs" placeholder="Click to choose a customer, or type to search…" oninput="cbSearch('jcs',this.value)" onfocus="cbSearch('jcs',this.value,1)" onclick="cbSearch('jcs',this.value,1)" onkeydown="cbKey(event,'jcs')" autocomplete="new-password" name="jcs_find"><div id="jcs_res" class="sresbox"></div></div>
    <div class="bar" style="margin-top:8px"><div style="flex:0 0 130px"><label>Customer code</label><input id="j_cc" readonly value="${esc(JF.customer_code)}"></div>${inp('j_cn','Customer name',JF.customer_name).replace('<div>','<div style="flex:2">')}${inp('j_mo','Mobile',JF.mobile)}${inp('j_wa','WhatsApp',JF.whatsapp)}${inp('j_em','Email',JF.email)}</div>
    <div class="bar" style="margin-top:8px"><div style="flex:0 0 200px"><label>Purchasing date</label><input id="j_pd" type="date" value="${esc(JF.checks.purchase_date||'')}"></div><div style="flex:0 0 240px"><label>Invoice number</label><input id="j_inv" placeholder="Type the invoice number" value="${esc(JF.checks.invoice_no||'')}"></div></div>
    <div style="margin-top:8px">${hasP('customers')?'<button class="btn sec sm" onclick="customerModal(0,jobCustFill)">+ New customer</button> ':''}<button class="btn sec sm" onclick="jobCustClear()">Clear customer</button></div></div>
@@ -1255,15 +1277,7 @@ const inertDiv=h=>new DOMParser().parseFromString('<body><div>'+h+'</div></body>
 const plainText=v=>{const s=String(v||'');if(!/<[a-z][\s\S]*>/i.test(s))return s;const d=inertDiv(s.replace(/<\/?(br|div|p|li)\s*\/?>/gi,' $&'));return (d.textContent||'').replace(/\s+/g,' ').trim()};
 const richTextHtml=v=>{const d=inertDiv(String(v||''));d.querySelectorAll('script,style,iframe,object,embed,link,meta').forEach(x=>x.remove());d.querySelectorAll('*').forEach(x=>{[...x.attributes].forEach(a=>{if(/^on/i.test(a.name)||a.name==='href'||a.name==='src')x.removeAttribute(a.name)});});return d.innerHTML};
 function jobTick(g,i,on){const x=getJL()[JKEY[g]][i],a=JF.checks[g],k=a.indexOf(x);if(on&&k<0)a.push(x);if(!on&&k>=0)a.splice(k,1)}
-function jobCustSearch(v){
-  clearTimeout(JCS_T);
-  JCS_T=setTimeout(async()=>{
-    const s=v.replace(/[,()%]/g,' ').trim(),box=$('#jcs_res');
-    if(!s){box.innerHTML='';return}
-    JCS_LIST=await run(sb.from('customers').select('*').or(`name.ilike.%${s}%,code.ilike.%${s}%,phone.ilike.%${s}%`).limit(8));
-    box.innerHTML=JCS_LIST.map((c,i)=>`<div class="sres" onclick="jobCustFill(JCS_LIST[${i}])"><b>${esc(c.name)}</b> <span class="mut">${esc(c.code)} ${esc(c.phone)}</span></div>`).join('')||'<div class="sres mut">No customer found. Type the name below.</div>';
-  },250);
-}
+function jobCustSearch(v){cbSearch('jcs',v)}
 function jobCustFill(c){JF.customer_id=c.id;JF.customer_code=c.code;$('#j_cc').value=c.code||'';$('#j_cn').value=c.name||'';$('#j_mo').value=c.phone||'';$('#j_em').value=c.email||'';$('#jcs').value='';$('#jcs_res').innerHTML=''}
 function jobCustClear(){JF.customer_id=null;JF.customer_code='';['j_cc','j_cn','j_mo','j_wa','j_em','jcs'].forEach(x=>$('#'+x).value='');$('#jcs_res').innerHTML=''}
 function jobWhatsAppNumber(v){
@@ -2078,7 +2092,7 @@ PAGES.quoteform=async()=>{
   try{QT_CUS=await sb.from('customers').select('name,address,email').order('name').limit(1000).then(r=>r.data||[])}catch(e){QT_CUS=[]}
   $('#main').innerHTML=`<div class="top"><h2>${QF.id?'Edit quotation '+esc(QF.quote_no):'New quotation'}</h2><div class="bar"><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="go('quotes')">Back</button> <button class="btn sec" onclick="qfPreview()">Preview</button> <button class="btn" onclick="qfSave(false)">Save</button> <button class="btn" onclick="qfSave(true)">Save &amp; print</button> <button class="btn" onclick="qfSave('pdf')">Save &amp; PDF</button> <button class="btn" onclick="qfSave('email')">Save &amp; email</button></div></div></div>
   <div class="card"><b>Customer</b>
-   <div class="bar" style="margin-top:8px"><div style="flex:2"><label>Customer name (type anything, or pick a saved customer)</label><input id="q_cn" list="q_cl" value="${esc(QF.customer_name)}" oninput="qfCus(this.value)"><datalist id="q_cl">${QT_CUS.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist></div>
+   <div class="bar" style="margin-top:8px"><div style="flex:2"><label>Customer name (type anything, or pick a saved customer)</label><div class="cbwrap" style="position:relative"><input id="q_cn" value="${esc(QF.customer_name)}" placeholder="Click to choose a saved customer, or type a name" oninput="qfCus(this.value);cbSearch('q_cn',this.value)" onfocus="cbSearch('q_cn',this.value,1)" onclick="cbSearch('q_cn',this.value,1)" onkeydown="cbKey(event,'q_cn')" autocomplete="new-password" name="q_cust"><div id="q_cn_res" class="sresbox"></div></div></div>
    <div style="flex:1"><label>Customer email (for sending the quotation)</label><input id="q_ce" type="email" value="${esc(QF.customer_email||'')}"></div><div style="flex:0 0 170px"><label>Date</label><input id="q_dt" type="date" value="${esc(QF.q_date)}"></div></div>
    <div style="margin-top:8px"><label>Customer address</label><textarea id="q_ca" rows="2" style="width:100%">${esc(QF.customer_address)}</textarea></div>
    <div class="bar" style="margin-top:8px"><div><label>Subject</label><input id="q_sj" value="${esc(QF.subject)}"></div></div>
