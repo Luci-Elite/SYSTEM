@@ -6,6 +6,21 @@ const CFG = {
   url: 'https://ybevwcxgfnwfyadgbfdl.supabase.co',          // Supabase > Project Settings > API > Project URL
   key: 'sb_publishable_n0qwxibzfTZ8NQFw08jbjg_9mBL7IAh',      // Supabase > Project Settings > API > publishable / anon key
   emailDomain: '@laptopcare.app',                             // usernames are stored as username@laptopcare.app (do NOT change after users exist)
+  modules: {                                                  // true = show, false = hide this module everywhere (menu, pages, user permissions)
+    invoice:true,    // New invoice (+ Invoice editor)
+    invoices:true,   // Invoices list / reprint
+    reports:true,    // Sales report
+    stock:true,      // Stock check
+    serial:true,     // Serial number check
+    grn:true,        // GRN
+    items:true,      // Items & Categories
+    customers:true,  // Customers
+    suppliers:true,  // Suppliers
+    reps:true,       // Sales reps
+    jobs:true,       // Job notes (+ Job note editor)
+    quotes:true,     // Quotations (+ Quotation editor)
+    staff:true       // Staff management & salary (+ Salary slip editor)
+  },
   quote: {                                                    // default texts of the quotation (can still be edited in Quotation editor)
     whyHead: 'WHY CHOOSE LAPTOPCARE',
     chequeName: 'Laptopcare (Pvt) Ltd',
