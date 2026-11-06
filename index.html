@@ -75,11 +75,12 @@ const money = n => Number(n || 0).toLocaleString('en-LK', {minimumFractionDigits
 const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
 let sb, me, items = [], settings = {};
 const isAdmin = () => me && me.role === 'admin';
-const hasP = k => isAdmin() || (me && (me.perms || []).includes(k));
+const modOn = k => !(typeof CFG!=='undefined' && CFG.modules && CFG.modules[k]===false);
+const hasP = k => modOn(k) && (isAdmin() || (me && (me.perms || []).includes(k)));
 const PERMS=[['invoice','Create invoice'],['invoices','View / reprint invoices'],['stock','Stock check'],['serial','Serial number check'],['grn','GRN (goods received)'],['items','Add items and categories'],['customers','Create customers'],['suppliers','Create suppliers'],['reports','Sales reports'],['jobs','Job notes (create, change status)'],['cost','See cost prices'],['profit','See profit in sales report'],['price','Change price on invoice'],['backdate','Change invoice / GRN date'],['quotes','Quotations (create, print)']];
 const DEF_PERMS=['invoice','invoices'];
-const permBoxes=(pre,sel)=>PERMS.map(([k,l])=>`<label class="chk"><input type="checkbox" id="${pre}_${k}" ${sel.includes(k)?'checked':''}> ${l}</label>`).join('');
-const permRead=pre=>PERMS.filter(([k])=>$('#'+pre+'_'+k).checked).map(([k])=>k);
+const permBoxes=(pre,sel)=>PERMS.filter(x=>modOn(x[0])).map(([k,l])=>`<label class="chk"><input type="checkbox" id="${pre}_${k}" ${sel.includes(k)?'checked':''}> ${l}</label>`).join('');
+const permRead=pre=>PERMS.filter(([k])=>modOn(k)&&$('#'+pre+'_'+k)&&$('#'+pre+'_'+k).checked).map(([k])=>k);
 
 function toast(msg, err){const t=$('#toast');t.textContent=msg;t.className=err?'err':'';t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',err?6000:2500)}
 function openModal(html,w){$('#modal').innerHTML=html;$('#modal').style.maxWidth=w||'560px';$('#modalBg').style.display='block'}
@@ -179,13 +180,13 @@ function buildNav(){
   const a=[],L=(k,l)=>`<a id="n_${k}" onclick="go('${k}')">${l}</a>`;
   a.push(L('dash','Dashboard'));
   [['stock','Stock check','stock'],['serial','Serial check','serial'],['invoice','New invoice','invoice'],['invoices','Invoices','invoices'],['grn','GRN','grn'],['reports','Sales report','reports']].forEach(([k,l,pm])=>{if(hasP(pm))a.push(L(k,l))});
-  const gen=[['items','Items','items'],['cats','Categories','items'],['customers','Customers','customers'],['suppliers','Suppliers','suppliers'],['reps','Sales reps','ADMIN']].filter(x=>x[2]==='ADMIN'?isAdmin():hasP(x[2]));
+  const gen=[['items','Items','items'],['cats','Categories','items'],['customers','Customers','customers'],['suppliers','Suppliers','suppliers'],['reps','Sales reps','ADMIN']].filter(x=>x[2]==='ADMIN'?(isAdmin()&&modOn('reps')):hasP(x[2]));
   if(gen.length)a.push(`<div class="grp"><a onclick="grpToggle(this)">General &#9662;</a><div class="sub">${gen.map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(hasP('jobs'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Job note &#9662;</a><div class="sub">${[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(hasP('quotes'))a.push(L('quotes','Quotations'));
   if(hasP('staff'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Staff management &#9662;</a><div class="sub">${[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(isAdmin())a.push(L('users','Users'));
-  if(isAdmin())a.push(`<div class="grp"><a onclick="grpToggle(this)">Editors &#9662;</a><div class="sub">${[['settings','Invoice editor'],['jobeditor','Job note editor'],['slipeditor','Salary slip editor'],['quoteeditor','Quotation editor']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
+  if(isAdmin()&&['invoice','jobs','staff','quotes'].some(modOn))a.push(`<div class="grp"><a onclick="grpToggle(this)">Editors &#9662;</a><div class="sub">${[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1])).join('')}</div></div>`);
   $('#nav').innerHTML=a.join('');
 }
 async function afterLogin(uid){
@@ -205,7 +206,7 @@ async function logout(){await sb.auth.signOut();location.reload()}
 const PAGES={};
 function grpToggle(a){const g=a.parentNode,was=g.classList.contains('open');document.querySelectorAll('#nav .grp.open').forEach(x=>x.classList.remove('open'));if(!was)g.classList.add('open')}
 async function go(p){
-  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quoteform:'quotes'};
+  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quoteform:'quotes',reps:'reps',settings:'invoice',jobeditor:'jobs',slipeditor:'staff',quoteeditor:'quotes',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
   if((need[p]&&!hasP(need[p]))||((p==='users'||p==='settings'||p==='reps'||p==='jobeditor'||p==='slipeditor'||p==='quoteeditor')&&!isAdmin()))p='dash';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
   document.querySelectorAll('#nav .grp').forEach(g=>g.classList.remove('has-on'));const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('has-on')}
