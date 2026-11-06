@@ -2275,7 +2275,7 @@ async function qtPdfDownload(q){
 async function qtEmail(q,mode,w){
   const to=String(q.customer_email||'').trim();if(!to)return toast('Enter the customer email first',true);
   const ok=await qtPdfDownload(q);if(!ok){if(w)try{w.close()}catch(e){}return}
-  const ql=getQL(),co=coInfo(),ly=getLY(),fill=t=>String(t||'').replace(/\{no\}/g,q.quote_no||'').replace(/\{customer\}/g,q.customer_name||'').replace(/\{subject\}/g,q.subject||'').replace(/\{company\}/g,co.n||'').replace(/\{phone\}/g,co.p||'').replace(/\{email\}/g,ly.email||'');
+  const ql=getQL(),co=coInfo(),ly=getLY(),fill=t=>String(t||'').replace(/\{no\}/g,q.quote_no||'').replace(/\{customer\}/g,q.customer_name||'').replace(/\{subject\}/g,q.subject||'').replace(/\{company\}/g,co.n||'').replace(/\{phone\}/g,(CFG.quote&&CFG.quote.phone)||co.p||'').replace(/\{email\}/g,(CFG.quote&&CFG.quote.email)||ly.email||'');
   const url='mailto:'+encodeURIComponent(to).replace(/%40/g,'@')+'?subject='+encodeURIComponent(fill(ql.emailSub))+'&body='+encodeURIComponent(fill(ql.emailBody)).replace(/%0A/g,'%0D%0A');
   if(mode==='gmail'){
     const g='https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(to)+'&su='+encodeURIComponent(fill(ql.emailSub))+'&body='+encodeURIComponent(fill(ql.emailBody));
