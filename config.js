@@ -11,7 +11,7 @@ const CFG = {
     invoices:true,   // Invoices list / reprint
     reports:true,    // Sales report
     stock:true,      // Stock check
-    serial:false,     // Serial number check
+    serial:true,     // Serial number check
     grn:true,        // GRN
     items:true,      // Items & Categories
     customers:true,  // Customers
