@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stock & Invoice System</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=1"></script>
+<script>document.write('<script src="config.js?t='+Date.now()+'"><\/script>')</script>
 <link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
@@ -980,7 +980,7 @@ function permModal(id){
   <p class="mut">Only admins can use Users, Invoice editor and delete invoices.</p>
   <div class="bar" style="margin-top:10px;justify-content:flex-end"><div style="flex:0"><button class="btn sec" onclick="closeModal()">Cancel</button></div><div style="flex:0"><button class="btn" onclick="savePerm('${id}')">Save</button></div></div>`);
 }
-async function savePerm(id){await run(sb.from('profiles').update({perms:permRead('pm')}).eq('id',id));closeModal();toast('Permissions saved');go('users')}
+async function savePerm(id){const cur=await run(sb.from('profiles').select('perms').eq('id',id).single());const keep=((cur&&cur.perms)||[]).filter(k=>!modOn(k));await run(sb.from('profiles').update({perms:[...new Set([...permRead('pm'),...keep])]}).eq('id',id));closeModal();toast('Permissions saved');go('users')}
 async function addUser(){
   const n=$('#u_n').value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,''),pw=$('#u_p').value,role=$('#u_r').value;
   const em=($('#u_e').value.trim().toLowerCase())||(n+EMAIL_DOMAIN);
@@ -2076,7 +2076,7 @@ async function qLoad(){
   const s=($('#qs')&&$('#qs').value||'').trim().toLowerCase();QROWS={};d.forEach(r=>QROWS[r.id]=r);
   const rows=d.filter(r=>!s||String(r.customer_name||'').toLowerCase().includes(s)||String(r.quote_no||'').toLowerCase().includes(s));
   $('#qbt').innerHTML=rows.map(r=>`<tr><td><b>${esc(r.quote_no)}</b></td><td>${esc(r.q_date)}</td><td>${esc(r.customer_name)}<div class="mut">${esc(r.customer_address)}${r.data&&r.data.customer_email?' | '+esc(r.data.customer_email):''}</div></td><td>${esc(r.subject)}</td><td class="r">${money(r.total)}</td>
-   <td style="white-space:nowrap"><button class="btn sec sm" onclick="qPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="qPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="qMail(${r.id})">Outlook</button> <button class="btn sec sm" onclick="qMail(${r.id},'gmail')">Gmail</button> <button class="btn sec sm" onclick="qCopy(${r.id})">Copy</button>${isAdmin()?` <button class="btn sec sm" onclick="qEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="qDel(${r.id},'${esc(r.quote_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">No quotations yet.</td></tr>';
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="qView(${r.id})">Preview</button> <button class="btn sec sm" onclick="qPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="qPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="qMail(${r.id})">Outlook</button> <button class="btn sec sm" onclick="qMail(${r.id},'gmail')">Gmail</button> <button class="btn sec sm" onclick="qCopy(${r.id})">Copy</button>${isAdmin()?` <button class="btn sec sm" onclick="qEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="qDel(${r.id},'${esc(r.quote_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">No quotations yet.</td></tr>';
 }
 const qRecToQ=r=>({quote_no:r.quote_no,q_date:r.q_date,customer_name:r.customer_name,customer_address:r.customer_address,subject:r.subject,items:(r.data&&r.data.items)||[],note:(r.data&&r.data.note)||'',customer_email:(r.data&&r.data.customer_email)||''});
 async function qPrint(id){const r=QROWS[id]||await run(sb.from('quotations').select('*').eq('id',id).single());slipPrintDoc(qtDoc(qRecToQ(r),getQL(),false))}
@@ -2091,7 +2091,7 @@ function qCopy(id){const r=QROWS[id];if(!r)return;QF={...qRecToQ(r),id:null,quot
 PAGES.quoteform=async()=>{
   if(!QF)QF=qBlank();
   try{QT_CUS=await sb.from('customers').select('name,address,email').order('name').limit(1000).then(r=>r.data||[])}catch(e){QT_CUS=[]}
-  $('#main').innerHTML=`<div class="top"><h2>${QF.id?'Edit quotation '+esc(QF.quote_no):'New quotation'}</h2><div class="bar"><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="go('quotes')">Back</button> <button class="btn sec" onclick="qfPreview()">Preview</button> <button class="btn" onclick="qfSave(false)">Save</button> <button class="btn" onclick="qfSave(true)">Save &amp; print</button> <button class="btn" onclick="qfSave('pdf')">Save &amp; PDF</button> <button class="btn" onclick="qfSave('email')">Save &amp; Outlook</button></div><div style="flex:0;white-space:nowrap"><button class="btn" onclick="qfSave('gmail')">Save &amp; Gmail</button></div></div></div>
+  $('#main').innerHTML=`<div class="top"><h2>${QF.id?'Edit quotation '+esc(QF.quote_no):'New quotation'}</h2><div class="bar"><div style="flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end"><button class="btn sec" onclick="go('quotes')">Back</button> <button class="btn sec" onclick="qfPreview()">Preview</button> <button class="btn" onclick="qfSave(false)">Save</button> <button class="btn" onclick="qfSave(true)">Save &amp; print</button> <button class="btn" onclick="qfSave('pdf')">Save &amp; PDF</button> <button class="btn" onclick="qfSave('email')">Save &amp; Outlook</button> <button class="btn" onclick="qfSave('gmail')">Save &amp; Gmail</button></div></div></div>
   <div class="card"><b>Customer</b>
    <div class="bar" style="margin-top:8px"><div style="flex:2"><label>Customer name (type anything, or pick a saved customer)</label><div class="cbwrap" style="position:relative"><input id="q_cn" value="${esc(QF.customer_name)}" placeholder="Click to choose a saved customer, or type a name" oninput="qfCus(this.value);cbSearch('q_cn',this.value)" onfocus="cbSearch('q_cn',this.value,1)" onclick="cbSearch('q_cn',this.value,1)" onkeydown="cbKey(event,'q_cn')" autocomplete="new-password" name="q_cust"><div id="q_cn_res" class="sresbox"></div></div></div>
    <div style="flex:1"><label>Customer email (for sending the quotation)</label><input id="q_ce" type="email" value="${esc(QF.customer_email||'')}"></div><div style="flex:0 0 170px"><label>Date</label><input id="q_dt" type="date" value="${esc(QF.q_date)}"></div></div>
@@ -2285,6 +2285,7 @@ async function qtEmail(q,mode,w){
   setTimeout(()=>{location.href=url},700);
   toast('Outlook is opening - attach the downloaded PDF to the email (drag it in or use Attach).');
 }
+async function qView(id){const r=QROWS[id]||await run(sb.from('quotations').select('*').eq('id',id).single());openModal(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Quotation ${esc(r.quote_no||'')}</h3><button class="btn" onclick="closeModal()">Close &#10005;</button></div><iframe id="q_pvf" style="width:100%;height:70vh;border:1px solid #ccc;margin:8px 0"></iframe><div style="text-align:right"><button class="btn" onclick="closeModal()">Close</button></div>`,'900px');$('#q_pvf').srcdoc=qtDoc(qRecToQ(r),getQL(),false)}
 async function qPdf(id){const r=QROWS[id]||await run(sb.from('quotations').select('*').eq('id',id).single());return qtPdfDownload(qRecToQ(r))}
 async function qMail(id,mode){const w=mode==='gmail'?window.open('','_blank'):null;const r=QROWS[id]||await run(sb.from('quotations').select('*').eq('id',id).single());return qtEmail(qRecToQ(r),mode,w)}
 /* ---------- editor ---------- */
