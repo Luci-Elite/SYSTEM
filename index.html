@@ -2068,16 +2068,19 @@ ${pv?`[data-k]{cursor:pointer}[data-k]:hover{outline:1px dashed #1a73e8;outline-
 let QF=null,QT_CUS=[],QROWS={};
 PAGES.quotes=async()=>{
   $('#main').innerHTML=`<div class="top"><h2>Quotations</h2><div class="bar"><div style="flex:2"><input id="qs" placeholder="Search customer / quotation no" oninput="qLoad()"></div><div style="flex:0;white-space:nowrap"><button class="btn" onclick="qNew()">+ New quotation</button></div></div></div>
-  <div class="tw"><table><thead><tr><th>No</th><th>Date</th><th>Customer</th><th>Subject</th><th class="r">Total (LKR)</th><th></th></tr></thead><tbody id="qbt"></tbody></table></div>`;
+  <div class="tw"><table><thead><tr><th>No</th><th>Date</th><th>Customer</th><th>Model / product</th><th>Subject</th><th class="r">Total (LKR)</th><th></th></tr></thead><tbody id="qbt"></tbody></table></div>`;
   qLoad();
 };
 async function qLoad(){
   const d=await run(sb.from('quotations').select('*').order('created_at',{ascending:false}).limit(300));
   const s=($('#qs')&&$('#qs').value||'').trim().toLowerCase();QROWS={};d.forEach(r=>QROWS[r.id]=r);
-  const rows=d.filter(r=>!s||String(r.customer_name||'').toLowerCase().includes(s)||String(r.quote_no||'').toLowerCase().includes(s));
-  $('#qbt').innerHTML=rows.map(r=>`<tr><td><b>${esc(r.quote_no)}</b></td><td>${esc(r.q_date)}</td><td>${esc(r.customer_name)}<div class="mut">${esc(r.customer_address)}${r.data&&r.data.customer_email?' | '+esc(r.data.customer_email):''}</div></td><td>${esc(r.subject)}</td><td class="r">${money(r.total)}</td>
-   <td style="white-space:nowrap"><button class="btn sec sm" onclick="qView(${r.id})">Preview</button> <button class="btn sec sm" onclick="qPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="qPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="qMail(${r.id})">Outlook</button> <button class="btn sec sm" onclick="qMail(${r.id},'gmail')">Gmail</button> <button class="btn sec sm" onclick="qCopy(${r.id})">Copy</button>${isAdmin()?` <button class="btn sec sm" onclick="qEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="qDel(${r.id},'${esc(r.quote_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">No quotations yet.</td></tr>';
+  const rows=d.filter(r=>!s||String(r.customer_name||'').toLowerCase().includes(s)||String(r.quote_no||'').toLowerCase().includes(s)||qModels(r).toLowerCase().includes(s));
+  $('#qbt').innerHTML=rows.map(r=>`<tr><td><b>${esc(r.quote_no)}</b></td><td>${esc(r.q_date)}</td><td>${esc(r.customer_name)}<div class="mut">${esc(r.customer_address)}${r.data&&r.data.customer_email?' | '+esc(r.data.customer_email):''}</div></td><td>${qModelsHtml(r)}</td><td>${esc(r.subject)}</td><td class="r">${money(r.total)}</td>
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="qView(${r.id})">Preview</button> <button class="btn sec sm" onclick="qPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="qPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="qMail(${r.id})">Outlook</button> <button class="btn sec sm" onclick="qMail(${r.id},'gmail')">Gmail</button> <button class="btn sec sm" onclick="qCopy(${r.id})">Copy</button>${isAdmin()?` <button class="btn sec sm" onclick="qEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="qDel(${r.id},'${esc(r.quote_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mut">No quotations yet.</td></tr>';
 }
+const qItems=r=>((r.data&&r.data.items)||[]).filter(i=>String(i.model||'').trim());
+const qModels=r=>qItems(r).map(i=>i.model).join(' ');
+const qModelsHtml=r=>qItems(r).map(i=>`<div><b>${esc(String(i.model).trim())}</b>${Number(i.qty)>1?' <span class="mut">x'+esc(i.qty)+'</span>':''}</div>`).join('')||'<span class="mut">-</span>';
 const qRecToQ=r=>({quote_no:r.quote_no,q_date:r.q_date,customer_name:r.customer_name,customer_address:r.customer_address,subject:r.subject,items:(r.data&&r.data.items)||[],note:(r.data&&r.data.note)||'',customer_email:(r.data&&r.data.customer_email)||''});
 async function qPrint(id){const r=QROWS[id]||await run(sb.from('quotations').select('*').eq('id',id).single());slipPrintDoc(qtDoc(qRecToQ(r),getQL(),false))}
 async function qDel(id,no){if(!isAdmin()||!confirm('Delete quotation '+no+'?'))return;await run(sb.from('quotations').delete().eq('id',id));toast('Deleted');qLoad()}
