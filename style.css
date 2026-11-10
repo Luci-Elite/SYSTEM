@@ -948,3 +948,43 @@ label.jchk:has(input:checked) {
   color: #9a4a0c;
   font-size: 13px;
 }
+
+
+/* ============================================================
+   USER PERMISSION BOXES (grouped tick chips)
+   ============================================================ */
+.pgroups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  align-items: start;
+  gap: 12px;
+  margin-top: 6px;
+}
+.pgroup {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px 12px;
+  background: #fafbfc;
+}
+.ptitle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--ink);
+}
+.ptitle span {
+  font-size: 12px;
+  color: var(--mut);
+}
+.ptitle a {
+  color: var(--acc);
+  cursor: pointer;
+  font-weight: 600;
+}
+.ptitle a:hover {
+  text-decoration: underline;
+}
+.pgroup .chkrow {
+  margin-top: 8px;
+}
