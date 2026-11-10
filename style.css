@@ -951,25 +951,30 @@ label.jchk:has(input:checked) {
 
 
 /* ============================================================
-   USER PERMISSION BOXES (grouped tick chips)
+   USER PERMISSION BOXES (grouped, aligned tick list)
    ============================================================ */
 .pgroups {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-  align-items: start;
-  gap: 12px;
-  margin-top: 6px;
+  columns: 270px 3;          /* up to 3 columns, boxes stack with no empty space */
+  column-gap: 14px;
+  margin-top: 8px;
 }
 .pgroup {
+  break-inside: avoid;
+  margin-bottom: 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 10px 12px 12px;
-  background: #fafbfc;
+  padding: 0 0 10px;
+  background: #fff;
+  overflow: hidden;
 }
 .ptitle {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 9px 14px;
+  margin-bottom: 8px;
+  background: #f4f7fa;
+  border-bottom: 1px solid var(--line);
   font-size: 13px;
   color: var(--ink);
 }
@@ -986,5 +991,15 @@ label.jchk:has(input:checked) {
   text-decoration: underline;
 }
 .pgroup .chkrow {
-  margin-top: 8px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin: 0;
+  padding: 0 10px;
+}
+.pgroup label.jchk {
+  width: 100%;
+  border-radius: 8px;
+  padding: 8px 12px 8px 10px;
+  white-space: nowrap;
 }
