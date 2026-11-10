@@ -6,7 +6,7 @@
 <title>Stock & Invoice System</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>document.write('<script src="config.js?t='+Date.now()+'"><\/script>')</script>
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
 <div id="cssWarn" style="background:#b42318;color:#fff;padding:12px 16px;font:14px Arial,sans-serif">style.css was not found. Upload <b>style.css</b> into the same folder as index.html on GitHub (same level, same name), then reload this page.</div>
@@ -569,7 +569,8 @@ async function grnEditSave(){
 
 /* ---------------- New invoice / edit invoice ---------------- */
 let L=[],PAY=[],CUST={id:null,code:''},EDITING=null,CS_LIST=[],CS_T;
-const PAYM=['Cash','Card','Bank transfer','Cheque'];
+const PAYM=['Cash','Card','Bank transfer','Cheque','Credit'];
+const payPaid=()=>PAY.filter(p=>p.m!=='Credit').reduce((a,p)=>a+(+p.amt||0),0);
 PAGES.invoice=async()=>{
   await Promise.all([loadItems(),loadReps()]);
   const eid=window._editInv||null;window._editInv=null;EDITING=eid;
@@ -583,6 +584,7 @@ PAGES.invoice=async()=>{
     if(Array.isArray(inv.payments)&&inv.payments.length)PAY=inv.payments.map(p=>({m:p.method,amt:String(p.amount),auto:false,last4:p.last4||'',holder:p.holder||'',ref:p.ref||'',chq_no:p.chq_no||'',chq_bank:p.chq_bank||'',chq_date:p.chq_date||''}));
     else if(inv.pay_method&&inv.pay_method!=='Credit')PAY=[{m:PAYM.includes(inv.pay_method)?inv.pay_method:'Cash',amt:String(inv.total),auto:false}];
     else PAY=[];
+    if(/credit/i.test(inv.pay_method||'')&&!PAY.some(p=>p.m==='Credit'))PAY.push({m:'Credit',amt:'',auto:false});
   }
   const reps=REPS.map(r=>r.name);if(inv.rep_name&&!reps.includes(inv.rep_name))reps.push(inv.rep_name);
   $('#main').innerHTML=`<div class="top"><h2>${eid?'Edit invoice '+esc(inv.inv_no):'New invoice'}</h2></div>
@@ -730,7 +732,7 @@ function payRender(){
   if(PAY.length===1&&PAY[0].auto)PAY[0].amt=t>0?String(Math.round(t*100)/100):'';
   $('#paybox').innerHTML=PAY.map((p,i)=>`<div class="line" style="padding:8px"><div class="bar">
     <div style="flex:0 0 150px"><label>Method</label><select onchange="payM(${i},this.value)">${PAYM.map(m=>`<option ${m===p.m?'selected':''}>${m}</option>`).join('')}</select></div>
-    <div><label>Amount</label><input type="number" step="0.01" value="${esc(p.amt)}" oninput="payA(${i},this.value)"></div>
+    ${p.m==='Credit'?`<div style="flex:3"><label>Credit</label><div class="paycr">The unpaid balance <b>Rs. ${money(Math.max(0,t-payPaid()))}</b> stays on credit. The customer pays later, and it shows in Supplier &gt; Set-off.</div></div>`:`<div><label>Amount</label><input type="number" step="0.01" value="${esc(p.amt)}" oninput="payA(${i},this.value)"></div>`}
     ${p.m==='Card'?`<div style="flex:0 0 120px"><label>Card last 4 digits</label><input maxlength="4" inputmode="numeric" value="${esc(p.last4||'')}" oninput="this.value=this.value.replace(/\\D/g,'').slice(0,4);PAY[${i}].last4=this.value"></div><div><label>Card holder name</label><input value="${esc(p.holder||'')}" oninput="PAY[${i}].holder=this.value"></div>`:''}
     ${p.m==='Bank transfer'?`<div style="flex:2"><label>Bank / reference (optional)</label><input value="${esc(p.ref||'')}" oninput="PAY[${i}].ref=this.value"></div>`:''}
     ${p.m==='Cheque'?`<div><label>Cheque no</label><input value="${esc(p.chq_no||'')}" oninput="PAY[${i}].chq_no=this.value"></div><div><label>Bank</label><input value="${esc(p.chq_bank||'')}" oninput="PAY[${i}].chq_bank=this.value"></div><div><label>Cheque date</label><input type="date" value="${esc(p.chq_date||'')}" oninput="PAY[${i}].chq_date=this.value"></div>`:''}
@@ -738,17 +740,17 @@ function payRender(){
   paySum();
 }
 function paySum(){
-  const t=invTotal(),paid=PAY.reduce((a,p)=>a+(+p.amt||0),0),b=t-paid;
+  const t=invTotal(),paid=payPaid(),b=t-paid;
   $('#paysum').innerHTML=`Paid: <b>${money(paid)}</b> &nbsp; ${b>0.005?`Balance on credit: <b style="color:var(--bad)">${money(b)}</b>`:(b<-0.005?`<b style="color:var(--bad)">Payments are ${money(-b)} more than the total</b>`:'<b style="color:var(--ok)">Fully paid</b>')}`;
 }
-function payAdd(){const rem=invTotal()-PAY.reduce((a,p)=>a+(+p.amt||0),0);PAY.forEach(p=>p.auto=false);PAY.push({m:'Cash',amt:rem>0?String(Math.round(rem*100)/100):'',auto:false});payRender()}
-function payM(i,m){PAY[i].m=m;payRender()}
+function payAdd(){const rem=invTotal()-payPaid();PAY.forEach(p=>p.auto=false);PAY.push({m:'Cash',amt:rem>0?String(Math.round(rem*100)/100):'',auto:false});payRender()}
+function payM(i,m){PAY[i].m=m;payRender();if(m==='Credit')paySum()}
 function payA(i,v){PAY[i].amt=v;PAY[i].auto=false;paySum()}
 function payDel(i){PAY.splice(i,1);payRender()}
 
 async function invSave(){
   if(!L.length)return toast('Add at least one item',true);
-  const total=invTotal(),pays=PAY.filter(p=>+p.amt>0).map(p=>({method:p.m,amount:+p.amt,last4:p.last4||'',holder:p.holder||'',ref:p.ref||'',chq_no:p.chq_no||'',chq_bank:p.chq_bank||'',chq_date:p.chq_date||''}));
+  const total=invTotal(),pays=PAY.filter(p=>p.m!=='Credit'&&+p.amt>0).map(p=>({method:p.m,amount:+p.amt,last4:p.last4||'',holder:p.holder||'',ref:p.ref||'',chq_no:p.chq_no||'',chq_bank:p.chq_bank||'',chq_date:p.chq_date||''}));
   const paid=pays.reduce((a,p)=>a+p.amount,0);
   if(paid>total+0.005)return toast('Payments are more than the invoice total',true);
   if(pays.some(p=>p.method==='Card'&&p.last4&&p.last4.length!==4))return toast('Card last digits must be exactly 4 numbers',true);
