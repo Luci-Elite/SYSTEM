@@ -6,7 +6,7 @@
 <title>Stock & Invoice System</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>document.write('<script src="config.js?t='+Date.now()+'"><\/script>')</script>
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
 <div id="cssWarn" style="background:#b42318;color:#fff;padding:12px 16px;font:14px Arial,sans-serif">style.css was not found. Upload <b>style.css</b> into the same folder as index.html on GitHub (same level, same name), then reload this page.</div>
@@ -184,6 +184,7 @@ function buildNav(){
   if(gen.length)a.push(`<div class="grp"><a onclick="grpToggle(this)">General &#9662;</a><div class="sub">${gen.map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(hasP('jobs'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Job note &#9662;</a><div class="sub">${[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(hasP('quotes'))a.push(L('quotes','Quotations'));
+  if(hasP('setoff'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Supplier &#9662;</a><div class="sub">${[['setoff','Set-off'],['purchases','Purchases']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(hasP('staff'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Staff management &#9662;</a><div class="sub">${[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(isAdmin())a.push(L('users','Users'));
   if(isAdmin()&&['invoice','jobs','staff','quotes'].some(modOn))a.push(`<div class="grp"><a onclick="grpToggle(this)">Editors &#9662;</a><div class="sub">${[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1])).join('')}</div></div>`);
@@ -206,7 +207,7 @@ async function logout(){await sb.auth.signOut();location.reload()}
 const PAGES={};
 function grpToggle(a){const g=a.parentNode,was=g.classList.contains('open');document.querySelectorAll('#nav .grp.open').forEach(x=>x.classList.remove('open'));if(!was)g.classList.add('open')}
 async function go(p){
-  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quoteform:'quotes',reps:'reps',settings:'invoice',jobeditor:'jobs',slipeditor:'staff',quoteeditor:'quotes',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
+  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quoteform:'quotes',reps:'reps',setoff:'setoff',purchases:'setoff',settings:'invoice',jobeditor:'jobs',slipeditor:'staff',quoteeditor:'quotes',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
   if((need[p]&&!hasP(need[p]))||((p==='users'||p==='settings'||p==='reps'||p==='jobeditor'||p==='slipeditor'||p==='quoteeditor')&&!isAdmin()))p='dash';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
   document.querySelectorAll('#nav .grp').forEach(g=>g.classList.remove('has-on'));const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('has-on')}
@@ -2353,6 +2354,141 @@ async function qtSave(){
   await run(sb.from('settings').upsert([row]));settings.quote_layout=row.value;toast('Quotation layout saved');
 }
 
+
+/* ===================== Supplier set-off + Purchases ===================== */
+PERMS.push(['setoff','Supplier set-off & purchases']);
+let SO={sup:0,cust:0,g:null,i:null,all:false,G:[],I:[],H:[]};
+const soQ=s=>String(s||'').replace(/["\\]/g,'');
+const soFind=(list,id)=>list.find(x=>String(x.id)===String(id));
+async function soLoadCusts(){return run(sb.from('customers').select('id,code,name').order('name').limit(2000))}
+let SOCUST=[];
+PAGES.setoff=async()=>{
+  await loadSups();SOCUST=await soLoadCusts();
+  SO={sup:SO.sup||0,cust:SO.cust||0,g:null,i:null,all:SO.all,G:[],I:[],H:[]};
+  $('#main').innerHTML=`<div class="top"><h2>Supplier set-off</h2></div>
+  <div class="card so-pick"><div class="so-pickgrid">
+    <div><label>Supplier (we buy from)</label><select id="so_sup" onchange="soPickSup(this.value)"><option value="">- choose supplier -</option>${SUPS.map(s=>`<option value="${s.id}" ${String(s.id)===String(SO.sup)?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
+    <div><label>Same company as customer (they buy from us)</label><select id="so_cus" onchange="soPickCus(this.value)"><option value="">- choose customer -</option>${SOCUST.map(c=>`<option value="${c.id}" ${String(c.id)===String(SO.cust)?'selected':''}>${esc(c.name)}${c.code?' ('+esc(c.code)+')':''}</option>`).join('')}</select></div>
+    <div style="align-self:end"><label class="chk" style="margin:0"><input type="checkbox" id="so_all" ${SO.all?'checked':''} onchange="SO.all=this.checked;soDraw()"> Show settled too</label></div>
+  </div><div id="so_linkmsg" class="mut" style="margin-top:6px"></div></div>
+  <div id="so_body"><div class="card so-empty">Choose a supplier to start.</div></div>`;
+  if(SO.sup)soPickSup(SO.sup,true);
+};
+function soPickSup(id,keep){
+  SO.sup=id||0;SO.g=SO.i=null;
+  const s=soFind(SUPS,id);
+  if(!keep){SO.cust=0}
+  if(s&&!SO.cust){
+    let c=s.customer_id?soFind(SOCUST,s.customer_id):null;
+    if(!c)c=SOCUST.find(x=>String(x.name||'').trim().toLowerCase()===String(s.name||'').trim().toLowerCase());
+    SO.cust=c?c.id:0;
+    const el=$('#so_cus');if(el)el.value=SO.cust||'';
+    $('#so_linkmsg').innerHTML=c?(s.customer_id?'':'<span class="so-hint">Matched by the same name. It will be remembered when you set off.</span>'):'<span class="so-hint">No customer with the same name. Choose the customer.</span>';
+  }
+  soLoad();
+}
+function soPickCus(id){SO.cust=id||0;SO.g=SO.i=null;$('#so_linkmsg').innerHTML='';soLoad()}
+async function soLoad(){
+  const s=soFind(SUPS,SO.sup),c=soFind(SOCUST,SO.cust);
+  if(!s){$('#so_body').innerHTML='<div class="card so-empty">Choose a supplier to start.</div>';return}
+  const gq=sb.from('grn').select('id,grn_no,grn_date,supplier,total').or(`supplier_id.eq.${s.id},supplier.eq."${soQ(s.name)}"`).order('grn_date').order('id');
+  const iq=c?sb.from('invoices').select('id,inv_no,inv_date,customer_name,total,paid').or(`customer_id.eq.${c.id},customer_name.eq."${soQ(c.name)}"`).order('inv_date').order('id'):null;
+  const [G,I]=await Promise.all([run(gq),iq?run(iq):Promise.resolve([])]);
+  const gids=G.map(x=>x.id),iids=I.map(x=>x.id);
+  const H1=gids.length?await run(sb.from('setoffs').select('*').in('grn_id',gids)):[];
+  const H2=iids.length?await run(sb.from('setoffs').select('*').in('invoice_id',iids)):[];
+  const seen={};SO.H=[...H1,...H2].filter(h=>seen[h.id]?false:(seen[h.id]=1)).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))||b.id-a.id);
+  const gs={},is={};SO.H.forEach(h=>{gs[h.grn_id]=(gs[h.grn_id]||0)+Number(h.amount);is[h.invoice_id]=(is[h.invoice_id]||0)+Number(h.amount)});
+  SO.G=G.map(x=>({...x,used:gs[x.id]||0,bal:Number(x.total)-(gs[x.id]||0)}));
+  SO.I=I.map(x=>{const paid=x.paid==null?Number(x.total):Number(x.paid);return {...x,paid,used:is[x.id]||0,bal:Number(x.total)-paid-(is[x.id]||0)}});
+  soDraw();
+}
+function soDraw(){
+  const s=soFind(SUPS,SO.sup),c=soFind(SOCUST,SO.cust);if(!s)return;
+  const G=SO.G.filter(x=>SO.all||x.bal>0.004),I=SO.I.filter(x=>SO.all||x.bal>0.004);
+  const tg=SO.G.reduce((a,x)=>a+Math.max(x.bal,0),0),ti=SO.I.reduce((a,x)=>a+Math.max(x.bal,0),0),net=tg-ti;
+  const gSel=SO.g&&soFind(SO.G,SO.g),iSel=SO.i&&soFind(SO.I,SO.i);
+  const maxAmt=(gSel&&iSel)?Math.min(gSel.bal,iSel.bal):0;
+  const gRows=G.map(x=>`<tr class="so-row ${String(x.id)===String(SO.g)?'sel':''} ${x.bal<=0.004?'done':''}" onclick="soSel('g',${x.id})"><td><span class="so-dot"></span><b>${esc(x.grn_no)}</b></td><td>${esc(x.grn_date)}</td><td class="r">${money(x.total)}</td><td class="r">${x.used?money(x.used):'-'}</td><td class="r so-bal">${money(x.bal)}</td></tr>`).join('')||'<tr><td colspan="5" class="mut">Nothing to set off on this side.</td></tr>';
+  const iRows=I.map(x=>`<tr class="so-row ${String(x.id)===String(SO.i)?'sel':''} ${x.bal<=0.004?'done':''}" onclick="soSel('i',${x.id})"><td><span class="so-dot"></span><b>${esc(x.inv_no)}</b></td><td>${esc(x.inv_date)}</td><td class="r">${money(x.total)}</td><td class="r">${(x.paid+x.used)?money(x.paid+x.used):'-'}</td><td class="r so-bal">${money(x.bal)}</td></tr>`).join('')||`<tr><td colspan="5" class="mut">${c?'No unpaid invoices for this customer.':'Choose the customer above.'}</td></tr>`;
+  const gl=Object.fromEntries(SO.G.map(x=>[x.id,x.grn_no])),il=Object.fromEntries(SO.I.map(x=>[x.id,x.inv_no]));
+  const hist=SO.H.map(h=>`<tr><td>${esc(h.so_date)}</td><td>${esc(gl[h.grn_id]||'#'+h.grn_id)}</td><td>${esc(il[h.invoice_id]||'#'+h.invoice_id)}</td><td class="r"><b>${money(h.amount)}</b></td><td>${esc(h.note||'')}</td><td>${isAdmin()?`<button class="btn sec sm" onclick="soDel(${h.id})">Undo</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">No set-offs yet.</td></tr>';
+  $('#so_body').innerHTML=`
+  <div class="so-kpis">
+    <div class="so-kpi k-we"><span>We owe ${esc(s.name)}</span><b>Rs. ${money(tg)}</b><small>from purchases (GRN)</small></div>
+    <div class="so-kpi k-they"><span>${c?esc(c.name):'Customer'} owes us</span><b>Rs. ${money(ti)}</b><small>from unpaid invoices</small></div>
+    <div class="so-kpi ${net>0.004?'k-pay':net<-0.004?'k-get':'k-zero'}"><span>After full set-off</span><b>Rs. ${money(Math.abs(net))}</b><small>${net>0.004?'we still pay the supplier':net<-0.004?'they still pay us':'fully settled'}</small></div>
+  </div>
+  <div class="so-grid">
+    <div class="so-panel p-left"><div class="so-ph"><b>We bought from them</b><span>GRN &middot; we owe</span></div>
+      <div class="tw"><table><thead><tr><th>GRN</th><th>Date</th><th class="r">Total</th><th class="r">Set off</th><th class="r">Balance</th></tr></thead><tbody>${gRows}</tbody></table></div></div>
+    <div class="so-panel p-right"><div class="so-ph"><b>They bought from us</b><span>Invoices &middot; they owe</span></div>
+      <div class="tw"><table><thead><tr><th>Invoice</th><th>Date</th><th class="r">Total</th><th class="r">Paid / set off</th><th class="r">Balance</th></tr></thead><tbody>${iRows}</tbody></table></div></div>
+  </div>
+  <div class="card so-act">
+    <div class="so-sel"><div><span>Left (GRN)</span><b>${gSel?esc(gSel.grn_no)+' &middot; balance '+money(gSel.bal):'click a GRN'}</b></div><div class="so-arrow">&#8644;</div><div><span>Right (Invoice)</span><b>${iSel?esc(iSel.inv_no)+' &middot; balance '+money(iSel.bal):'click an invoice'}</b></div></div>
+    <div class="so-form">
+      <div><label>Amount to set off</label><input id="so_amt" type="number" step="0.01" min="0" value="${maxAmt?maxAmt.toFixed(2):''}" ${maxAmt?'':'disabled'}></div>
+      <div><label>Date</label><input id="so_dt" type="date" value="${today()}"></div>
+      <div style="flex:2"><label>Note (optional)</label><input id="so_note" placeholder="e.g. cheque / agreement"></div>
+      <div style="flex:0"><button class="btn" id="so_go" onclick="soDo()" ${maxAmt?'':'disabled'}>Set off</button></div>
+      <div style="flex:0"><button class="btn sec" onclick="soAuto()" ${(tg>0.004&&ti>0.004)?'':'disabled'} title="Settle oldest first, as much as possible">Auto set-off</button></div>
+    </div>
+    ${maxAmt?`<div class="mut" style="margin-top:6px">Max for this pair: Rs. ${money(maxAmt)}. After this: GRN balance ${money(gSel.bal-maxAmt)} &middot; invoice balance ${money(iSel.bal-maxAmt)} (if you set off the full amount).</div>`:''}
+  </div>
+  <div class="card" style="margin-top:14px"><b>Set-off history</b><div class="tw" style="margin-top:8px"><table><thead><tr><th>Date</th><th>GRN</th><th>Invoice</th><th class="r">Amount</th><th>Note</th><th></th></tr></thead><tbody>${hist}</tbody></table></div></div>`;
+  const am=$('#so_amt');if(am)am.oninput=()=>{const v=Number(am.value||0);$('#so_go').disabled=!(v>0&&v<=maxAmt+0.004)};
+}
+function soSel(side,id){SO[side]=String(SO[side])===String(id)?null:id;soDraw()}
+async function soLink(){
+  const s=soFind(SUPS,SO.sup);if(!s||!SO.cust||String(s.customer_id)===String(SO.cust))return;
+  const {error}=await sb.rpc('set_supplier_link',{p_sup:s.id,p_cust:Number(SO.cust)});if(!error)s.customer_id=Number(SO.cust);
+}
+async function soDo(){
+  const g=soFind(SO.G,SO.g),i=soFind(SO.I,SO.i),amt=Math.round(Number($('#so_amt').value)*100)/100;
+  if(!g||!i)return toast('Click one GRN (left) and one invoice (right)',true);
+  if(!(amt>0))return toast('Enter an amount',true);
+  if(amt>Math.min(g.bal,i.bal)+0.004)return toast('Amount is more than the balance',true);
+  const {error}=await sb.rpc('do_setoff',{p_sup:Number(SO.sup),p_cust:Number(SO.cust)||null,p_grn:g.id,p_inv:i.id,p_amount:amt,p_note:$('#so_note').value||null,p_date:$('#so_dt').value||null});
+  if(error)return toast(error.message||'Failed',true);
+  await soLink();toast('Set off Rs. '+money(amt));SO.g=SO.i=null;soLoad();
+}
+async function soAuto(){
+  const G=SO.G.filter(x=>x.bal>0.004).map(x=>({...x})),I=SO.I.filter(x=>x.bal>0.004).map(x=>({...x}));
+  const plan=[];let a=0,b=0;
+  while(a<G.length&&b<I.length){const m=Math.round(Math.min(G[a].bal,I[b].bal)*100)/100;if(m>0)plan.push([G[a],I[b],m]);G[a].bal-=m;I[b].bal-=m;if(G[a].bal<=0.004)a++;if(I[b].bal<=0.004)b++}
+  if(!plan.length)return toast('Nothing to set off',true);
+  const tot=plan.reduce((x,p)=>x+p[2],0);
+  if(!confirm('Set off Rs. '+money(tot)+' in '+plan.length+' step(s), oldest first?'))return;
+  for(const [g,i,m] of plan){
+    const {error}=await sb.rpc('do_setoff',{p_sup:Number(SO.sup),p_cust:Number(SO.cust)||null,p_grn:g.id,p_inv:i.id,p_amount:m,p_note:'Auto set-off',p_date:$('#so_dt').value||null});
+    if(error){toast(error.message||'Failed',true);break}
+  }
+  await soLink();toast('Auto set-off done');SO.g=SO.i=null;soLoad();
+}
+async function soDel(id){if(!confirm('Undo this set-off? The balances come back.'))return;await run(sb.from('setoffs').delete().eq('id',id));toast('Set-off removed');soLoad()}
+
+/* ---- Purchases (what we bought from suppliers) ---- */
+PAGES.purchases=async()=>{
+  await loadSups();
+  const d0=new Date();d0.setDate(1);const ds=d0.toISOString().slice(0,10);
+  $('#main').innerHTML=`<div class="top"><h2>Purchases</h2></div>
+  <div class="card"><div class="bar">
+    <div><label>Supplier</label><select id="pu_sup" onchange="puLoad()"><option value="">All suppliers</option>${SUPS.map(s=>`<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('')}</select></div>
+    <div><label>From</label><input type="date" id="pu_a" value="${ds}" onchange="puLoad()"></div>
+    <div><label>To</label><input type="date" id="pu_b" value="${today()}" onchange="puLoad()"></div>
+  </div></div><div id="pu_body"></div>`;
+  puLoad();
+};
+async function puLoad(){
+  let q=sb.from('grn').select('id,grn_no,grn_date,supplier,ref_no,total').gte('grn_date',$('#pu_a').value||'2000-01-01').lte('grn_date',$('#pu_b').value||'2999-12-31').order('grn_date',{ascending:false}).order('id',{ascending:false});
+  const sn=$('#pu_sup').value;if(sn)q=q.eq('supplier',sn);
+  const [rows,so]=await Promise.all([run(q),run(sb.from('setoffs').select('grn_id,amount'))]);
+  const used={};so.forEach(x=>used[x.grn_id]=(used[x.grn_id]||0)+Number(x.amount));
+  const T=rows.reduce((a,r)=>a+Number(r.total),0),U=rows.reduce((a,r)=>a+(used[r.id]||0),0);
+  $('#pu_body').innerHTML=`<div class="so-kpis"><div class="so-kpi k-we"><span>Total purchases</span><b>Rs. ${money(T)}</b><small>${rows.length} GRN(s)</small></div><div class="so-kpi k-get"><span>Set off so far</span><b>Rs. ${money(U)}</b><small>against sales to the same company</small></div><div class="so-kpi k-pay"><span>Balance (not set off)</span><b>Rs. ${money(T-U)}</b><small>still payable</small></div></div>
+  <div class="tw"><table><thead><tr><th>GRN</th><th>Date</th><th>Supplier</th><th>Reference</th><th class="r">Total</th><th class="r">Set off</th><th class="r">Balance</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.grn_no)}</b></td><td>${esc(r.grn_date)}</td><td>${esc(r.supplier)}</td><td>${esc(r.ref_no||'')}</td><td class="r">${money(r.total)}</td><td class="r">${used[r.id]?money(used[r.id]):'-'}</td><td class="r"><b>${money(Number(r.total)-(used[r.id]||0))}</b></td></tr>`).join('')||'<tr><td colspan="7" class="mut">No purchases in this period.</td></tr>'}</tbody></table></div>`;
+}
 </script>
 </body>
 </html>
