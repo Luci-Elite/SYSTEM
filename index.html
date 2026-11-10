@@ -6,7 +6,7 @@
 <title>Stock & Invoice System</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>document.write('<script src="config.js?t='+Date.now()+'"><\/script>')</script>
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
 <div id="cssWarn" style="background:#b42318;color:#fff;padding:12px 16px;font:14px Arial,sans-serif">style.css was not found. Upload <b>style.css</b> into the same folder as index.html on GitHub (same level, same name), then reload this page.</div>
@@ -2368,7 +2368,7 @@ async function qtSave(){
 
 /* ===================== Supplier set-off + Purchases ===================== */
 PERMS.push(['setoff','Supplier set-off & purchases']);
-PERMS.push(['edit_items','Edit / delete items and categories'],['edit_people','Edit / delete customers and suppliers'],['edit_inv','Edit / delete invoices'],['edit_grn','Edit / delete GRN'],['edit_jobs','Edit / delete job notes'],['edit_quotes','Edit / delete quotations'],['setoff_undo','Undo supplier set-off'],['reps','Manage sales reps'],['editors','Use editors (invoice, job note, salary slip, quotation)']);
+PERMS.push(['edit_items','Edit / delete items & categories'],['edit_people','Edit / delete customers & suppliers'],['edit_inv','Edit / delete invoices'],['edit_grn','Edit / delete GRN'],['edit_jobs','Edit / delete job notes'],['edit_quotes','Edit / delete quotations'],['setoff_undo','Undo supplier set-off'],['reps','Manage sales reps'],['editors','Use layout editors']);
 let SO={sup:0,cust:0,g:null,i:null,all:false,G:[],I:[],H:[]};
 const soQ=s=>String(s||'').replace(/["\\]/g,'');
 const soFind=(list,id)=>list.find(x=>String(x.id)===String(id));
