@@ -138,3 +138,5 @@ label.jchk:has(input:checked){border-color:#e8731a;background:#fff3e8;color:#b54
 .so-form{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
 .so-form>div{flex:1;min-width:130px}
 @media(max-width:820px){.so-grid,.so-kpis,.so-pickgrid{grid-template-columns:1fr}}
+
+.paycr{background:#fff7ed;border:1px dashed #e8731a;border-radius:7px;padding:9px 12px;color:#9a4a0c;font-size:13px}
