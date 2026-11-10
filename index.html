@@ -2392,7 +2392,7 @@ async function soLoad(){
   const s=soFind(SUPS,SO.sup),c=soFind(SOCUST,SO.cust);
   if(!s){$('#so_body').innerHTML='<div class="card so-empty">Choose a supplier to start.</div>';return}
   const gq=sb.from('grn').select('id,grn_no,grn_date,supplier,total').or(`supplier_id.eq.${s.id},supplier.eq."${soQ(s.name)}"`).order('grn_date').order('id');
-  const iq=c?sb.from('invoices').select('id,inv_no,inv_date,customer_name,total,paid').or(`customer_id.eq.${c.id},customer_name.eq."${soQ(c.name)}"`).order('inv_date').order('id'):null;
+  const iq=c?sb.from('invoices').select('id,inv_no,inv_date,customer_name,total,paid,pay_method').or(`customer_id.eq.${c.id},customer_name.eq."${soQ(c.name)}"`).order('inv_date').order('id'):null;
   const [G,I]=await Promise.all([run(gq),iq?run(iq):Promise.resolve([])]);
   const gids=G.map(x=>x.id),iids=I.map(x=>x.id);
   const H1=gids.length?await run(sb.from('setoffs').select('*').in('grn_id',gids)):[];
@@ -2400,7 +2400,7 @@ async function soLoad(){
   const seen={};SO.H=[...H1,...H2].filter(h=>seen[h.id]?false:(seen[h.id]=1)).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))||b.id-a.id);
   const gs={},is={};SO.H.forEach(h=>{gs[h.grn_id]=(gs[h.grn_id]||0)+Number(h.amount);is[h.invoice_id]=(is[h.invoice_id]||0)+Number(h.amount)});
   SO.G=G.map(x=>({...x,used:gs[x.id]||0,bal:Number(x.total)-(gs[x.id]||0)}));
-  SO.I=I.map(x=>{const paid=x.paid==null?Number(x.total):Number(x.paid);return {...x,paid,used:is[x.id]||0,bal:Number(x.total)-paid-(is[x.id]||0)}});
+  SO.I=I.map(x=>{const paid=x.paid==null?(/credit/i.test(x.pay_method||'')?0:Number(x.total)):Number(x.paid);return {...x,paid,used:is[x.id]||0,bal:Number(x.total)-paid-(is[x.id]||0)}});
   soDraw();
 }
 function soDraw(){
@@ -2410,13 +2410,13 @@ function soDraw(){
   const gSel=SO.g&&soFind(SO.G,SO.g),iSel=SO.i&&soFind(SO.I,SO.i);
   const maxAmt=(gSel&&iSel)?Math.min(gSel.bal,iSel.bal):0;
   const gRows=G.map(x=>`<tr class="so-row ${String(x.id)===String(SO.g)?'sel':''} ${x.bal<=0.004?'done':''}" onclick="soSel('g',${x.id})"><td><span class="so-dot"></span><b>${esc(x.grn_no)}</b></td><td>${esc(x.grn_date)}</td><td class="r">${money(x.total)}</td><td class="r">${x.used?money(x.used):'-'}</td><td class="r so-bal">${money(x.bal)}</td></tr>`).join('')||'<tr><td colspan="5" class="mut">Nothing to set off on this side.</td></tr>';
-  const iRows=I.map(x=>`<tr class="so-row ${String(x.id)===String(SO.i)?'sel':''} ${x.bal<=0.004?'done':''}" onclick="soSel('i',${x.id})"><td><span class="so-dot"></span><b>${esc(x.inv_no)}</b></td><td>${esc(x.inv_date)}</td><td class="r">${money(x.total)}</td><td class="r">${(x.paid+x.used)?money(x.paid+x.used):'-'}</td><td class="r so-bal">${money(x.bal)}</td></tr>`).join('')||`<tr><td colspan="5" class="mut">${c?'No unpaid invoices for this customer.':'Choose the customer above.'}</td></tr>`;
+  const iRows=I.map(x=>`<tr class="so-row ${String(x.id)===String(SO.i)?'sel':''} ${x.bal<=0.004?'done':''}" onclick="soSel('i',${x.id})"><td><span class="so-dot"></span><b>${esc(x.inv_no)}</b> <span class="tag warn">Credit</span></td><td>${esc(x.inv_date)}</td><td class="r">${money(x.total)}</td><td class="r">${(x.paid+x.used)?money(x.paid+x.used):'-'}</td><td class="r so-bal">${money(x.bal)}</td></tr>`).join('')||`<tr><td colspan="5" class="mut">${c?'No credit (unpaid) invoices for this customer.':'Choose the customer above.'}</td></tr>`;
   const gl=Object.fromEntries(SO.G.map(x=>[x.id,x.grn_no])),il=Object.fromEntries(SO.I.map(x=>[x.id,x.inv_no]));
   const hist=SO.H.map(h=>`<tr><td>${esc(h.so_date)}</td><td>${esc(gl[h.grn_id]||'#'+h.grn_id)}</td><td>${esc(il[h.invoice_id]||'#'+h.invoice_id)}</td><td class="r"><b>${money(h.amount)}</b></td><td>${esc(h.note||'')}</td><td>${isAdmin()?`<button class="btn sec sm" onclick="soDel(${h.id})">Undo</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">No set-offs yet.</td></tr>';
   $('#so_body').innerHTML=`
   <div class="so-kpis">
     <div class="so-kpi k-we"><span>We owe ${esc(s.name)}</span><b>Rs. ${money(tg)}</b><small>from purchases (GRN)</small></div>
-    <div class="so-kpi k-they"><span>${c?esc(c.name):'Customer'} owes us</span><b>Rs. ${money(ti)}</b><small>from unpaid invoices</small></div>
+    <div class="so-kpi k-they"><span>${c?esc(c.name):'Customer'} owes us</span><b>Rs. ${money(ti)}</b><small>from credit invoices</small></div>
     <div class="so-kpi ${net>0.004?'k-pay':net<-0.004?'k-get':'k-zero'}"><span>After full set-off</span><b>Rs. ${money(Math.abs(net))}</b><small>${net>0.004?'we still pay the supplier':net<-0.004?'they still pay us':'fully settled'}</small></div>
   </div>
   <div class="so-grid">
