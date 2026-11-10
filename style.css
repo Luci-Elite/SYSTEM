@@ -323,6 +323,17 @@ th.r {
   flex: 1;
   min-width: 130px;
 }
+/* button groups inside a bar: size to the buttons (stops buttons overlapping) */
+.bar>div[style*="flex:0;"],
+.bar>div[style$="flex:0"] {
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  white-space: nowrap;
+}
+.top>.bar {
+  gap: 10px;
+  align-items: center;
+}
 
 /* ============================================================
    POP-UP (modal) AND TOAST MESSAGE
