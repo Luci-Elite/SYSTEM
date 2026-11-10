@@ -19,11 +19,12 @@ const CFG = {
     reps:true,       // Sales reps
     jobs:true,       // Job notes (+ Job note editor)
     quotes:true,     // Quotations (+ Quotation editor)
+    setoff:true,     // Supplier set-off + Purchases
     staff:true       // Staff management & salary (+ Salary slip editor)
   },
   quote: {                                                    // default texts of the quotation (can still be edited in Quotation editor)
     whyHead: 'WHY CHOOSE LAPTOPCARE',
-    phone: '+94 778 929 757',    // phone number used in the email text ({phone}); empty = use the number from the invoice editor
+    phone: '778929757',    // phone number used in the email text ({phone}); empty = use the number from the invoice editor
     email: '',    // email used in the email text ({email}); empty = use the invoice editor email
     chequeName: 'Laptopcare (Pvt) Ltd',
     about: "Laptopcare.lk stands proudly as one of the leading laptop resellers in Sri Lanka, offering a carefully curated and unique collection of Brand New laptops to suit every need and budget. Whether you are a student, business professional, creative designer, or gamer, we provide high-performance devices from globally recognized brands, ensuring reliability, durability, and value for money.\nAt Laptopcare.lk, customer satisfaction is at the heart of everything we do. We are committed to delivering top-notch service to our valued customers, guiding you to find the perfect laptop that matches your requirements.\nWhat sets us apart is our Dedicated service center, located right next to our showroom. Our experienced technicians are always ready to provide professional repairs, upgrades, and maintenance services, ensuring your device performs at its best long after your purchase.\nWith a strong reputation built on trust, quality, and exceptional after-sales support, Laptopcare.lk continues to be a preferred choice for customers across Sri Lanka seeking dependable laptops and expert service under one roof.\nOur commitment is simple: Quality • Trust • Customer Satisfaction",
