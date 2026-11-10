@@ -6,7 +6,7 @@
 <title>Stock & Invoice System</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>document.write('<script src="config.js?t='+Date.now()+'"><\/script>')</script>
-<link rel="stylesheet" href="style.css?v=13">
+<link rel="stylesheet" href="style.css?v=14">
 </head>
 <body>
 <div id="cssWarn" style="background:#b42318;color:#fff;padding:12px 16px;font:14px Arial,sans-serif">style.css was not found. Upload <b>style.css</b> into the same folder as index.html on GitHub (same level, same name), then reload this page.</div>
@@ -180,14 +180,14 @@ function buildNav(){
   const a=[],L=(k,l)=>`<a id="n_${k}" onclick="go('${k}')">${l}</a>`;
   a.push(L('dash','Dashboard'));
   [['stock','Stock check','stock'],['serial','Serial check','serial'],['invoice','New invoice','invoice'],['invoices','Invoices','invoices'],['grn','GRN','grn'],['reports','Sales report','reports']].forEach(([k,l,pm])=>{if(hasP(pm))a.push(L(k,l))});
-  const gen=[['items','Items','items'],['cats','Categories','items'],['customers','Customers','customers'],['suppliers','Suppliers','suppliers'],['reps','Sales reps','ADMIN']].filter(x=>x[2]==='ADMIN'?(isAdmin()&&modOn('reps')):hasP(x[2]));
+  const gen=[['items','Items','items'],['cats','Categories','items'],['customers','Customers','customers'],['suppliers','Suppliers','suppliers'],['reps','Sales reps','ADMIN']].filter(x=>x[2]==='ADMIN'?hasP('reps'):hasP(x[2]));
   if(gen.length)a.push(`<div class="grp"><a onclick="grpToggle(this)">General &#9662;</a><div class="sub">${gen.map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(hasP('jobs'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Job note &#9662;</a><div class="sub">${[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(hasP('quotes'))a.push(L('quotes','Quotations'));
   if(hasP('setoff'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Supplier &#9662;</a><div class="sub">${[['setoff','Set-off'],['purchases','Purchases']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(hasP('staff'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Staff management &#9662;</a><div class="sub">${[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
   if(isAdmin())a.push(L('users','Users'));
-  if(isAdmin()&&['invoice','jobs','staff','quotes'].some(modOn))a.push(`<div class="grp"><a onclick="grpToggle(this)">Editors &#9662;</a><div class="sub">${[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1])).join('')}</div></div>`);
+  if(hasP('editors')&&['invoice','jobs','staff','quotes'].some(modOn))a.push(`<div class="grp"><a onclick="grpToggle(this)">Editors &#9662;</a><div class="sub">${[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1])).join('')}</div></div>`);
   $('#nav').innerHTML=a.join('');
 }
 async function afterLogin(uid){
@@ -207,8 +207,8 @@ async function logout(){await sb.auth.signOut();location.reload()}
 const PAGES={};
 function grpToggle(a){const g=a.parentNode,was=g.classList.contains('open');document.querySelectorAll('#nav .grp.open').forEach(x=>x.classList.remove('open'));if(!was)g.classList.add('open')}
 async function go(p){
-  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quoteform:'quotes',reps:'reps',setoff:'setoff',purchases:'setoff',settings:'invoice',jobeditor:'jobs',slipeditor:'staff',quoteeditor:'quotes',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
-  if((need[p]&&!hasP(need[p]))||((p==='users'||p==='settings'||p==='reps'||p==='jobeditor'||p==='slipeditor'||p==='quoteeditor')&&!isAdmin()))p='dash';
+  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quoteform:'quotes',reps:'reps',setoff:'setoff',purchases:'setoff',settings:'editors',jobeditor:'editors',slipeditor:'editors',quoteeditor:'editors',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
+  if((need[p]&&!hasP(need[p]))||(p==='users'&&!isAdmin()))p='dash';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
   document.querySelectorAll('#nav .grp').forEach(g=>g.classList.remove('has-on'));const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('has-on')}
   $('#main').innerHTML='<p class="mut">Loading…</p>';
@@ -307,7 +307,7 @@ PAGES.items=async()=>{
 function itemsTable(){
   const c=$('#if_c').value,q=($('#if_q').value||'').toLowerCase();
   $('#itb').innerHTML=items.filter(i=>(!c||i.category_id==c)&&(i.name+' '+(i.code||'')).toLowerCase().includes(q)).map(i=>`<tr><td>${esc(i.code)}</td><td><b>${esc(i.name)}</b><div class="mut" style="white-space:pre-line">${esc(i.description)}</div></td><td>${esc(i.category_name)}</td><td>${i.track_serial?'Serial':'Qty only'}</td><td class="r">${money(i.cost)}</td><td class="r">${money(i.price)}</td><td>${wtyText(i.warranty_months)||'-'}</td>
-  <td style="white-space:nowrap">${isAdmin()?`<button class="btn sec sm" onclick="itemModal(${i.id})">Edit</button> <button class="btn sec sm" onclick="delItem(${i.id})">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8" class="mut">No items.</td></tr>';
+  <td style="white-space:nowrap">${hasP('edit_items')?`<button class="btn sec sm" onclick="itemModal(${i.id})">Edit</button> <button class="btn sec sm" onclick="delItem(${i.id})">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8" class="mut">No items.</td></tr>';
 }
 async function delItem(id){if(!confirm('Delete this item? (Only possible if it was never used in a GRN or invoice.)'))return;await run(sb.from('items').delete().eq('id',id));toast('Item deleted');go('items')}
 function itemModal(id,after){
@@ -338,7 +338,7 @@ PAGES.cats=async()=>{
   <div class="card"><b>Add category</b><div class="bar" style="margin-top:8px"><div><label>Name</label><input id="c_n"></div><div><label>Code prefix (e.g. LAP)</label><input id="c_p" maxlength="5"></div><div style="flex:0"><button class="btn" onclick="saveCat()">Add</button></div></div>
    <div class="mut" style="margin-top:6px">Item codes are made from the prefix: LAP-0001, LAP-0002 ...</div></div>
   <div class="tw"><table><thead><tr><th>Name</th><th>Code prefix</th><th>Next code</th><th></th></tr></thead><tbody>
-  ${CATS.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.prefix)}</td><td>${esc(c.prefix)}-${String(c.next_no).padStart(4,'0')}</td><td style="white-space:nowrap">${isAdmin()?`<button class="btn sec sm" onclick="catEdit(${c.id})">Edit</button> <button class="btn sec sm" onclick="catDel(${c.id})">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="4" class="mut">None.</td></tr>'}</tbody></table></div>`;
+  ${CATS.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.prefix)}</td><td>${esc(c.prefix)}-${String(c.next_no).padStart(4,'0')}</td><td style="white-space:nowrap">${hasP('edit_items')?`<button class="btn sec sm" onclick="catEdit(${c.id})">Edit</button> <button class="btn sec sm" onclick="catDel(${c.id})">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="4" class="mut">None.</td></tr>'}</tbody></table></div>`;
 };
 function catModal(){
   openModal(`<h3>New category</h3><div class="bar"><div><label>Name</label><input id="c_n"></div><div><label>Code prefix (e.g. MOU)</label><input id="c_p" maxlength="5"></div></div>
@@ -376,12 +376,12 @@ async function custLoad(){
   if(s)b=b.or(`name.ilike.%${s}%,code.ilike.%${s}%,phone.ilike.%${s}%`);
   const d=await run(b);window._cust=d;
   $('#ctb').innerHTML=d.map(c=>`<tr><td>${esc(c.code)}</td><td><b>${esc(c.name)}</b></td><td>${esc(c.phone)}</td><td>${esc(c.address)}</td>
-   <td style="white-space:nowrap">${isAdmin()?`<button class="btn sec sm" onclick="customerModal(${c.id})">Edit</button> <button class="btn sec sm" onclick="custDel(${c.id})">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="mut">No customers.</td></tr>';
+   <td style="white-space:nowrap">${hasP('edit_people')?`<button class="btn sec sm" onclick="customerModal(${c.id})">Edit</button> <button class="btn sec sm" onclick="custDel(${c.id})">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="mut">No customers.</td></tr>';
 }
 function customerModal(id,after){
   const c=(window._cust||[]).find(x=>x.id===id)||{};window._custAfter=after;
   openModal(`<h3>${id?'Edit':'New'} customer</h3>
-  <div class="row"><label>Customer code ${id?'':'(leave empty = automatic)'}</label><input id="cu_c" value="${esc(c.code)}" ${id&&!isAdmin()?'readonly':''}></div>
+  <div class="row"><label>Customer code ${id?'':'(leave empty = automatic)'}</label><input id="cu_c" value="${esc(c.code)}" ${id&&!hasP('edit_people')?'readonly':''}></div>
   <div class="row"><label>Name</label><input id="cu_n" value="${esc(c.name)}"></div>
   <div class="bar"><div><label>Phone</label><input id="cu_p" value="${esc(c.phone)}"></div><div><label>Email</label><input id="cu_e" value="${esc(c.email)}"></div></div>
   <div class="row" style="margin-top:8px"><label>Address</label><textarea id="cu_a" rows="2">${esc(c.address)}</textarea></div>
@@ -403,7 +403,7 @@ PAGES.suppliers=async()=>{
   await loadSups();window._sup=SUPS;
   $('#main').innerHTML=`<div class="top"><h2>Suppliers</h2>${hasP('suppliers')?'<button class="btn" onclick="supplierModal(0)">New supplier</button>':''}</div>
   <div class="tw"><table><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Address</th><th></th></tr></thead><tbody>
-  ${SUPS.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.phone)}</td><td>${esc(c.email)}</td><td>${esc(c.address)}</td><td style="white-space:nowrap">${isAdmin()?`<button class="btn sec sm" onclick="supplierModal(${c.id})">Edit</button> <button class="btn sec sm" onclick="supDel(${c.id})">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="mut">No suppliers.</td></tr>'}</tbody></table></div>`;
+  ${SUPS.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.phone)}</td><td>${esc(c.email)}</td><td>${esc(c.address)}</td><td style="white-space:nowrap">${hasP('edit_people')?`<button class="btn sec sm" onclick="supplierModal(${c.id})">Edit</button> <button class="btn sec sm" onclick="supDel(${c.id})">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="mut">No suppliers.</td></tr>'}</tbody></table></div>`;
 };
 function supplierModal(id,after){
   const c=SUPS.find(x=>x.id===id)||{};window._supAfter=after;
@@ -453,7 +453,7 @@ PAGES.grn=async()=>{
   <h3 style="margin:18px 0 8px">Recent GRNs</h3>
   <div class="tw"><table><thead><tr><th>GRN</th><th>Date</th><th>Supplier</th><th>Ref</th><th class="r">Total cost</th><th></th></tr></thead><tbody>
   ${list.map(g=>`<tr><td>${esc(g.grn_no)}</td><td>${g.grn_date}</td><td>${esc(g.supplier)}</td><td>${esc(g.ref_no)}</td><td class="r">${money(g.total)}</td>
-   <td style="white-space:nowrap">${isAdmin()?`<button class="btn sec sm" onclick="grnEdit(${g.id})">Edit</button> <button class="btn sec sm" onclick="grnDel2(${g.id},'${esc(g.grn_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">None yet.</td></tr>'}</tbody></table></div>`;
+   <td style="white-space:nowrap">${hasP('edit_grn')?`<button class="btn sec sm" onclick="grnEdit(${g.id})">Edit</button> <button class="btn sec sm" onclick="grnDel2(${g.id},'${esc(g.grn_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">None yet.</td></tr>'}</tbody></table></div>`;
   grnAdd();
 };
 function supAfter(s){SUPS.push(s);SUPS.sort((a,b)=>a.name.localeCompare(b.name));$('#g_sup').innerHTML=supOpts(s.id)}
@@ -780,7 +780,7 @@ async function invList(){
   if(q)b=b.or(`inv_no.ilike.%${q}%,customer_name.ilike.%${q}%,customer_code.ilike.%${q}%`);
   const d=await run(b);
   $('#ivt').innerHTML=d.map(v=>`<tr><td>${esc(v.inv_no)}</td><td>${v.inv_date}</td><td>${esc(v.customer_name)}<div class="mut">${esc(v.customer_code)} ${esc(v.phone)}</div></td><td>${esc(v.rep_name)}</td><td>${esc(v.pay_method)}</td><td class="r">${money(v.total)}</td>
-   <td style="white-space:nowrap"><button class="btn sec sm" onclick="printInvoice(${v.id},$('#p_fmt').value)">Print</button> ${isAdmin()?`<button class="btn sec sm" onclick="editInvoice(${v.id})">Edit</button> <button class="btn sec sm" onclick="voidInv(${v.id},'${esc(v.inv_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mut">No invoices found.</td></tr>';
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="printInvoice(${v.id},$('#p_fmt').value)">Print</button> ${hasP('edit_inv')?`<button class="btn sec sm" onclick="editInvoice(${v.id})">Edit</button> <button class="btn sec sm" onclick="voidInv(${v.id},'${esc(v.inv_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mut">No invoices found.</td></tr>';
 }
 function editInvoice(id){window._editInv=id;go('invoice')}
 async function voidInv(id,no){
@@ -1195,7 +1195,7 @@ PAGES.job_repair=()=>jobList('repair');
 PAGES.job_service=()=>jobList('service');
 async function jobList(type){
   JTYPE=type;try{await loadSups()}catch(e){}
-  $('#main').innerHTML=`<div class="top"><h2>${JT[type]} job notes</h2><div class="bar"><div style="flex:0;white-space:nowrap"><button class="btn" onclick="jobNew('${type}')">+ New ${JT[type].toLowerCase()} job note</button></div><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="printJobBlank()">Print blank form</button></div>${isAdmin()?'<div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="jsupEdit()">Supplier statuses</button></div>':''}</div></div>
+  $('#main').innerHTML=`<div class="top"><h2>${JT[type]} job notes</h2><div class="bar"><div style="flex:0;white-space:nowrap"><button class="btn" onclick="jobNew('${type}')">+ New ${JT[type].toLowerCase()} job note</button></div><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="printJobBlank()">Print blank form</button></div>${hasP('editors')?'<div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="jsupEdit()">Supplier statuses</button></div>':''}</div></div>
   <div class="card"><div class="bar"><div><label>Status</label><select id="jf_s" onchange="jobLoad()"><option value="">All</option>${JSTAT.map(x=>`<option>${x}</option>`).join('')}</select></div>
    <div><label>From</label><input id="jf_f" type="date" onchange="jobLoad()"></div><div><label>To</label><input id="jf_t" type="date" onchange="jobLoad()"></div>
    ${hasP('jobs')?`<div><label>Supplier</label><select id="jf_su" onchange="jobLoad()"><option value="">All</option><option value="__none">- none -</option>${(SUPS||[]).map(x=>`<option value="${esc(x.name)}">${esc(x.name)}</option>`).join('')}</select></div>`:''}
@@ -1211,7 +1211,7 @@ async function jobSup(id,f,v){if(!hasP('jobs'))return;const r=JROWS[id];if(!r)re
  else ch.supplier_status=v;
  const {error}=await sb.from('job_notes').update({checks:ch}).eq('id',id);if(error){toast(error.message,'err');return}
  toast('Saved');jobLoad()}
-async function jsupEdit(){if(!isAdmin())return;openModal(`<h3>Supplier hand-over statuses</h3><p class="mut">One status per line</p><textarea id="jsu_t" rows="8" style="width:100%">${esc(jsupList().join('\n'))}</textarea><div style="margin-top:10px;display:flex;gap:8px"><button class="btn" onclick="jsupSave()">Save</button><button class="btn sec" onclick="closeModal()">Cancel</button></div>`)}
+async function jsupEdit(){if(!hasP('editors'))return;openModal(`<h3>Supplier hand-over statuses</h3><p class="mut">One status per line</p><textarea id="jsu_t" rows="8" style="width:100%">${esc(jsupList().join('\n'))}</textarea><div style="margin-top:10px;display:flex;gap:8px"><button class="btn" onclick="jsupSave()">Save</button><button class="btn sec" onclick="closeModal()">Cancel</button></div>`)}
 async function jsupSave(){const a=$('#jsu_t').value.split('\n').map(x=>x.trim()).filter(Boolean);if(!a.length)return toast('Add at least one','err');
  const {error}=await sb.from('settings').upsert({key:'job_sup_status',value:JSON.stringify(a)});if(error)return toast(error.message,'err');
  settings.job_sup_status=JSON.stringify(a);closeModal();toast('Saved');jobLoad()}
@@ -1224,7 +1224,7 @@ async function jobLoad(){
   if(su==='__none')d=d.filter(j=>!(j.checks&&j.checks.supplier_name));else if(su)d=d.filter(j=>j.checks&&j.checks.supplier_name===su);
   $('#jbt').innerHTML=d.map(j=>`<tr><td><b>${esc(j.job_no)}</b></td><td>${fmtDT(j.job_date)}</td><td>${esc(j.customer_name)}<div class="mut">${esc(j.customer_code)} ${esc(j.mobile)}</div></td>
    <td>${esc(j.brand_model)}<div class="mut">${esc(j.serial_no)}</div></td><td style="max-width:260px">${esc(plainText(j.issue).slice(0,90))}</td>${hasP('jobs')?`<td style="white-space:nowrap"><div style="display:flex;gap:6px;align-items:center"><select style="max-width:150px" onchange="jobSup(${j.id},'n',this.value)"><option value="">- supplier -</option>${(SUPS||[]).map(x=>`<option ${x.name===(j.checks||{}).supplier_name?'selected':''}>${esc(x.name)}</option>`).join('')}</select>${(j.checks||{}).supplier_name?`<select style="max-width:170px" onchange="jobSup(${j.id},'s',this.value)">${jsupList().concat(jsupList().includes((j.checks||{}).supplier_status)?[]:[(j.checks||{}).supplier_status].filter(Boolean)).map(x=>`<option ${x===(j.checks||{}).supplier_status?'selected':''}>${esc(x)}</option>`).join('')}</select>`:''}</div></td>`:''}<td><select onchange="jobStatus(${j.id},this.value)">${JSTAT.map(x=>`<option ${x===j.status?'selected':''}>${x}</option>`).join('')}</select></td>
-   <td style="white-space:nowrap"><button class="btn sec sm" onclick="printJob(${j.id})">Print</button> ${isAdmin()?`<button class="btn sec sm" onclick="jobEdit(${j.id})">Edit</button> <button class="btn sec sm" onclick="jobDel(${j.id},'${esc(j.job_no)}')">Delete</button>`:''}</td></tr>`).join('')||`<tr><td colspan="${hasP('jobs')?8:7}" class="mut">No job notes found.</td></tr>`;
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="printJob(${j.id})">Print</button> ${hasP('edit_jobs')?`<button class="btn sec sm" onclick="jobEdit(${j.id})">Edit</button> <button class="btn sec sm" onclick="jobDel(${j.id},'${esc(j.job_no)}')">Delete</button>`:''}</td></tr>`).join('')||`<tr><td colspan="${hasP('jobs')?8:7}" class="mut">No job notes found.</td></tr>`;
 }
 async function jobStatus(id,v){await run(sb.from('job_notes').update({status:v}).eq('id',id));toast('Status updated')}
 async function jobDel(id,no){if(!confirm('Delete job note '+no+'?'))return;await run(sb.from('job_notes').delete().eq('id',id));toast('Deleted');jobLoad()}
@@ -2079,19 +2079,19 @@ async function qLoad(){
   const s=($('#qs')&&$('#qs').value||'').trim().toLowerCase();QROWS={};d.forEach(r=>QROWS[r.id]=r);
   const rows=d.filter(r=>!s||String(r.customer_name||'').toLowerCase().includes(s)||String(r.quote_no||'').toLowerCase().includes(s)||qModels(r).toLowerCase().includes(s));
   $('#qbt').innerHTML=rows.map(r=>`<tr><td><b>${esc(r.quote_no)}</b></td><td>${esc(r.q_date)}</td><td>${esc(r.customer_name)}<div class="mut">${esc(r.customer_address)}${r.data&&r.data.customer_email?' | '+esc(r.data.customer_email):''}</div></td><td>${qModelsHtml(r)}</td><td>${esc(r.subject)}</td><td class="r">${money(r.total)}</td>
-   <td style="white-space:nowrap"><button class="btn sec sm" onclick="qView(${r.id})">Preview</button> <button class="btn sec sm" onclick="qPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="qPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="qMail(${r.id})">Outlook</button> <button class="btn sec sm" onclick="qMail(${r.id},'gmail')">Gmail</button> <button class="btn sec sm" onclick="qCopy(${r.id})">Copy</button>${isAdmin()?` <button class="btn sec sm" onclick="qEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="qDel(${r.id},'${esc(r.quote_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mut">No quotations yet.</td></tr>';
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="qView(${r.id})">Preview</button> <button class="btn sec sm" onclick="qPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="qPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="qMail(${r.id})">Outlook</button> <button class="btn sec sm" onclick="qMail(${r.id},'gmail')">Gmail</button> <button class="btn sec sm" onclick="qCopy(${r.id})">Copy</button>${hasP('edit_quotes')?` <button class="btn sec sm" onclick="qEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="qDel(${r.id},'${esc(r.quote_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mut">No quotations yet.</td></tr>';
 }
 const qItems=r=>((r.data&&r.data.items)||[]).filter(i=>String(i.model||'').trim());
 const qModels=r=>qItems(r).map(i=>i.model).join(' ');
 const qModelsHtml=r=>qItems(r).map(i=>`<div><b>${esc(String(i.model).trim())}</b>${Number(i.qty)>1?' <span class="mut">x'+esc(i.qty)+'</span>':''}</div>`).join('')||'<span class="mut">-</span>';
 const qRecToQ=r=>({quote_no:r.quote_no,q_date:r.q_date,customer_name:r.customer_name,customer_address:r.customer_address,subject:r.subject,items:(r.data&&r.data.items)||[],note:(r.data&&r.data.note)||'',customer_email:(r.data&&r.data.customer_email)||''});
 async function qPrint(id){const r=QROWS[id]||await run(sb.from('quotations').select('*').eq('id',id).single());slipPrintDoc(qtDoc(qRecToQ(r),getQL(),false))}
-async function qDel(id,no){if(!isAdmin()||!confirm('Delete quotation '+no+'?'))return;await run(sb.from('quotations').delete().eq('id',id));toast('Deleted');qLoad()}
+async function qDel(id,no){if(!hasP('edit_quotes')||!confirm('Delete quotation '+no+'?'))return;await run(sb.from('quotations').delete().eq('id',id));toast('Deleted');qLoad()}
 const qSpecKeys=()=>String(getQL().specKeys||'').split(/\n/).map(x=>x.trim()).filter(Boolean);
 const qNewItem=()=>({model:'',desc:'',url:'',price:'',qty:1,specs:qSpecKeys().map(k=>[k,''])});
 const qBlank=()=>({id:null,quote_no:'',q_date:today(),customer_name:'',customer_address:'',customer_email:'',subject:'LAPTOP SUPPLY PROPOSAL',note:'',items:[qNewItem()]});
 function qNew(){QF=qBlank();go('quoteform')}
-function qEdit(id){if(!isAdmin())return;const r=QROWS[id];if(!r)return;QF={...qRecToQ(r),id:r.id};QF.items=JSON.parse(JSON.stringify(QF.items));go('quoteform')}
+function qEdit(id){if(!hasP('edit_quotes'))return;const r=QROWS[id];if(!r)return;QF={...qRecToQ(r),id:r.id};QF.items=JSON.parse(JSON.stringify(QF.items));go('quoteform')}
 function qCopy(id){const r=QROWS[id];if(!r)return;QF={...qRecToQ(r),id:null,quote_no:'',q_date:today()};QF.items=JSON.parse(JSON.stringify(QF.items));go('quoteform')}
 /* ---------- form ---------- */
 PAGES.quoteform=async()=>{
@@ -2359,6 +2359,7 @@ async function qtSave(){
 
 /* ===================== Supplier set-off + Purchases ===================== */
 PERMS.push(['setoff','Supplier set-off & purchases']);
+PERMS.push(['edit_items','Edit / delete items and categories'],['edit_people','Edit / delete customers and suppliers'],['edit_inv','Edit / delete invoices'],['edit_grn','Edit / delete GRN'],['edit_jobs','Edit / delete job notes'],['edit_quotes','Edit / delete quotations'],['setoff_undo','Undo supplier set-off'],['reps','Manage sales reps'],['editors','Use editors (invoice, job note, salary slip, quotation)']);
 let SO={sup:0,cust:0,g:null,i:null,all:false,G:[],I:[],H:[]};
 const soQ=s=>String(s||'').replace(/["\\]/g,'');
 const soFind=(list,id)=>list.find(x=>String(x.id)===String(id));
@@ -2414,7 +2415,7 @@ function soDraw(){
   const gRows=G.map(x=>`<tr class="so-row ${String(x.id)===String(SO.g)?'sel':''} ${x.bal<=0.004?'done':''}" onclick="soSel('g',${x.id})"><td><span class="so-dot"></span><b>${esc(x.grn_no)}</b></td><td>${esc(x.grn_date)}</td><td class="r">${money(x.total)}</td><td class="r">${x.used?money(x.used):'-'}</td><td class="r so-bal">${money(x.bal)}</td></tr>`).join('')||'<tr><td colspan="5" class="mut">Nothing to set off on this side.</td></tr>';
   const iRows=I.map(x=>`<tr class="so-row ${String(x.id)===String(SO.i)?'sel':''} ${x.bal<=0.004?'done':''}" onclick="soSel('i',${x.id})"><td><span class="so-dot"></span><b>${esc(x.inv_no)}</b> <span class="tag warn">Credit</span></td><td>${esc(x.inv_date)}</td><td class="r">${money(x.total)}</td><td class="r">${(x.paid+x.used)?money(x.paid+x.used):'-'}</td><td class="r so-bal">${money(x.bal)}</td></tr>`).join('')||`<tr><td colspan="5" class="mut">${c?'No credit (unpaid) invoices for this customer.':'Choose the customer above.'}</td></tr>`;
   const gl=Object.fromEntries(SO.G.map(x=>[x.id,x.grn_no])),il=Object.fromEntries(SO.I.map(x=>[x.id,x.inv_no]));
-  const hist=SO.H.map(h=>`<tr><td>${esc(h.so_date)}</td><td>${esc(gl[h.grn_id]||'#'+h.grn_id)}</td><td>${esc(il[h.invoice_id]||'#'+h.invoice_id)}</td><td class="r"><b>${money(h.amount)}</b></td><td>${esc(h.note||'')}</td><td>${isAdmin()?`<button class="btn sec sm" onclick="soDel(${h.id})">Undo</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">No set-offs yet.</td></tr>';
+  const hist=SO.H.map(h=>`<tr><td>${esc(h.so_date)}</td><td>${esc(gl[h.grn_id]||'#'+h.grn_id)}</td><td>${esc(il[h.invoice_id]||'#'+h.invoice_id)}</td><td class="r"><b>${money(h.amount)}</b></td><td>${esc(h.note||'')}</td><td>${hasP('setoff_undo')?`<button class="btn sec sm" onclick="soDel(${h.id})">Undo</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">No set-offs yet.</td></tr>';
   $('#so_body').innerHTML=`
   <div class="so-kpis">
     <div class="so-kpi k-we"><span>We owe ${esc(s.name)}</span><b>Rs. ${money(tg)}</b><small>from purchases (GRN)</small></div>
