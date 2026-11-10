@@ -6,7 +6,7 @@
 <title>Stock & Invoice System</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>document.write('<script src="config.js?t='+Date.now()+'"><\/script>')</script>
-<link rel="stylesheet" href="style.css?v=14">
+<link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
 <div id="cssWarn" style="background:#b42318;color:#fff;padding:12px 16px;font:14px Arial,sans-serif">style.css was not found. Upload <b>style.css</b> into the same folder as index.html on GitHub (same level, same name), then reload this page.</div>
@@ -79,7 +79,16 @@ const modOn = k => !(typeof CFG!=='undefined' && CFG.modules && CFG.modules[k]==
 const hasP = k => modOn(k) && (isAdmin() || (me && (me.perms || []).includes(k)));
 const PERMS=[['invoice','Create invoice'],['invoices','View / reprint invoices'],['stock','Stock check'],['serial','Serial number check'],['grn','GRN (goods received)'],['items','Add items and categories'],['customers','Create customers'],['suppliers','Create suppliers'],['reports','Sales reports'],['jobs','Job notes (create, change status)'],['cost','See cost prices'],['profit','See profit in sales report'],['price','Change price on invoice'],['backdate','Change invoice / GRN date'],['quotes','Quotations (create, print)']];
 const DEF_PERMS=['invoice','invoices'];
-const permBoxes=(pre,sel)=>PERMS.filter(x=>modOn(x[0])).map(([k,l])=>`<label class="chk"><input type="checkbox" id="${pre}_${k}" ${sel.includes(k)?'checked':''}> ${l}</label>`).join('');
+const PGROUPS=[['Sales &amp; invoices',['invoice','invoices','reports','price','backdate','cost','profit']],['Stock',['stock','serial','grn','items']],['Customers &amp; suppliers',['customers','suppliers','setoff']],['Job notes &amp; quotations',['jobs','quotes']],['Staff',['staff']],['Edit / delete',['edit_items','edit_people','edit_inv','edit_grn','edit_jobs','edit_quotes','setoff_undo']],['Admin tools',['reps','editors']]];
+const permBoxes=(pre,sel)=>{
+  const ok=PERMS.filter(x=>modOn(x[0])),used=new Set();
+  const chip=([k,l])=>`<label class="jchk"><input type="checkbox" id="${pre}_${k}" ${sel.includes(k)?'checked':''}> ${l}</label>`;
+  const grp=(t,list)=>list.length?`<div class="pgroup"><div class="ptitle"><b>${t}</b><span><a onclick="permAll('${pre}',this,1)">all</a> &middot; <a onclick="permAll('${pre}',this,0)">none</a></span></div><div class="chkrow">${list.map(chip).join('')}</div></div>`:'';
+  let h=PGROUPS.map(([t,keys])=>grp(t,keys.map(k=>ok.find(x=>x[0]===k)).filter(Boolean).map(x=>(used.add(x[0]),x)))).join('');
+  h+=grp('Other',ok.filter(x=>!used.has(x[0])));
+  return h;
+};
+function permAll(pre,a,on){a.closest('.pgroup').querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=!!on)}
 const permRead=pre=>PERMS.filter(([k])=>modOn(k)&&$('#'+pre+'_'+k)&&$('#'+pre+'_'+k).checked).map(([k])=>k);
 
 function toast(msg, err){const t=$('#toast');t.textContent=msg;t.className=err?'err':'';t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',err?6000:2500)}
@@ -968,7 +977,7 @@ PAGES.users=async()=>{
    <div><label>Email (optional)</label><input id="u_e" type="email"></div>
    <div><label>Password (min 6)</label><div class="pw"><input id="u_p" type="password" autocomplete="new-password"><button type="button" class="eye" onclick="eye('u_p',this)" aria-label="Show or hide password">&#128065;</button></div></div>
    <div><label>Role</label><select id="u_r"><option value="user">User (limited)</option><option value="admin">Admin (full control)</option></select></div></div>
-   <div style="margin-top:10px"><label>What can this user do? (ignored for Admin)</label><div class="pgrid">${permBoxes('np',DEF_PERMS)}</div></div>
+   <div style="margin-top:10px"><label>What can this user do? (ignored for Admin)</label><div class="pgroups">${permBoxes('np',DEF_PERMS)}</div></div>
    <div style="margin-top:10px"><button class="btn" onclick="addUser()">Create user</button></div>
    <div class="mut" style="margin-top:6px">Added here = active straight away. Add a real email if they should be able to reset their own password.</div></div>
   <div class="tw"><table><thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Can do</th><th>Status</th><th></th></tr></thead><tbody>
