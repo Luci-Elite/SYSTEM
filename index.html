@@ -6,7 +6,8 @@
 <title>Stock & Invoice System</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>document.write('<script src="config.js?t='+Date.now()+'"><\/script>')</script>
-<link rel="stylesheet" href="style.css?v=16">
+<script>try{if(typeof CFG!=='undefined'&&CFG.theme&&CFG.theme.accent)document.documentElement.style.setProperty('--acc',CFG.theme.accent)}catch(e){}</script>
+<link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
 <div id="cssWarn" style="background:#b42318;color:#fff;padding:12px 16px;font:14px Arial,sans-serif">style.css was not found. Upload <b>style.css</b> into the same folder as index.html on GitHub (same level, same name), then reload this page.</div>
@@ -53,11 +54,24 @@
 
 <div id="app">
   <aside id="side">
-    <div class="brand"><span id="coName">Company</span><small>Stock &amp; Invoice</small></div>
+    <div class="brand"><span class="logo" id="coLogo">L</span><div><b id="coName">Company</b><small>Stock &amp; Invoice</small></div></div>
+    <input id="navsearch" placeholder="Search menu..." autocomplete="off" oninput="navFilter(this.value)">
     <nav id="nav"></nav>
-    <div class="me"><div id="meName"></div><a onclick="pwModal()" style="padding:4px 0;cursor:pointer;color:#fff;border:0">Change password</a><a onclick="logout()" style="padding:4px 0;cursor:pointer;color:#fff;border:0">Sign out</a></div>
+    <div class="me" style="display:none"><div id="meName"></div></div>
   </aside>
-  <main id="main"></main>
+  <div id="shell">
+    <header id="topbar">
+      <button id="tbMenu" onclick="document.body.classList.toggle('sideopen')" aria-label="Menu">&#9776;</button>
+      <div id="tbQuick" class="tbquick"></div>
+      <span class="tb-sp"></span>
+      <span class="tb-date" id="tbDate"></span>
+      <div class="tb-user">
+        <button id="tbUser" onclick="tbToggle(event)"><span class="av" id="tbAv">A</span><span><b id="tbName"></b><small id="tbRole"></small></span></button>
+        <div id="tbMenuBox"><a onclick="pwModal()">Change password</a><a onclick="logout()">Sign out</a></div>
+      </div>
+    </header>
+    <main id="main"></main>
+  </div>
 </div>
 
 <div id="modalBg"><div class="modal" id="modal"></div></div>
@@ -185,19 +199,72 @@ async function changePw(){
   if(error)return toast(error.message,true);
   closeModal();toast('Password changed');
 }
+const ICO={
+ dash:'<rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/>',
+ stock:'<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+ serial:'<path d="M4 6v12M8 6v12M11 6v12M15 6v12M18 6v12M21 6v12"/>',
+ invoice:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M12 12v6M9 15h6"/>',
+ invoices:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+ grn:'<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/>',
+ reports:'<path d="M5 20V10M12 20V4M19 20v-7"/>',
+ general:'<path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',
+ items:'<path d="M20 12l-8 8-9-9V4h7z"/><circle cx="8" cy="8" r="1.2"/>',
+ cats:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+ customers:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M18 14a6.5 6.5 0 013.5 6"/>',
+ suppliers:'<path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>',
+ reps:'<circle cx="10" cy="8" r="3.5"/><path d="M3 20a7 7 0 0114 0M16 11l2 2 4-4"/>',
+ jobs:'<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/>',
+ job_warranty:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
+ job_repair:'<path d="M15 5a4 4 0 00-4 5L4 17l3 3 7-7a4 4 0 005-4l-3 2-2-2 2-3z"/>',
+ job_service:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
+ quotes:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 14l2 2 4-4"/>',
+ setoff:'<path d="M17 4l3 3-3 3M20 7H8a4 4 0 00-4 4M7 20l-3-3 3-3M4 17h12a4 4 0 004-4"/>',
+ purchases:'<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h3l2.5 11h10L21 8H7"/>',
+ staff:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M18 14a6.5 6.5 0 013.5 6"/>',
+ staff_adv:'<path d="M4 7h14a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2zM4 7a2 2 0 012-2h11"/><circle cx="16" cy="13.5" r="1.2"/>',
+ staff_sal:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/>',
+ users:'<circle cx="10" cy="8" r="3.5"/><path d="M3 20a7 7 0 0114 0M17 11h5M19.5 8.5v5"/>',
+ editors:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'
+};
+const ico=k=>`<svg viewBox="0 0 24 24">${ICO[k]||'<circle cx="12" cy="12" r="4"/>'}</svg>`;
 function buildNav(){
-  const a=[],L=(k,l)=>`<a id="n_${k}" onclick="go('${k}')">${l}</a>`;
-  a.push(L('dash','Dashboard'));
-  [['stock','Stock check','stock'],['serial','Serial check','serial'],['invoice','New invoice','invoice'],['invoices','Invoices','invoices'],['grn','GRN','grn'],['reports','Sales report','reports']].forEach(([k,l,pm])=>{if(hasP(pm))a.push(L(k,l))});
-  const gen=[['items','Items','items'],['cats','Categories','items'],['customers','Customers','customers'],['suppliers','Suppliers','suppliers'],['reps','Sales reps','ADMIN']].filter(x=>x[2]==='ADMIN'?hasP('reps'):hasP(x[2]));
-  if(gen.length)a.push(`<div class="grp"><a onclick="grpToggle(this)">General &#9662;</a><div class="sub">${gen.map(g=>L(g[0],g[1])).join('')}</div></div>`);
-  if(hasP('jobs'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Job note &#9662;</a><div class="sub">${[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
-  if(hasP('quotes'))a.push(L('quotes','Quotations'));
-  if(hasP('setoff'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Supplier &#9662;</a><div class="sub">${[['setoff','Set-off'],['purchases','Purchases']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
-  if(hasP('staff'))a.push(`<div class="grp"><a onclick="grpToggle(this)">Staff management &#9662;</a><div class="sub">${[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1])).join('')}</div></div>`);
-  if(isAdmin())a.push(L('users','Users'));
-  if(hasP('editors')&&['invoice','jobs','staff','quotes'].some(modOn))a.push(`<div class="grp"><a onclick="grpToggle(this)">Editors &#9662;</a><div class="sub">${[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1])).join('')}</div></div>`);
-  $('#nav').innerHTML=a.join('');
+  const L=(k,l)=>`<a id="n_${k}" onclick="go('${k}')">${ico(k)}<span>${l}</span></a>`;
+  const G=(ic,label,items)=>`<div class="grp"><a onclick="grpToggle(this)">${ico(ic)}<span>${label}</span></a><div class="sub">${items.join('')}</div></div>`;
+  const sec=(label,list)=>list.length?`<div class="navlbl">${label}</div>`+list.join(''):'';
+  const s1=[L('dash','Dashboard')];
+  const s2=[['stock','Stock check','stock'],['serial','Serial check','serial'],['invoice','New invoice','invoice'],['invoices','Invoices','invoices'],['grn','GRN','grn'],['reports','Sales report','reports']].filter(x=>hasP(x[2])).map(x=>L(x[0],x[1]));
+  const s3=[];
+  const gen=[['items','Items','items'],['cats','Categories','items'],['customers','Customers','customers'],['suppliers','Suppliers','suppliers'],['reps','Sales reps','reps']].filter(x=>hasP(x[2]));
+  if(gen.length)s3.push(G('general','General',gen.map(g=>L(g[0],g[1]))));
+  if(hasP('jobs'))s3.push(G('jobs','Job note',[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1]))));
+  if(hasP('quotes'))s3.push(L('quotes','Quotations'));
+  if(hasP('setoff'))s3.push(G('setoff','Supplier',[['setoff','Set-off'],['purchases','Purchases']].map(g=>L(g[0],g[1]))));
+  if(hasP('staff'))s3.push(G('staff','Staff management',[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1]))));
+  const s4=[];
+  if(isAdmin())s4.push(L('users','Users'));
+  if(hasP('editors')&&['invoice','jobs','staff','quotes'].some(modOn))s4.push(G('editors','Editors',[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1]))));
+  $('#nav').innerHTML=sec('OVERVIEW',s1)+sec('TRADE',s2)+sec('MANAGE',s3)+sec('ADMIN',s4);
+}
+function navFilter(q){
+  q=String(q||'').trim().toLowerCase();
+  document.querySelectorAll('#nav a[id]').forEach(a=>{a.style.display=(!q||a.textContent.toLowerCase().includes(q))?'':'none'});
+  document.querySelectorAll('#nav .grp').forEach(g=>{
+    const any=[...g.querySelectorAll('.sub a')].some(a=>a.style.display!=='none');
+    g.style.display=any||!q?'':'none';
+    if(q&&any)g.classList.add('open');else if(!q)g.classList.remove('open');
+  });
+  document.querySelectorAll('#nav .navlbl').forEach(l=>{l.style.display=q?'none':''});
+}
+function tbToggle(e){e.stopPropagation();$('#tbMenuBox').classList.toggle('open')}
+document.addEventListener('click',e=>{const m=$('#tbMenuBox');if(m&&!e.target.closest('.tb-user'))m.classList.remove('open')});
+function uiAfterLogin(){
+  const nm=(settings.company_name||'Company');
+  $('#coLogo').textContent=(nm.trim()[0]||'L').toUpperCase();
+  $('#tbAv').textContent=(me.username||'U').trim()[0].toUpperCase();
+  $('#tbName').textContent=me.username;$('#tbRole').textContent=me.role==='admin'?'Admin':'User';
+  $('#tbDate').textContent=new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  const q=[['invoice','New invoice','tbq'],['invoices','Invoices','tbq alt'],['quotes','Quotations','tbq']].filter(x=>hasP(x[0]));
+  $('#tbQuick').innerHTML=q.map(x=>`<button class="${x[2]}" onclick="go('${x[0]}')">${ico(x[0])}${x[1]}</button>`).join('');
 }
 async function afterLogin(uid){
   const {data:pr}=await sb.from('profiles').select('*').eq('id',uid).maybeSingle();
@@ -208,7 +275,7 @@ async function afterLogin(uid){
   $('#coName').textContent=settings.company_name||'Company';
   $('#meName').textContent=me.username+' ('+me.role+')';
   $('#login').style.display='none';$('#app').style.display='block';
-  buildNav();
+  buildNav();uiAfterLogin();
   go('dash');
 }
 async function logout(){await sb.auth.signOut();location.reload()}
@@ -220,6 +287,7 @@ async function go(p){
   if((need[p]&&!hasP(need[p]))||(p==='users'&&!isAdmin()))p='dash';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
   document.querySelectorAll('#nav .grp').forEach(g=>g.classList.remove('has-on'));const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('has-on')}
+  document.body.classList.remove('sideopen');
   $('#main').innerHTML='<p class="mut">Loading…</p>';
   try{await PAGES[p]()}catch(e){console.error(e)}
 }
@@ -230,17 +298,19 @@ PAGES.dash=async()=>{
   const c=[];
   if(hasP('stock')||hasP('cost')){
     await loadItems();
-    if(hasP('stock'))c.push([items.length,'Items'],[items.reduce((a,i)=>a+Number(i.in_stock),0),'Units in stock'],[items.filter(i=>i.in_stock<=0).length,'Items out of stock']);
-    if(hasP('cost'))c.push(['Rs. '+money(items.reduce((a,i)=>a+Number(i.in_stock)*Number(i.cost),0)),'Stock value at cost']);
+    if(hasP('stock'))c.push([items.length,'Items','items'],[items.reduce((a,i)=>a+Number(i.in_stock),0),'Units in stock','stock'],[items.filter(i=>i.in_stock<=0).length,'Items out of stock','serial']);
+    if(hasP('cost'))c.push(['Rs. '+money(items.reduce((a,i)=>a+Number(i.in_stock)*Number(i.cost),0)),'Stock value at cost','reports']);
   }
   if(hasP('invoices')){
     const inv=await run(sb.from('invoices').select('total').eq('inv_date',today()));
-    c.push(['Rs. '+money(inv.reduce((a,r)=>a+Number(r.total),0)),'Sales today ('+inv.length+' invoices)']);
+    c.push(['Rs. '+money(inv.reduce((a,r)=>a+Number(r.total),0)),'Sales today ('+inv.length+' invoices)','invoices']);
   }
-  const q=[['invoice','New invoice','btn'],['grn','New GRN','btn sec'],['stock','Stock check','btn sec'],['serial','Serial check','btn sec'],['reports','Sales report','btn sec']].filter(x=>hasP(x[0]));
-  $('#main').innerHTML=`<div class="top"><h2>Dashboard</h2></div>`+
-   (c.length?`<div class="grid">${c.map(x=>`<div class="stat"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>`:'')+
-   `<div class="card" style="margin-top:14px"><b>Quick actions</b><div class="bar" style="margin-top:10px">${q.map(x=>`<div style="flex:0"><button class="${x[2]}" onclick="go('${x[0]}')">${x[1]}</button></div>`).join('')||'<span class="mut">No tools are enabled for your account yet. Ask the admin.</span>'}</div></div>`;
+  const q=[['invoice','New invoice','Create a bill','btn'],['grn','New GRN','Receive stock'],['stock','Stock check','See stock levels'],['serial','Serial check','Find a serial number'],['reports','Sales report','Sales and profit']].filter(x=>hasP(x[0]));
+  const hi=new Date().getHours(),greet=hi<12?'Good morning':hi<18?'Good afternoon':'Good evening';
+  $('#main').innerHTML=`<div class="top"><div><h2>Dashboard</h2><div class="mut">${greet}, ${esc(me.username)}</div></div></div>`+
+   (q.length?`<div class="qgrid">${q.map((x,i)=>`<div class="qa ${i===0?'first':''}" onclick="go('${x[0]}')"><span class="qi">${ico(x[0])}</span><span class="qt"><b>${x[1]}</b><small>${x[2]}</small></span><span class="qar">&rarr;</span></div>`).join('')}</div>`:'')+
+   (c.length?`<div class="grid kpis">${c.map((x,i)=>`<div class="stat k${i%4}"><div class="sv"><span>${x[1]}</span><b>${x[0]}</b></div><i class="ic">${ico(x[2])}</i></div>`).join('')}</div>`:'')+
+   (!q.length&&!c.length?`<div class="card"><span class="mut">No tools are enabled for your account yet. Ask the admin.</span></div>`:'');
 };
 
 /* ---------------- Stock check ---------------- */
