@@ -14,7 +14,7 @@
   --card: #fff;            /* cards / boxes */
 
   /* main colour - the whole look follows this one colour (config.js: theme.accent can change it) */
-  --acc: #18104d;
+  --acc: #6d5dd3;
   --accd: color-mix(in srgb, var(--acc) 82%, #000);      /* darker (hover) */
   --acc-bg: color-mix(in srgb, var(--acc) 10%, #fff);     /* very light tint */
   --acc-mid: color-mix(in srgb, var(--acc) 65%, #fff);    /* lighter shade (gradients) */
@@ -1322,4 +1322,35 @@ label.jchk:has(input:checked) {
   border-radius: 8px;
   padding: 8px 12px 8px 10px;
   white-space: nowrap;
+}
+
+/* ============================================================
+   ACCESSORIES QUOTATION FORM (product rows)
+   ============================================================ */
+.qar {
+  display: grid;
+  grid-template-columns: 90px 1fr 170px 140px 42px;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.qar .r {
+  text-align: right;
+}
+.qah {
+  margin-top: 12px;
+  color: var(--mut);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+@media(max-width:900px) {
+  .qar {
+    grid-template-columns: 70px 1fr 110px 42px;
+  }
+  .qar>b.r,
+  .qah span:nth-child(4) {
+    display: none;
+  }
 }
