@@ -14,7 +14,7 @@
   --card: #fff;            /* cards / boxes */
 
   /* main colour - the whole look follows this one colour (config.js: theme.accent can change it) */
-  --acc: #6d5dd3;
+  --acc: #18104d;
   --accd: color-mix(in srgb, var(--acc) 82%, #000);      /* darker (hover) */
   --acc-bg: color-mix(in srgb, var(--acc) 10%, #fff);     /* very light tint */
   --acc-mid: color-mix(in srgb, var(--acc) 65%, #fff);    /* lighter shade (gradients) */
