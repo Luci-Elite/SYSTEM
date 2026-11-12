@@ -7,7 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>document.write('<script src="config.js?t='+Date.now()+'"><\/script>')</script>
 <script>try{if(typeof CFG!=='undefined'&&CFG.theme&&CFG.theme.accent)document.documentElement.style.setProperty('--acc',CFG.theme.accent)}catch(e){}</script>
-<link rel="stylesheet" href="style.css?v=17">
+<link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
 <div id="cssWarn" style="background:#b42318;color:#fff;padding:12px 16px;font:14px Arial,sans-serif">style.css was not found. Upload <b>style.css</b> into the same folder as index.html on GitHub (same level, same name), then reload this page.</div>
@@ -218,6 +218,7 @@ const ICO={
  job_repair:'<path d="M15 5a4 4 0 00-4 5L4 17l3 3 7-7a4 4 0 005-4l-3 2-2-2 2-3z"/>',
  job_service:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
  quotes:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 14l2 2 4-4"/>',
+ quotes_acc:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 14l2 2 4-4"/>',
  setoff:'<path d="M17 4l3 3-3 3M20 7H8a4 4 0 00-4 4M7 20l-3-3 3-3M4 17h12a4 4 0 004-4"/>',
  purchases:'<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h3l2.5 11h10L21 8H7"/>',
  staff:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M18 14a6.5 6.5 0 013.5 6"/>',
@@ -237,7 +238,7 @@ function buildNav(){
   const gen=[['items','Items','items'],['cats','Categories','items'],['customers','Customers','customers'],['suppliers','Suppliers','suppliers'],['reps','Sales reps','reps']].filter(x=>hasP(x[2]));
   if(gen.length)s3.push(G('general','General',gen.map(g=>L(g[0],g[1]))));
   if(hasP('jobs'))s3.push(G('jobs','Job note',[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1]))));
-  if(hasP('quotes'))s3.push(L('quotes','Quotations'));
+  if(hasP('quotes'))s3.push(G('quotes','Quotations',[L('quotes','Laptops'),L('quotes_acc','Accessories')]));
   if(hasP('setoff'))s3.push(G('setoff','Supplier',[['setoff','Set-off'],['purchases','Purchases']].map(g=>L(g[0],g[1]))));
   if(hasP('staff'))s3.push(G('staff','Staff management',[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1]))));
   const s4=[];
@@ -283,7 +284,7 @@ async function logout(){await sb.auth.signOut();location.reload()}
 const PAGES={};
 function grpToggle(a){const g=a.parentNode,was=g.classList.contains('open');document.querySelectorAll('#nav .grp.open').forEach(x=>x.classList.remove('open'));if(!was)g.classList.add('open')}
 async function go(p){
-  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quoteform:'quotes',reps:'reps',setoff:'setoff',purchases:'setoff',settings:'editors',jobeditor:'editors',slipeditor:'editors',quoteeditor:'editors',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
+  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quotes_acc:'quotes',quoteform:'quotes',reps:'reps',setoff:'setoff',purchases:'setoff',settings:'editors',jobeditor:'editors',slipeditor:'editors',quoteeditor:'editors',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
   if((need[p]&&!hasP(need[p]))||(p==='users'&&!isAdmin()))p='dash';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
   document.querySelectorAll('#nav .grp').forEach(g=>g.classList.remove('has-on'));const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('has-on')}
@@ -2088,12 +2089,17 @@ const QT_DEF={size:'A4',margin:12,fontSize:12,logoOn:true,logoH:36,useInvLogo:fa
  about:(CFG.quote&&CFG.quote.about)||"We are a trusted supplier of quality products and services. Customer satisfaction is at the heart of everything we do, and we are committed to providing reliable products, fair prices and dependable after-sales support.\nOur commitment is simple: Quality \u2022 Trust \u2022 Customer Satisfaction",
  why:(CFG.quote&&CFG.quote.why)||"Genuine Products with Warranty\nCompetitive Market Pricing\nReliable After-Sales Support",
  closing:"We hope this quotation meets your requirements. We look forward to providing you with high-quality IT solutions tailored to your needs.\nFor any clarification or assistance, please feel free to contact us.",
+ accValid:'03 Days',
+ accTerms:(CFG.quote&&CFG.quote.accTerms)||"Prices are valid until the expiry date mentioned above\nGoods once sold are not returnable unless defective\nWarranty available as per product category\nPayment: Cash / Bank Transfer",
+ accBankName:(CFG.quote&&CFG.quote.bank&&CFG.quote.bank.name)||'',accBankAcc:(CFG.quote&&CFG.quote.bank&&CFG.quote.bank.account)||'',accBankNo:(CFG.quote&&CFG.quote.bank&&CFG.quote.bank.number)||'',
+ accAbout:(CFG.quote&&CFG.quote.accAbout)||'',accBanner:(CFG.quote&&CFG.quote.banner)||'',
  g:{},st:{}};
 function getQL(){let o={};try{o=JSON.parse(settings.quote_layout||'{}')}catch(e){}return {...QT_DEF,...o}}
 const QT_MON=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
 const qtDate=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?(+m[3])+' '+QT_MON[+m[2]-1]+' '+m[1]:String(s||'')};
 function qtTotal(items){return (items||[]).reduce((t,i)=>t+(+i.price||0)*(+i.qty||0),0)}
 function qtDoc(q,ql,pv,sel){
+  if(q.kind==='acc')return qtDocAcc(q,ql,pv,sel);
   const G={...QT_GDEF,...(ql.g||{})},ST=ql.st||{},LET=ql.size==='Letter',W=LET?215.9:210,HH=LET?279.4:297,M=+ql.margin>=0?+ql.margin:12,fs=+ql.fontSize||12,ff=G.font||'Calibri, Arial, Helvetica, sans-serif';
   const co=coInfo(),ly=getLY();
   const T=(k,def)=>{const t=ST[k]&&ST[k].t;return t!=null&&t!==''?t:def};
@@ -2147,34 +2153,100 @@ ${pv?`[data-k]{cursor:pointer}[data-k]:hover{outline:1px dashed #1a73e8;outline-
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quotation ${esc(q.quote_no||'')} ${esc(q.customer_name||'')}</title><style>${css}</style></head><body><div class="sheet"><table class="pg"><thead><tr><td>${lh}</td></tr></thead><tbody><tr><td>${head}${about}${prod}${price}${why}${clo}${sig}</td></tr></tbody></table></div>${pv?jeFrameScript(sel):''}</body></html>`;
 }
 /* ---------- list ---------- */
-let QF=null,QT_CUS=[],QROWS={};
-PAGES.quotes=async()=>{
-  $('#main').innerHTML=`<div class="top"><h2>Quotations</h2><div class="bar"><div style="flex:2"><input id="qs" placeholder="Search customer / quotation no" oninput="qLoad()"></div><div style="flex:0;white-space:nowrap"><button class="btn" onclick="qNew()">+ New quotation</button></div></div></div>
-  <div class="tw"><table><thead><tr><th>No</th><th>Date</th><th>Customer</th><th>Model / product</th><th>Subject</th><th class="r">Total (LKR)</th><th></th></tr></thead><tbody id="qbt"></tbody></table></div>`;
+let QF=null,QT_CUS=[],QROWS={},QK='lap';
+/* ---------- Accessories quotation document (A4, one page, shrinks to fit) ---------- */
+const qtDmy=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]+'/'+m[1]:String(s||'')};
+function qaTotals(Q){const sub=(Q.items||[]).reduce((t,i)=>t+(+i.qty||0)*(+i.price||0),0),d=+Q.discount||0;return {sub,d,net:sub-d}}
+function qtDocAcc(q,ql,pv,sel){
+  const G={...QT_GDEF,...(ql.g||{})},ST=ql.st||{},LET=ql.size==='Letter',HH=LET?279.4:297,M=+ql.margin>=0?+ql.margin:12,fs=+ql.fontSize||12,ff=G.font||'Calibri, Arial, Helvetica, sans-serif';
+  const co=coInfo(),ly=getLY();
+  const T=(k,def)=>{const t=ST[k]&&ST[k].t;return t!=null&&t!==''?t:def};
+  const K=(k,base,ed)=>{const o=ST[k]||{};let b=base||'';if(o.c)b+=';color:'+o.c;if(o.bg)b+=';background:'+o.bg;if(+o.s)b+=';font-size:'+(+o.s)+'px';if(o.f)b+=';font-family:'+o.f;if(o.b===1)b+=';font-weight:800';if(o.b===0)b+=';font-weight:400';if(o.i)b+=';font-style:italic';if(o.a)b+=';text-align:'+o.a;if(o.x||o.y)b+=';position:relative;left:'+(+o.x||0)+'px;top:'+(+o.y||0)+'px';return ' data-k="'+k+'"'+(pv&&ed?' data-ed="'+ed+'"':'')+(b?' style="'+esc(b)+'"':'')};
+  const P=t=>String(t||'').split(/\n+/).map(x=>x.trim()).filter(Boolean).map(x=>`<div class="pp">${esc(x)}</div>`).join('');
+  const LI=t=>String(t||'').split(/\n+/).map(x=>x.trim()).filter(Boolean).map(x=>`<li>${esc(x)}</li>`).join('');
+  const items=(q.items||[]).filter(i=>String(i.desc||i.model||'').trim()||+i.price);
+  const tt=qaTotals({items,discount:q.discount});
+  const logo=ql.useInvLogo?(ly.logo||QT_LOGO):(ql.logo||QT_LOGO||ly.logo||'');
+  const addr=String(co.a||'').split('\n').filter(Boolean).join(', ');
+  const fill=Math.max(0,6-items.length);
+  const rows=items.map(i=>`<tr><td class="c"${K('a_r_qty')}>${esc(i.qty)}</td><td class="d"${K('a_r_desc')}>${esc(i.desc||i.model||'')}</td><td class="r"${K('a_r_unit')}>${money(i.price)}</td><td class="r"${K('a_r_tot')}>${money((+i.qty||0)*(+i.price||0))}</td></tr>`).join('')+Array(fill).fill('<tr class="em"><td></td><td></td><td></td><td></td></tr>').join('');
+  const bank=[[ 'a_bank_n','Bank Name:',ql.accBankName],['a_bank_a','Account Name:',ql.accBankAcc],['a_bank_x','Account Number:',ql.accBankNo]].filter(x=>String(x[2]||'').trim());
+  const termsT=q.terms!=null&&String(q.terms).trim()!==''?q.terms:ql.accTerms;
+  const css=`@page{size:${LET?'Letter':'A4'};margin:${M}mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0;padding:0}body{font:${fs}px/1.35 ${ff};color:${G.value};${pv?'background:#dfe3e8;':''}}
+.sheet{${pv?`width:${LET?215.9:210}mm;min-height:${HH}mm;padding:${M}mm;background:#fff;margin:0 auto;`:''}}
+.fit{width:100%}
+.ah{width:100%;border-collapse:collapse}.ah td{padding:0;border:0;vertical-align:middle}.ah .lg img{display:block;height:${Math.min(+ql.logoH||36,120)}px}.ah .qt{text-align:right;font-size:${fs*2}px;font-weight:700;color:#7f7f7f;letter-spacing:.02em}
+.co{margin-top:8px;font-size:${fs*.82}px;color:#595959;line-height:1.5}.co b{color:${G.name}}
+.ln{border-top:1px solid ${G.line};margin:${fs*.9}px 0}
+.h2{font:700 ${fs*1.25}px/1.2 Cambria,Georgia,serif;color:${G.title};margin:0 0 ${fs*.5}px}
+ul.bl{margin:0;padding-left:${fs*1.5}px;font-size:${fs*.9}px}ul.bl li{margin:2px 0}
+.cust{font:700 ${fs*1.1}px/1.3 Cambria,Georgia,serif;margin:${fs*.4}px 0 ${fs*.9}px}.cs{font-size:${fs*.85}px;color:#595959;font-weight:400;font-family:inherit}
+table.pt{width:100%;border-collapse:collapse;border:1px solid ${G.border}}table.pt td{border:1px solid ${G.border};padding:3px 7px;font:${fs*.95}px/1.3 Cambria,Georgia,serif}
+table.pt tr.h td{font:700 ${fs*.62}px Arial,sans-serif;text-align:center;background:${G.headBg};color:${G.headText};text-transform:uppercase;letter-spacing:.04em;padding:2px 6px}
+table.pt td.c{text-align:center;width:9%}table.pt td.d{font-weight:700;text-align:center}table.pt td.r{text-align:right;width:17%;font-weight:700}table.pt tr.em td{height:${fs*1.5}px}
+table.pt tr.x td{border:0;text-align:right;padding:2px 7px}table.pt tr.x td.v{border:1px solid ${G.border};font-weight:700}table.pt tr.x td.l{font-variant:small-caps}
+.sp{height:${fs*1.1}px}.pp{margin:0 0 ${fs*.5}px;font-size:${fs*.82}px;line-height:1.5}.du{margin-top:${fs*1.2}px;font:700 ${fs*1.25}px Arial,sans-serif;color:${G.title}}
+.bk{font:${fs*.95}px/1.4 Cambria,Georgia,serif}.bn{display:block;width:100%;max-width:100%;margin-top:${fs*.9}px}
+${pv?`[data-k]{cursor:pointer}[data-k]:hover{outline:1px dashed #1a73e8;outline-offset:1px}[data-k].jsel{outline:2px solid #1a73e8!important;outline-offset:1px}[contenteditable]{outline:2px solid #e8731a!important;background:#fffbe6;color:#000}`:''}`;
+  const body=`<div class="fit" id="fitbox">
+  <table class="ah"><tr><td class="lg">${ql.logoOn&&logo?`<img${K('a_logo','')} src="${logo}">`:''}</td><td class="qt"${K('a_title','',1)}>${esc(T('a_title','QUOTATION'))}</td></tr></table>
+  ${ql.showLH?`<div class="co"><b${K('a_co_n','',1)}>${esc(T('a_co_n',String(co.n||'').toUpperCase()))}</b>${addr?`<div${K('a_co_a','',1)}>${esc(T('a_co_a',addr))}</div>`:''}<div${K('a_co_c','',1)}>${esc(T('a_co_c',[co.p?co.p:'',ly.email||''].filter(Boolean).join('  |  ')))}</div>${ly.web?`<div${K('a_co_w','',1)}>${esc(T('a_co_w',ly.web))}</div>`:''}</div>`:''}
+  <div class="ln"></div>
+  <div class="h2"${K('a_h_det','',1)}>${esc(T('a_h_det','Quotation Details'))}</div>
+  <ul class="bl"><li><b>${esc(T('a_l_no','Quotation No:'))}</b> ${esc(q.quote_no||'')}</li><li><b>${esc(T('a_l_date','Date:'))}</b> ${esc(qtDmy(q.q_date))}</li><li><b>${esc(T('a_l_valid','Valid Until:'))}</b> ${esc(q.valid!=null&&q.valid!==''?q.valid:ql.accValid)}</li></ul>
+  <div class="ln"></div>
+  <div class="cust"><span${K('a_l_cust','',1)}>${esc(T('a_l_cust','Customer Name :'))}</span> <span${K('a_v_cust')}>${esc(String(q.customer_name||'').toUpperCase())}</span>${q.customer_address?`<div class="cs">${esc(q.customer_address).replace(/\n/g,', ')}</div>`:''}</div>
+  <div class="h2"${K('a_h_prod','',1)}>${esc(T('a_h_prod','PRODUCT DETAILS'))}</div>
+  <table class="pt"><tr class="h"><td${K('a_th_q','',1)}>${esc(T('a_th_q','Qty'))}</td><td${K('a_th_d','',1)}>${esc(T('a_th_d','Description'))}</td><td${K('a_th_u','',1)}>${esc(T('a_th_u','Unit Price'))}</td><td${K('a_th_t','',1)}>${esc(T('a_th_t','Line Total'))}</td></tr>${rows}
+   <tr class="x"><td colspan="3" class="l">${esc(T('a_l_disc','Discount'))}</td><td class="v r">${money(tt.d)}</td></tr><tr class="x"><td colspan="3" class="l"><b>${esc(T('a_l_total','Total'))}</b></td><td class="v r">${money(tt.net)}</td></tr></table>
+  <div class="sp"></div>
+  <div class="h2"${K('a_h_sum','',1)}>${esc(T('a_h_sum','Summary'))}</div>
+  <ul class="bl"><li><b>Subtotal:</b> LKR ${money(tt.sub)}</li><li><b>Discount:</b> LKR ${money(tt.d)}</li><li><b>Total Amount: LKR ${money(tt.net)}</b></li></ul>
+  <div class="ln"></div>
+  <div class="h2"${K('a_h_terms','',1)}>${esc(T('a_h_terms','Terms & Conditions'))}</div>
+  <ul class="bl"${K('a_terms','',"m")}>${LI(T('a_terms',termsT))}</ul>
+  ${bank.length?`<div class="ln"></div><div class="h2"${K('a_h_bank','',1)}>${esc(T('a_h_bank','Bank Details'))}</div><div class="bk">${bank.map(b=>`<div><b${K(b[0]+'_l','',1)}>${esc(T(b[0]+'_l',b[1]))}</b> <span${K(b[0])}>${esc(b[2])}</span></div>`).join('')}</div>`:''}
+  ${String(ql.accAbout||'').trim()?`<div class="du"${K('a_h_about','',1)}>${esc(T('a_h_about','DISCOVER US'))}</div><div${K('a_about','',"m")}>${P(T('a_about',ql.accAbout))}</div>`:''}
+  ${ql.accBanner?`<img class="bn"${K('a_banner')} src="${ql.accBanner}">`:''}
+  </div>`;
+  /* shrink everything to fit ONE page (runs in the preview, print and PDF) */
+  const fitJs=`<script>(function(){var f=document.getElementById('fitbox');if(!f)return;var H=${Math.round((HH-2*M)*3.7795)-10};function fit(){f.style.zoom=1;var h=f.getBoundingClientRect().height;if(h>H)f.style.zoom=(H/h).toFixed(4)}fit();window.addEventListener('load',fit);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);var im=f.querySelectorAll('img');for(var i=0;i<im.length;i++)im[i].addEventListener('load',fit)})()<\/script>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quotation ${esc(q.quote_no||'')} ${esc(q.customer_name||'')}</title><style>${css}</style></head><body><div class="sheet">${body}</div>${fitJs}${pv?jeFrameScript(sel):''}</body></html>`;
+}
+
+const qIsAcc=r=>!!(r.data&&r.data.kind==='acc');
+async function qListPage(k){
+  QK=k;const acc=k==='acc';
+  $('#main').innerHTML=`<div class="top"><h2>${acc?'Accessories quotations':'Laptop quotations'}</h2><div class="bar"><div style="flex:2"><input id="qs" placeholder="Search customer / quotation no / product" oninput="qLoad()"></div><div style="flex:0;white-space:nowrap"><button class="btn" onclick="qNew('${k}')">+ New quotation</button></div></div></div>
+  <div class="tw"><table><thead><tr><th>No</th><th>Date</th><th>Customer</th><th>${acc?'Products':'Model / product'}</th>${acc?'':'<th>Subject</th>'}<th class="r">Total (LKR)</th><th></th></tr></thead><tbody id="qbt"></tbody></table></div>`;
   qLoad();
-};
+}
+PAGES.quotes=()=>qListPage('lap');
+PAGES.quotes_acc=()=>qListPage('acc');
 async function qLoad(){
   const d=await run(sb.from('quotations').select('*').order('created_at',{ascending:false}).limit(300));
   const s=($('#qs')&&$('#qs').value||'').trim().toLowerCase();QROWS={};d.forEach(r=>QROWS[r.id]=r);
-  const rows=d.filter(r=>!s||String(r.customer_name||'').toLowerCase().includes(s)||String(r.quote_no||'').toLowerCase().includes(s)||qModels(r).toLowerCase().includes(s));
-  $('#qbt').innerHTML=rows.map(r=>`<tr><td><b>${esc(r.quote_no)}</b></td><td>${esc(r.q_date)}</td><td>${esc(r.customer_name)}<div class="mut">${esc(r.customer_address)}${r.data&&r.data.customer_email?' | '+esc(r.data.customer_email):''}</div></td><td>${qModelsHtml(r)}</td><td>${esc(r.subject)}</td><td class="r">${money(r.total)}</td>
+  const rows=d.filter(r=>qIsAcc(r)===(QK==='acc')).filter(r=>!s||String(r.customer_name||'').toLowerCase().includes(s)||String(r.quote_no||'').toLowerCase().includes(s)||qModels(r).toLowerCase().includes(s));
+  $('#qbt').innerHTML=rows.map(r=>`<tr><td><b>${esc(r.quote_no)}</b></td><td>${esc(r.q_date)}</td><td>${esc(r.customer_name)}<div class="mut">${esc(r.customer_address)}${r.data&&r.data.customer_email?' | '+esc(r.data.customer_email):''}</div></td><td>${qModelsHtml(r)}</td>${QK==='acc'?'':`<td>${esc(r.subject)}</td>`}<td class="r">${money(r.total)}</td>
    <td style="white-space:nowrap"><button class="btn sec sm" onclick="qView(${r.id})">Preview</button> <button class="btn sec sm" onclick="qPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="qPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="qMail(${r.id})">Outlook</button> <button class="btn sec sm" onclick="qMail(${r.id},'gmail')">Gmail</button> <button class="btn sec sm" onclick="qCopy(${r.id})">Copy</button>${hasP('edit_quotes')?` <button class="btn sec sm" onclick="qEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="qDel(${r.id},'${esc(r.quote_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mut">No quotations yet.</td></tr>';
 }
 const qItems=r=>((r.data&&r.data.items)||[]).filter(i=>String(i.model||'').trim());
 const qModels=r=>qItems(r).map(i=>i.model).join(' ');
 const qModelsHtml=r=>qItems(r).map(i=>`<div><b>${esc(String(i.model).trim())}</b>${Number(i.qty)>1?' <span class="mut">x'+esc(i.qty)+'</span>':''}</div>`).join('')||'<span class="mut">-</span>';
-const qRecToQ=r=>({quote_no:r.quote_no,q_date:r.q_date,customer_name:r.customer_name,customer_address:r.customer_address,subject:r.subject,items:(r.data&&r.data.items)||[],note:(r.data&&r.data.note)||'',customer_email:(r.data&&r.data.customer_email)||''});
+const qRecToQ=r=>({quote_no:r.quote_no,q_date:r.q_date,customer_name:r.customer_name,customer_address:r.customer_address,subject:r.subject,items:(r.data&&r.data.items)||[],note:(r.data&&r.data.note)||'',customer_email:(r.data&&r.data.customer_email)||'',kind:(r.data&&r.data.kind)||'lap',valid:(r.data&&r.data.valid)||'',discount:(r.data&&r.data.discount)||'',terms:(r.data&&r.data.terms)||''});
 async function qPrint(id){const r=QROWS[id]||await run(sb.from('quotations').select('*').eq('id',id).single());slipPrintDoc(qtDoc(qRecToQ(r),getQL(),false))}
 async function qDel(id,no){if(!hasP('edit_quotes')||!confirm('Delete quotation '+no+'?'))return;await run(sb.from('quotations').delete().eq('id',id));toast('Deleted');qLoad()}
 const qSpecKeys=()=>String(getQL().specKeys||'').split(/\n/).map(x=>x.trim()).filter(Boolean);
 const qNewItem=()=>({model:'',desc:'',url:'',price:'',qty:1,specs:qSpecKeys().map(k=>[k,''])});
-const qBlank=()=>({id:null,quote_no:'',q_date:today(),customer_name:'',customer_address:'',customer_email:'',subject:'LAPTOP SUPPLY PROPOSAL',note:'',items:[qNewItem()]});
-function qNew(){QF=qBlank();go('quoteform')}
+const qBlank=k=>k==='acc'?({id:null,quote_no:'',q_date:today(),customer_name:'',customer_address:'',customer_email:'',subject:'Accessories supply',note:'',kind:'acc',valid:getQL().accValid,discount:'',terms:getQL().accTerms,items:[{qty:1,desc:'',price:''}]}):({id:null,quote_no:'',q_date:today(),customer_name:'',customer_address:'',customer_email:'',subject:'LAPTOP SUPPLY PROPOSAL',note:'',items:[qNewItem()]});
+function qNew(k){QF=qBlank(k);go('quoteform')}
 function qEdit(id){if(!hasP('edit_quotes'))return;const r=QROWS[id];if(!r)return;QF={...qRecToQ(r),id:r.id};QF.items=JSON.parse(JSON.stringify(QF.items));go('quoteform')}
 function qCopy(id){const r=QROWS[id];if(!r)return;QF={...qRecToQ(r),id:null,quote_no:'',q_date:today()};QF.items=JSON.parse(JSON.stringify(QF.items));go('quoteform')}
 /* ---------- form ---------- */
 PAGES.quoteform=async()=>{
-  if(!QF)QF=qBlank();
+  if(!QF)QF=qBlank(QK);
+  if(QF.kind==='acc')return qaForm();
   try{QT_CUS=await sb.from('customers').select('name,address,email').order('name').limit(1000).then(r=>r.data||[])}catch(e){QT_CUS=[]}
   $('#main').innerHTML=`<div class="top"><h2>${QF.id?'Edit quotation '+esc(QF.quote_no):'New quotation'}</h2><div class="bar"><div style="flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end"><button class="btn sec" onclick="go('quotes')">Back</button> <button class="btn sec" onclick="qfPreview()">Preview</button> <button class="btn" onclick="qfSave(false)">Save</button> <button class="btn" onclick="qfSave(true)">Save &amp; print</button> <button class="btn" onclick="qfSave('pdf')">Save &amp; PDF</button> <button class="btn" onclick="qfSave('email')">Save &amp; Outlook</button> <button class="btn" onclick="qfSave('gmail')">Save &amp; Gmail</button></div></div></div>
   <div class="card"><b>Customer</b>
@@ -2216,19 +2288,80 @@ function qfImport(i){
     else if(last)last[1]=(last[1]+' '+l.trim()).trim()});
   qfDraw();
 }
-function qfPreview(){qfRead();openModal(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Preview</h3><button class="btn" onclick="closeModal()">Close &#10005;</button></div><iframe id="q_pvf" style="width:100%;height:70vh;border:1px solid #ccc;margin:8px 0"></iframe><div style="text-align:right"><button class="btn" onclick="closeModal()">Close</button></div>`,'900px');$('#q_pvf').srcdoc=qtDoc(QF,getQL(),false)}
+function qfPreview(){QF.kind==='acc'?qaRead():qfRead();openModal(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Preview</h3><button class="btn" onclick="closeModal()">Close &#10005;</button></div><iframe id="q_pvf" style="width:100%;height:70vh;border:1px solid #ccc;margin:8px 0"></iframe><div style="text-align:right"><button class="btn" onclick="closeModal()">Close</button></div>`,'900px');$('#q_pvf').srcdoc=qtDoc(QF,getQL(),false)}
 async function qfSave(print){
-  qfRead();if(!QF.customer_name)return toast('Enter the customer name',true);if((print==='email'||print==='gmail')&&!QF.customer_email)return toast('Enter the customer email',true);
-  if(!QF.items.length||!QF.items.some(i=>String(i.model||'').trim()))return toast('Enter at least one product model',true);
+  const acc=QF.kind==='acc';acc?qaRead():qfRead();
+  if(!QF.customer_name)return toast('Enter the customer name',true);if((print==='email'||print==='gmail')&&!QF.customer_email)return toast('Enter the customer email',true);
+  if(acc){QF.items=QF.items.filter(i=>String(i.desc||'').trim()||+i.price);if(!QF.items.length){QF.items=[{qty:1,desc:'',price:''}];return toast('Enter at least one product',true)}QF.items.forEach(i=>i.model=String(i.desc||'').trim())}
+  else if(!QF.items.length||!QF.items.some(i=>String(i.model||'').trim()))return toast('Enter at least one product model',true);
   const gw=print==='gmail'?window.open('','_blank'):null;
-  const row={q_date:QF.q_date,customer_name:QF.customer_name,customer_address:QF.customer_address,subject:QF.subject,data:{items:QF.items,note:QF.note,customer_email:QF.customer_email},total:qtTotal(QF.items)};
+  const data={items:QF.items,note:QF.note,customer_email:QF.customer_email};
+  if(acc)Object.assign(data,{kind:'acc',valid:QF.valid,discount:QF.discount,terms:QF.terms});
+  const row={q_date:QF.q_date,customer_name:QF.customer_name,customer_address:QF.customer_address,subject:QF.subject,data,total:acc?qaTotals(QF).net:qtTotal(QF.items)};
   const rec=QF.id?await run(sb.from('quotations').update(row).eq('id',QF.id).select().single()):await run(sb.from('quotations').insert(row).select().single());
   toast('Quotation saved: '+rec.quote_no);
   if(print===true)slipPrintDoc(qtDoc(qRecToQ(rec),getQL(),false));
   else if(print==='pdf')await qtPdfDownload(qRecToQ(rec));
   else if(print==='email')await qtEmail(qRecToQ(rec));
   else if(print==='gmail')await qtEmail(qRecToQ(rec),'gmail',gw);
-  QF=null;go('quotes');
+  QF=null;go(acc?'quotes_acc':'quotes');
+}
+
+/* ---------- Accessories quotation form ---------- */
+async function qaForm(){
+  try{QT_CUS=await sb.from('customers').select('name,address,email').order('name').limit(1000).then(r=>r.data||[])}catch(e){QT_CUS=[]}
+  $('#main').innerHTML=`<div class="top"><h2>${QF.id?'Edit quotation '+esc(QF.quote_no):'New accessories quotation'}</h2><div class="bar"><div style="flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end"><button class="btn sec" onclick="go('quotes_acc')">Back</button> <button class="btn sec" onclick="qfPreview()">Preview</button> <button class="btn" onclick="qfSave(false)">Save</button> <button class="btn" onclick="qfSave(true)">Save &amp; print</button> <button class="btn" onclick="qfSave('pdf')">Save &amp; PDF</button> <button class="btn" onclick="qfSave('email')">Save &amp; Outlook</button> <button class="btn" onclick="qfSave('gmail')">Save &amp; Gmail</button></div></div></div>
+  <div class="card"><b>Customer</b>
+   <div class="bar" style="margin-top:8px"><div style="flex:2"><label>Customer name (type anything, or pick a saved customer)</label><div class="cbwrap" style="position:relative"><input id="q_cn" value="${esc(QF.customer_name)}" placeholder="Click to choose a saved customer, or type a name" oninput="qfCus(this.value);cbSearch('q_cn',this.value)" onfocus="cbSearch('q_cn',this.value,1)" onclick="cbSearch('q_cn',this.value,1)" onkeydown="cbKey(event,'q_cn')" autocomplete="new-password" name="q_cust"><div id="q_cn_res" class="sresbox"></div></div></div>
+   <div style="flex:1"><label>Customer email (for sending the quotation)</label><input id="q_ce" type="email" value="${esc(QF.customer_email||'')}"></div><div style="flex:0 0 160px"><label>Date</label><input id="q_dt" type="date" value="${esc(QF.q_date)}"></div><div style="flex:0 0 140px"><label>Valid until</label><input id="qa_valid" value="${esc(QF.valid)}" placeholder="03 Days"></div></div>
+   <div style="margin-top:8px"><label>Customer address (optional)</label><textarea id="q_ca" rows="2" style="width:100%">${esc(QF.customer_address)}</textarea></div></div>
+  <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><b>Products</b><span class="mut">Type each product, or paste many at once below. Add as many as you need - the page shrinks to stay on one A4.</span></div>
+   <div class="qar qah"><span>Qty</span><span>Description</span><span>Unit price (LKR)</span><span>Line total</span><span></span></div>
+   <div id="qa_rows"></div>
+   <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="qaAdd()">+ Add product</button><button class="btn sec" onclick="qaAdd(5)">+ Add 5 rows</button></div>
+   <div style="margin-top:12px"><label>Paste products (from Excel or text). One product per line: <b>Qty, Description, Unit price</b> separated by a Tab or a comma, e.g. <i>10 &nbsp; Logitech B100 USB Optical Mouse &nbsp; 1900</i></label><textarea id="qa_ps" rows="3" style="width:100%" placeholder="10	Logitech B100 USB Optical Mouse	1900"></textarea><button class="btn sec sm" style="margin-top:4px" onclick="qaImport()">Import lines</button></div></div>
+  <div class="bar"><div style="flex:0 0 220px"><label>Discount (LKR, optional)</label><input id="qa_disc" type="number" step="0.01" min="0" value="${esc(QF.discount)}" oninput="QF.discount=this.value;qaTot()"></div><div class="card" id="q_tot" style="flex:1;margin:0;text-align:right"></div></div>
+  <div class="card" style="margin-top:14px"><b>Terms &amp; Conditions for this quotation</b> <span class="mut">(one point per line; the standard text comes from the Quotation editor)</span><textarea id="qa_terms" rows="4" style="width:100%;margin-top:6px">${esc(QF.terms)}</textarea></div>`;
+  qaDraw();
+}
+function qaDraw(){
+  $('#qa_rows').innerHTML=QF.items.map((it,i)=>`<div class="qar"><input type="number" min="0" step="1" value="${esc(it.qty)}" oninput="QF.items[${i}].qty=this.value;qaTot()"><input value="${esc(it.desc)}" placeholder="Product description" oninput="QF.items[${i}].desc=this.value"><input type="number" step="0.01" min="0" value="${esc(it.price)}" oninput="QF.items[${i}].price=this.value;qaTot()"><b class="r" id="qa_lt${i}">${money((+it.qty||0)*(+it.price||0))}</b><button class="btn sec sm" onclick="qaDel(${i})" title="Remove">&#10005;</button></div>`).join('');
+  qaTot();
+}
+function qaTot(){
+  QF.items.forEach((it,i)=>{const e=$('#qa_lt'+i);if(e)e.textContent=money((+it.qty||0)*(+it.price||0))});
+  const t=qaTotals(QF),e=$('#q_tot');if(e)e.innerHTML=`<div class="mut">Subtotal LKR ${money(t.sub)}${t.d?' &nbsp;|&nbsp; Discount '+money(t.d):''}</div><div style="font-size:18px"><b>Total: LKR ${money(t.net)}</b></div>`;
+}
+function qaRead(){
+  QF.customer_name=$('#q_cn').value.trim();QF.q_date=$('#q_dt').value||today();QF.customer_address=$('#q_ca').value.trim();QF.customer_email=$('#q_ce').value.trim();
+  QF.valid=$('#qa_valid').value.trim();QF.discount=$('#qa_disc').value;QF.terms=$('#qa_terms').value;QF.subject='Accessories supply';QF.note='';
+}
+function qaAdd(n){qaRead();for(let i=0;i<(n||1);i++)QF.items.push({qty:1,desc:'',price:''});qaDraw()}
+function qaDel(i){QF.items.splice(i,1);if(!QF.items.length)QF.items.push({qty:1,desc:'',price:''});qaDraw()}
+function qaImport(){
+  const t=$('#qa_ps').value,out=[],num=x=>/^[\d,]+(\.\d+)?$/.test(x)?+x.replace(/,/g,''):NaN;
+  t.split(/\r?\n/).forEach(l=>{
+    l=l.trim();if(!l)return;
+    let c=l.split('\t').map(x=>x.trim()).filter(x=>x!=='');
+    if(c.length<3&&l.includes(',')&&!/\t/.test(l)){const m=l.match(/^([\d,.]+)\s*,\s*(.+?)\s*,\s*([\d,]+(?:\.\d+)?)$/);if(m)c=[m[1],m[2],m[3]]}
+    let r=null,m;
+    if(c.length>=3){
+      if(!isNaN(num(c[0]))&&isNaN(num(c[1])))r={qty:num(c[0]),desc:c[1],price:num(c[c.length-1])};
+      else if(isNaN(num(c[0]))&&!isNaN(num(c[1]))&&!isNaN(num(c[2])))r={qty:num(c[1]),desc:c[0],price:num(c[2])};
+      else r={qty:1,desc:c.slice(0,-1).join(' '),price:num(c[c.length-1])};
+    }else if(c.length===2){
+      if(!isNaN(num(c[1])))r={qty:1,desc:c[0],price:num(c[1])};
+      else if(!isNaN(num(c[0])))r={qty:num(c[0]),desc:c[1],price:''};
+    }
+    if(!r&&(m=l.match(/^(\d+)\s*(?:[x×*]\s*)?(.+?)\s+(?:LKR|Rs\.?)?\s*([\d,]+(?:\.\d+)?)$/i)))r={qty:+m[1],desc:m[2].trim(),price:num(m[3])};
+    if(!r)r={qty:1,desc:l,price:''};
+    if(isNaN(r.qty)||!r.qty)r.qty=1;if(isNaN(r.price))r.price='';
+    out.push(r);
+  });
+  if(!out.length)return toast('Nothing to import',true);
+  qaRead();
+  if(QF.items.length===1&&!String(QF.items[0].desc||'').trim()&&!QF.items[0].price)QF.items=[];
+  QF.items.push(...out);$('#qa_ps').value='';qaDraw();toast('Imported '+out.length+' product(s). Please check them.');
 }
 
 /* ---------- fetch specs from a product page ---------- */
@@ -2310,7 +2443,7 @@ async function qfFetch(i){
 /* ---------- PDF download + e-mail (no external libraries) ---------- */
 async function qtPdfBlob(q,ql){
   const LET=ql.size==='Letter',Wmm=LET?215.9:210,Hmm=LET?279.4:297,M=+ql.margin>=0?+ql.margin:12,cw=Wmm-2*M,px=Math.round(cw*96/25.4),mmpx=cw/px,S=2;
-  const f=document.createElement('iframe');f.style.cssText='position:fixed;left:-20000px;top:0;border:0;width:'+px+'px;height:1200px';document.body.appendChild(f);
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;left:-20000px;top:0;border:0;width:'+px+'px;height:'+(q.kind==='acc'?'20px':'1200px');document.body.appendChild(f);
   try{
     await new Promise(r=>{f.onload=r;f.srcdoc=qtDoc(q,ql,false)});await new Promise(r=>setTimeout(r,250));
     const d=f.contentDocument,win=f.contentWindow;f.style.height=Math.ceil(d.documentElement.scrollHeight)+'px';
@@ -2376,10 +2509,10 @@ async function qMail(id,mode){const w=mode==='gmail'?window.open('','_blank'):nu
 /* ---------- editor ---------- */
 Object.assign(JE_NAMES,{lh_logo:'Logo',spec_k:'Spec names (left column)',spec_v:'Spec values',pr_desc:'Price table: description',pr_unit:'Price table: unit price',pr_qty:'Price table: qty',pr_tot:'Price table: total',a_total:'Total amount',about:'About us text',why:'Why choose list',closing:'Closing note text',note:'Extra note',pnote:'Price note',cheque_pre:'Cheque note',cheque_name:'Cheque name (highlight)',sg_best:'Best regards',sg_name:'Company name (sign-off)',sg_phone:'Phone (sign-off)',sg_email:'Email (sign-off)',v_date:'Date value',v_ref:'Quotation no value',v_for:'Customer name value',v_addr:'Customer address value',v_subj:'Subject value',v_model:'Model value'});
 JE_NOTEXT.push('lh_logo','spec_k','spec_v','pr_desc','pr_unit','pr_qty','pr_tot','a_total','v_date','v_ref','v_for','v_addr','v_subj','v_model');
-let QTLOGO='';
+let QTLOGO='',QTBANNER='';
 PAGES.quoteeditor=async()=>{
-  const ql=getQL(),G={...QT_GDEF,...(ql.g||{})};QTLOGO=ql.logo||'';
-  JE_MODE='quote';JE_TEXTMAP={about:'qe_about',why:'qe_why',closing:'qe_closing'};JEST=JSON.parse(JSON.stringify(ql.st||{}));JE_SEL='';
+  const ql=getQL(),G={...QT_GDEF,...(ql.g||{})};QTLOGO=ql.logo||'';QTBANNER=ql.accBanner||'';
+  JE_MODE='quote';JE_TEXTMAP={about:'qe_about',why:'qe_why',closing:'qe_closing',a_about:'qe_aabout',a_terms:'qe_aterms'};JEST=JSON.parse(JSON.stringify(ql.st||{}));JE_SEL='';
   const ck=(id,v,l)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''} onchange="jePrev()"> ${l}</label>`;
   const colors=[['name','Company name colour'],['title','Headings colour'],['accent','Gold accent / letterhead line'],['value','Text colour'],['border','Table border'],['line','Section lines'],['headBg','Table heading background'],['headText','Table heading text']];
   $('#main').innerHTML=`<div class="top"><h2>Quotation editor</h2><div class="bar"><div style="flex:0"><button class="btn" onclick="qtSave()">Save</button></div></div></div>
@@ -2399,6 +2532,13 @@ PAGES.quoteeditor=async()=>{
     <div style="margin-top:8px"><label>About us (one paragraph per line)</label><textarea id="qe_about" rows="6" style="width:100%" oninput="jePrev()">${esc(ql.about)}</textarea></div>
     <div style="margin-top:8px"><label>Why choose us (one tick point per line)</label><textarea id="qe_why" rows="4" style="width:100%" oninput="jePrev()">${esc(ql.why)}</textarea></div>
     <div style="margin-top:8px"><label>Closing note (one paragraph per line)</label><textarea id="qe_closing" rows="3" style="width:100%" oninput="jePrev()">${esc(ql.closing)}</textarea></div></div>
+   <div class="card"><b>Accessories quotation (A4 - one page)</b>
+    <div class="mut" style="margin:6px 0">Used by Quotations &gt; Accessories. Choose <b>Accessories</b> in "Preview" at the top right of the live preview to see it. Logo, fonts and colours above are shared.</div>
+    <div class="bar"><div style="flex:0 0 160px"><label>Valid until (default)</label><input id="qe_avalid" value="${esc(ql.accValid)}" oninput="jePrev()"></div></div>
+    <div style="margin-top:8px"><label>Terms &amp; Conditions (one point per line)</label><textarea id="qe_aterms" rows="4" style="width:100%" oninput="jePrev()">${esc(ql.accTerms)}</textarea></div>
+    <div class="bar" style="margin-top:8px"><div><label>Bank name</label><input id="qe_abn" value="${esc(ql.accBankName)}" oninput="jePrev()"></div><div><label>Account name</label><input id="qe_aba" value="${esc(ql.accBankAcc)}" oninput="jePrev()"></div><div><label>Account number</label><input id="qe_abx" value="${esc(ql.accBankNo)}" oninput="jePrev()"></div></div>
+    <div style="margin-top:8px"><label>DISCOVER US text (one paragraph per line; empty = hide)</label><textarea id="qe_aabout" rows="5" style="width:100%" oninput="jePrev()">${esc(ql.accAbout)}</textarea></div>
+    <div class="row"><label>Bottom banner image (optional)</label><input type="file" accept="image/*" onchange="qtBanner(this)"> <button class="btn sec sm" onclick="QTBANNER='';jePrev()">Remove banner</button></div></div>
    <div class="card"><b>Email text (Email button)</b><div class="mut" style="margin:6px 0">You can use {no} {customer} {subject} {company} {phone} {email}.</div>
     <label>Subject</label><input id="qe_emsub" value="${esc(ql.emailSub)}"><div style="margin-top:8px"><label>Message</label><textarea id="qe_embody" rows="7" style="width:100%">${esc(ql.emailBody)}</textarea></div></div>
    <div class="card"><b>Technical specifications</b>
@@ -2407,22 +2547,28 @@ PAGES.quoteeditor=async()=>{
     ${ck('qe_su',ql.specUpper!==false,'Names in CAPITAL letters')}${ck('qe_sl',ql.specLines!==false,'Line between rows')}${ck('qe_sd',ql.showDetails!==false,'"DETAILS" heading row')}</div>
    <div class="card"><b>Show / hide</b>${ck('qe_sh',ql.showLH,'Letterhead')}${ck('qe_sa',ql.showAbout,'About us')}${ck('qe_sw',ql.showWhy,'Why choose us')}${ck('qe_sc',ql.showClosing,'Closing note')}${ck('qe_sq',ql.showCheque,'Cheque note')}</div>
   </div><div class="job-preview-card">
-  <div class="card"><b>Live preview</b><div class="bar" style="margin:8px 0"><div style="flex:0 0 130px"><label>Zoom</label><select id="je_zoom" onchange="jePrev()"><option value="fit">Fit</option><option value="1">100%</option><option value="0.75">75%</option><option value="0.5">50%</option></select></div><div class="mut" style="flex:2">Sample data. Pages break automatically when printing and the letterhead repeats on every page.</div></div><div id="jpw" class="job-preview-wrap"><iframe id="je_pv" style="width:800px;height:1100px"></iframe></div></div></div></div>
+  <div class="card"><b>Live preview</b><div class="bar" style="margin:8px 0"><div style="flex:0 0 150px"><label>Preview</label><select id="qe_pvk" onchange="jePrev()"><option value="lap">Laptops</option><option value="acc">Accessories</option></select></div><div style="flex:0 0 130px"><label>Zoom</label><select id="je_zoom" onchange="jePrev()"><option value="fit">Fit</option><option value="1">100%</option><option value="0.75">75%</option><option value="0.5">50%</option></select></div><div class="mut" style="flex:2">Sample data. Pages break automatically when printing and the letterhead repeats on every page.</div></div><div id="jpw" class="job-preview-wrap"><iframe id="je_pv" style="width:800px;height:1100px"></iframe></div></div></div></div>
   ${jePanelHtml()}`;
   jePrev();
 };
 function qtRead(){
   const g=id=>$('#'+id),G={};Object.keys(QT_GDEF).forEach(k=>G[k]=g('qe_g_'+k).value);
   return {size:g('qe_sz').value,margin:+g('qe_mg').value||12,fontSize:+g('qe_fs').value||12,logoOn:g('qe_lo').checked,useInvLogo:g('qe_ul').checked,logo:QTLOGO,logoH:+g('qe_lh').value||36,
-   showLH:g('qe_sh').checked,showAbout:g('qe_sa').checked,showWhy:g('qe_sw').checked,showClosing:g('qe_sc').checked,showCheque:g('qe_sq').checked,specKeys:g('qe_speck').value,emailSub:g('qe_emsub').value,emailBody:g('qe_embody').value,specUpper:g('qe_su').checked,specLines:g('qe_sl').checked,showDetails:g('qe_sd').checked,about:g('qe_about').value,why:g('qe_why').value,closing:g('qe_closing').value,g:G,st:JEST};
+   showLH:g('qe_sh').checked,showAbout:g('qe_sa').checked,showWhy:g('qe_sw').checked,showClosing:g('qe_sc').checked,showCheque:g('qe_sq').checked,specKeys:g('qe_speck').value,emailSub:g('qe_emsub').value,emailBody:g('qe_embody').value,specUpper:g('qe_su').checked,specLines:g('qe_sl').checked,showDetails:g('qe_sd').checked,about:g('qe_about').value,why:g('qe_why').value,closing:g('qe_closing').value,accValid:g('qe_avalid').value,accTerms:g('qe_aterms').value,accBankName:g('qe_abn').value,accBankAcc:g('qe_aba').value,accBankNo:g('qe_abx').value,accAbout:g('qe_aabout').value,accBanner:QTBANNER,g:G,st:JEST};
 }
 function qtPrev(){
   const ql=qtRead();
-  const q={quote_no:'QT-00001',q_date:today(),customer_name:'Sample Customer Pvt Ltd',customer_address:'No 10, Main Street, Colombo 03',subject:'Laptop supply proposal',note:'',items:[{model:'HP Victus FA2082WM',desc:'',price:312000,qty:1,specs:[['Operating System','Windows 11 64 Bit'],['Processor','Intel Core i5-13420H (up to 4.60 GHz) - 8 Cores, 12 Threads, 12MB Cache'],['Graphics','NVIDIA GeForce RTX 4050 Laptop GPU (6 GB GDDR6 dedicated)'],['Memory','16GB DDR4-3200 MHz RAM Max Up to 40 GB'],['Storage','512GB NVMe SSD'],['Display','39.6 cm (15.6") diagonal, FHD (1920 x 1080), 144 Hz, IPS'],['Warranty','1 Year Hardware + 2 Year Service Warranty']]}]};
+  let q={quote_no:'QT-00001',q_date:today(),customer_name:'Sample Customer Pvt Ltd',customer_address:'No 10, Main Street, Colombo 03',subject:'Laptop supply proposal',note:'',items:[{model:'HP Victus FA2082WM',desc:'',price:312000,qty:1,specs:[['Operating System','Windows 11 64 Bit'],['Processor','Intel Core i5-13420H (up to 4.60 GHz) - 8 Cores, 12 Threads, 12MB Cache'],['Graphics','NVIDIA GeForce RTX 4050 Laptop GPU (6 GB GDDR6 dedicated)'],['Memory','16GB DDR4-3200 MHz RAM Max Up to 40 GB'],['Storage','512GB NVMe SSD'],['Display','39.6 cm (15.6") diagonal, FHD (1920 x 1080), 144 Hz, IPS'],['Warranty','1 Year Hardware + 2 Year Service Warranty']]}]};
+  if($('#qe_pvk')&&$('#qe_pvk').value==='acc')q={kind:'acc',quote_no:'QTN-0094',q_date:today(),customer_name:'Lanka Canneries (Pvt) Ltd',customer_address:'',valid:ql.accValid,discount:'',terms:'',items:[{qty:10,desc:'Logitech B100 USB Optical Mouse',price:1900},{qty:5,desc:'TP-Link 8 Port Gigabit Switch',price:8500}]};
   const f=$('#je_pv'),LET=ql.size==='Letter',px=Math.round((LET?215.9:210)*3.7795)+10,zs=$('#je_zoom').value,ww=$('#jpw').clientWidth||900,z=zs==='fit'?Math.min(1,(ww-20)/px):+zs;
   f.style.width=px+'px';f.style.transform='scale('+z+')';f.style.transformOrigin='0 0';
   f.onload=()=>{try{const h=Math.max(900,f.contentDocument.documentElement.scrollHeight+10);f.style.height=h+'px';$('#jpw').style.height=Math.round(h*z+24)+'px'}catch(e){}if(JE_REFILL){JE_REFILL=false;jePanelFill()}};
   f.srcdoc=qtDoc(q,ql,true,JE_SEL);
+}
+function qtBanner(inp){
+  const f=inp.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,1100/im.width),c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);QTBANNER=c.toDataURL('image/png');jePrev()};im.src=r.result};
+  r.readAsDataURL(f);
 }
 function qtGReset(){Object.keys(QT_GDEF).forEach(k=>{$('#qe_g_'+k).value=QT_GDEF[k]});$('#qe_g_font').value='';jePrev()}
 function qtLogo(inp){
