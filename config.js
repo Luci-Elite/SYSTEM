@@ -6,7 +6,7 @@ const CFG = {
   url: 'https://ybevwcxgfnwfyadgbfdl.supabase.co',          // Supabase > Project Settings > API > Project URL
   key: 'sb_publishable_n0qwxibzfTZ8NQFw08jbjg_9mBL7IAh',      // Supabase > Project Settings > API > publishable / anon key
   emailDomain: '@laptopcare.app',                             // usernames are stored as username@laptopcare.app (do NOT change after users exist)
-  theme: { accent: '#6d5dd3' },   // main colour of the whole look (buttons, menu, highlights). Example: '#0b6e8a' teal, '#e8731a' orange
+  theme: { accent: '#292243' },   // main colour of the whole look (buttons, menu, highlights). Example: '#0b6e8a' teal, '#e8731a' orange
   modules: {                                                  // true = show, false = hide this module everywhere (menu, pages, user permissions)
     invoice:true,    // New invoice (+ Invoice editor)
     invoices:true,   // Invoices list / reprint
