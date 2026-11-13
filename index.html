@@ -93,7 +93,7 @@ const modOn = k => !(typeof CFG!=='undefined' && CFG.modules && CFG.modules[k]==
 const hasP = k => modOn(k) && (isAdmin() || (me && (me.perms || []).includes(k)));
 const PERMS=[['invoice','Create invoice'],['invoices','View / reprint invoices'],['stock','Stock check'],['serial','Serial number check'],['grn','GRN (goods received)'],['items','Add items and categories'],['customers','Create customers'],['suppliers','Create suppliers'],['reports','Sales reports'],['jobs','Job notes (create, change status)'],['cost','See cost prices'],['profit','See profit in sales report'],['price','Change price on invoice'],['backdate','Change invoice / GRN date'],['quotes','Quotations (create, print)']];
 const DEF_PERMS=['invoice','invoices'];
-const PGROUPS=[['Sales &amp; invoices',['invoice','invoices','reports','price','backdate','cost','profit']],['Stock',['stock','serial','grn','items']],['Customers &amp; suppliers',['customers','suppliers','setoff']],['Job notes &amp; quotations',['jobs','quotes']],['Staff',['staff']],['Edit / delete',['edit_items','edit_people','edit_inv','edit_grn','edit_jobs','edit_quotes','setoff_undo']],['Admin tools',['reps','editors']]];
+const PGROUPS=[['Sales &amp; invoices',['invoice','invoices','reports','price','backdate','cost','profit']],['Stock',['stock','serial','grn','items']],['Customers &amp; suppliers',['customers','suppliers','setoff']],['Job notes &amp; quotations',['jobs','quotes','po']],['Staff',['staff']],['Edit / delete',['edit_items','edit_people','edit_inv','edit_grn','edit_jobs','edit_quotes','edit_po','setoff_undo']],['Admin tools',['reps','editors']]];
 const permBoxes=(pre,sel)=>{
   const ok=PERMS.filter(x=>modOn(x[0])),used=new Set();
   const chip=([k,l])=>`<label class="jchk"><input type="checkbox" id="${pre}_${k}" ${sel.includes(k)?'checked':''}> ${l}</label>`;
@@ -218,6 +218,9 @@ const ICO={
  job_repair:'<path d="M15 5a4 4 0 00-4 5L4 17l3 3 7-7a4 4 0 005-4l-3 2-2-2 2-3z"/>',
  job_service:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
  quotes:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 14l2 2 4-4"/>',
+ po:'<path d="M6 3h12l2 4v14H4V7z"/><path d="M4 7h16M9 11h6M9 15h6"/>',
+ poeditor:'<path d="M6 3h12l2 4v14H4V7z"/><path d="M4 7h16M9 11h6M9 15h6"/>',
+ quoteeditor_acc:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/>',
  quotes_acc:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 14l2 2 4-4"/>',
  setoff:'<path d="M17 4l3 3-3 3M20 7H8a4 4 0 00-4 4M7 20l-3-3 3-3M4 17h12a4 4 0 004-4"/>',
  purchases:'<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h3l2.5 11h10L21 8H7"/>',
@@ -239,11 +242,12 @@ function buildNav(){
   if(gen.length)s3.push(G('general','General',gen.map(g=>L(g[0],g[1]))));
   if(hasP('jobs'))s3.push(G('jobs','Job note',[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1]))));
   if(hasP('quotes'))s3.push(G('quotes','Quotations',[L('quotes','Laptops'),L('quotes_acc','Accessories')]));
+  if(hasP('po'))s3.push(L('po','Purchase orders'));
   if(hasP('setoff'))s3.push(G('setoff','Supplier',[['setoff','Set-off'],['purchases','Purchases']].map(g=>L(g[0],g[1]))));
   if(hasP('staff'))s3.push(G('staff','Staff management',[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1]))));
   const s4=[];
   if(isAdmin())s4.push(L('users','Users'));
-  if(hasP('editors')&&['invoice','jobs','staff','quotes'].some(modOn))s4.push(G('editors','Editors',[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1]))));
+  if(hasP('editors')&&['invoice','jobs','staff','quotes','po'].some(modOn))s4.push(G('editors','Editors',[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes'],['quoteeditor_acc','Accessories quotation editor','quotes'],['poeditor','Purchase order editor','po']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1]))));
   $('#nav').innerHTML=sec('OVERVIEW',s1)+sec('TRADE',s2)+sec('MANAGE',s3)+sec('ADMIN',s4);
 }
 function navFilter(q){
@@ -284,7 +288,7 @@ async function logout(){await sb.auth.signOut();location.reload()}
 const PAGES={};
 function grpToggle(a){const g=a.parentNode,was=g.classList.contains('open');document.querySelectorAll('#nav .grp.open').forEach(x=>x.classList.remove('open'));if(!was)g.classList.add('open')}
 async function go(p){
-  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quotes_acc:'quotes',quoteform:'quotes',reps:'reps',setoff:'setoff',purchases:'setoff',settings:'editors',jobeditor:'editors',slipeditor:'editors',quoteeditor:'editors',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
+  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quotes_acc:'quotes',quoteform:'quotes',reps:'reps',setoff:'setoff',purchases:'setoff',settings:'editors',jobeditor:'editors',slipeditor:'editors',quoteeditor:'editors',quoteeditor_acc:'editors',poeditor:'editors',po:'po',poform:'po',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
   if((need[p]&&!hasP(need[p]))||(p==='users'&&!isAdmin()))p='dash';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
   document.querySelectorAll('#nav .grp').forEach(g=>g.classList.remove('has-on'));const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('has-on')}
@@ -2099,6 +2103,7 @@ const QT_MON=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST',
 const qtDate=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?(+m[3])+' '+QT_MON[+m[2]-1]+' '+m[1]:String(s||'')};
 function qtTotal(items){return (items||[]).reduce((t,i)=>t+(+i.price||0)*(+i.qty||0),0)}
 function qtDoc(q,ql,pv,sel){
+  if(q.kind==='po')return poDoc(q,ql,pv);
   if(q.kind==='acc')return qtDocAcc(q,ql,pv,sel);
   const G={...QT_GDEF,...(ql.g||{})},ST=ql.st||{},LET=ql.size==='Letter',W=LET?215.9:210,HH=LET?279.4:297,M=+ql.margin>=0?+ql.margin:12,fs=+ql.fontSize||12,ff=G.font||'Calibri, Arial, Helvetica, sans-serif';
   const co=coInfo(),ly=getLY();
@@ -2211,7 +2216,7 @@ ${pv?`[data-k]{cursor:pointer}[data-k]:hover{outline:1px dashed #1a73e8;outline-
   ${ql.accBanner?`<img class="bn"${K('a_banner')} src="${ql.accBanner}">`:''}
   </div>`;
   /* shrink everything to fit ONE page (runs in the preview, print and PDF) */
-  const fitJs=`<script>(function(){var f=document.getElementById('fitbox');if(!f)return;var H=${Math.round((HH-2*M)*3.7795)-10};function fit(){f.style.zoom=1;var h=f.getBoundingClientRect().height;if(h>H)f.style.zoom=(H/h).toFixed(4)}fit();window.addEventListener('load',fit);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);var im=f.querySelectorAll('img');for(var i=0;i<im.length;i++)im[i].addEventListener('load',fit)})()<\/script>`;
+  const fitJs=`<script>(function(){var f=document.getElementById('fitbox');if(!f)return;var H=${Math.round((HH-2*M)*3.7795)-10};function fit(){f.style.zoom=1;var h=f.getBoundingClientRect().height,z=1,k=0;while(h>H-4&&k<12){z=z*((H-6)/h);f.style.zoom=z.toFixed(4);h=f.getBoundingClientRect().height;k++}}fit();window.addEventListener('load',fit);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);var im=f.querySelectorAll('img');for(var i=0;i<im.length;i++)im[i].addEventListener('load',fit)})()<\/script>`;
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quotation ${esc(q.quote_no||'')} ${esc(q.customer_name||'')}</title><style>${css}</style></head><body><div class="sheet">${body}</div>${fitJs}${pv?jeFrameScript(sel):''}</body></html>`;
 }
 
@@ -2443,7 +2448,7 @@ async function qfFetch(i){
 /* ---------- PDF download + e-mail (no external libraries) ---------- */
 async function qtPdfBlob(q,ql){
   const LET=ql.size==='Letter',Wmm=LET?215.9:210,Hmm=LET?279.4:297,M=+ql.margin>=0?+ql.margin:12,cw=Wmm-2*M,px=Math.round(cw*96/25.4),mmpx=cw/px,S=2;
-  const f=document.createElement('iframe');f.style.cssText='position:fixed;left:-20000px;top:0;border:0;width:'+px+'px;height:'+(q.kind==='acc'?'20px':'1200px');document.body.appendChild(f);
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;left:-20000px;top:0;border:0;width:'+px+'px;height:'+(q.kind==='acc'||q.kind==='po'?'20px':'1200px');document.body.appendChild(f);
   try{
     await new Promise(r=>{f.onload=r;f.srcdoc=qtDoc(q,ql,false)});await new Promise(r=>setTimeout(r,250));
     const d=f.contentDocument,win=f.contentWindow;f.style.height=Math.ceil(d.documentElement.scrollHeight)+'px';
@@ -2484,10 +2489,10 @@ function qtPdfBuild(pg,Wmm,Hmm,M){
   add('trailer\n<</Size '+(N+1)+'/Root 1 0 R>>\nstartxref\n'+xr+'\n%%EOF');
   return new Blob(ch,{type:'application/pdf'});
 }
-const qFileName=q=>('Quotation-'+(q.quote_no||'draft')+'-'+String(q.customer_name||'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')).slice(0,80)+'.pdf';
+const qFileName=q=>((q.kind==='po'?'PurchaseOrder-':'Quotation-')+(q.quote_no||'draft')+'-'+String((q.kind==='po'?q.supplier_name:q.customer_name)||'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')).slice(0,80)+'.pdf';
 async function qtPdfDownload(q){
   toast('Creating PDF...');
-  try{const blob=await qtPdfBlob(q,getQL()),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=qFileName(q);document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href)},4000);toast('PDF downloaded: '+a.download);return true}
+  try{const blob=await qtPdfBlob(q,q.kind==='po'?getPL():getQL()),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=qFileName(q);document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href)},4000);toast('PDF downloaded: '+a.download);return true}
   catch(e){console.error(e);toast('PDF failed: '+e.message,true);return false}
 }
 async function qtEmail(q,mode,w){
@@ -2510,6 +2515,7 @@ async function qMail(id,mode){const w=mode==='gmail'?window.open('','_blank'):nu
 Object.assign(JE_NAMES,{lh_logo:'Logo',spec_k:'Spec names (left column)',spec_v:'Spec values',pr_desc:'Price table: description',pr_unit:'Price table: unit price',pr_qty:'Price table: qty',pr_tot:'Price table: total',a_total:'Total amount',about:'About us text',why:'Why choose list',closing:'Closing note text',note:'Extra note',pnote:'Price note',cheque_pre:'Cheque note',cheque_name:'Cheque name (highlight)',sg_best:'Best regards',sg_name:'Company name (sign-off)',sg_phone:'Phone (sign-off)',sg_email:'Email (sign-off)',v_date:'Date value',v_ref:'Quotation no value',v_for:'Customer name value',v_addr:'Customer address value',v_subj:'Subject value',v_model:'Model value'});
 JE_NOTEXT.push('lh_logo','spec_k','spec_v','pr_desc','pr_unit','pr_qty','pr_tot','a_total','v_date','v_ref','v_for','v_addr','v_subj','v_model');
 let QTLOGO='',QTBANNER='';
+PAGES.quoteeditor_acc=async()=>{await PAGES.quoteeditor();const e=$('#qe_pvk');if(e){e.value='acc';jePrev()}};
 PAGES.quoteeditor=async()=>{
   const ql=getQL(),G={...QT_GDEF,...(ql.g||{})};QTLOGO=ql.logo||'';QTBANNER=ql.accBanner||'';
   JE_MODE='quote';JE_TEXTMAP={about:'qe_about',why:'qe_why',closing:'qe_closing',a_about:'qe_aabout',a_terms:'qe_aterms'};JEST=JSON.parse(JSON.stringify(ql.st||{}));JE_SEL='';
@@ -2582,8 +2588,168 @@ async function qtSave(){
 }
 
 
+
+/* ===================== Purchase orders (to suppliers) ===================== */
+const PO_DEF={size:'A4',margin:12,fontSize:12,logoOn:true,useInvLogo:false,logo:'',logoH:44,title:'PURCHASE ORDER',showLH:true,
+  terms:'Please quote the PO number on your invoice and delivery note\nGoods must be delivered in good condition with warranty\nDelivery as per the date mentioned above',
+  note:'',showSign:true,sign1:'Prepared by',sign2:'Authorized by',supLabel:'Supplier',
+  accent:'#323E4F',border:'#000000',headBg:'#f2f2f2',headText:'#000000',text:'#262626',font:''};
+function getPL(){let o={};try{o=JSON.parse(settings.po_layout||'{}')}catch(e){}return {...PO_DEF,...o}}
+function poDoc(q,pl,pv){
+  const LET=pl.size==='Letter',HH=LET?279.4:297,M=+pl.margin>=0?+pl.margin:12,fs=+pl.fontSize||12,ff=pl.font||'Calibri, Arial, Helvetica, sans-serif',co=coInfo(),ly=getLY();
+  const logo=pl.useInvLogo?(ly.logo||QT_LOGO):(pl.logo||QT_LOGO||ly.logo||'');
+  const addr=String(co.a||'').split('\n').filter(Boolean).join(', ');
+  const items=(q.items||[]).filter(i=>String(i.desc||'').trim()||+i.price);
+  const sub=items.reduce((a,i)=>a+(+i.qty||0)*(+i.price||0),0);
+  const fill=Math.max(0,8-items.length);
+  const LI=t=>String(t||'').split(/\n+/).map(x=>x.trim()).filter(Boolean).map(x=>`<li>${esc(x)}</li>`).join('');
+  const rows=items.map((i,n)=>`<tr><td class="c">${n+1}</td><td>${esc(i.desc||'')}</td><td class="c">${esc(i.qty)}</td><td class="r">${(+i.price)?money(i.price):''}</td><td class="r">${(+i.price)?money((+i.qty||0)*(+i.price||0)):''}</td></tr>`).join('')+Array(fill).fill('<tr class="em"><td></td><td></td><td></td><td></td><td></td></tr>').join('');
+  const css=`@page{size:${LET?'Letter':'A4'};margin:${M}mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0;padding:0}body{font:${fs}px/1.4 ${ff};color:${pl.text};${pv?'background:#dfe3e8;':''}}
+.sheet{${pv?`width:${LET?215.9:210}mm;min-height:${HH}mm;padding:${M}mm;background:#fff;margin:0 auto;`:''}}
+.ah{width:100%;border-collapse:collapse}.ah td{padding:0;border:0;vertical-align:middle}.ah img{display:block;height:${Math.min(+pl.logoH||44,140)}px}.ah .t{text-align:right;font-size:${fs*2}px;font-weight:700;color:${pl.accent};letter-spacing:.02em}
+.co{margin-top:8px;font-size:${fs*.85}px;color:#595959;line-height:1.5}.co b{color:${pl.accent}}
+.ln{border-top:1px solid #bfbfbf;margin:${fs}px 0}
+.meta{display:flex;justify-content:space-between;gap:20px}.meta>div{flex:1}.h2{font:700 ${fs*1.1}px Cambria,Georgia,serif;color:${pl.accent};margin:0 0 4px}
+.kv{font-size:${fs*.95}px;line-height:1.6}.kv b{display:inline-block;min-width:92px}
+.sn{font:700 ${fs*1.15}px Cambria,Georgia,serif}
+table.pt{width:100%;border-collapse:collapse;border:1px solid ${pl.border};margin-top:${fs*.8}px}table.pt td{border:1px solid ${pl.border};padding:4px 7px;font-size:${fs*.95}px}
+table.pt tr.h td{font:700 ${fs*.7}px Arial,sans-serif;text-align:center;background:${pl.headBg};color:${pl.headText};text-transform:uppercase;letter-spacing:.04em}
+table.pt td.c{text-align:center;width:8%}table.pt td.r{text-align:right;width:17%}table.pt tr.em td{height:${fs*1.7}px}
+table.pt tr.x td{border:0;text-align:right;padding:3px 7px}table.pt tr.x td.v{border:1px solid ${pl.border};font-weight:700}
+ul.bl{margin:0;padding-left:${fs*1.5}px;font-size:${fs*.9}px}.nt{font-size:${fs*.9}px;white-space:pre-wrap}
+.sg{display:flex;justify-content:space-between;gap:40px;margin-top:${fs*4}px}.sg div{flex:1;border-top:1px solid #000;padding-top:4px;text-align:center;font-size:${fs*.85}px}`;
+  const body=`<div id="fitbox"><table class="ah"><tr><td>${pl.logoOn&&logo?`<img src="${logo}">`:''}</td><td class="t">${esc(pl.title||'PURCHASE ORDER')}</td></tr></table>
+  ${pl.showLH?`<div class="co"><b>${esc(String(co.n||'').toUpperCase())}</b>${addr?`<div>${esc(addr)}</div>`:''}<div>${esc([co.p||'',ly.email||''].filter(Boolean).join('  |  '))}</div></div>`:''}
+  <div class="ln"></div>
+  <div class="meta"><div><div class="h2">${esc(pl.supLabel||'Supplier')}</div><div class="sn">${esc(q.supplier_name||'')}</div>${q.supplier_address?`<div class="kv">${esc(q.supplier_address).replace(/\n/g,', ')}</div>`:''}</div>
+   <div class="kv" style="flex:0 0 250px"><div><b>PO No:</b> ${esc(q.po_no||'')}</div><div><b>Date:</b> ${esc(qtDmy(q.po_date))}</div>${q.delivery?`<div><b>Delivery date:</b> ${esc(q.delivery)}</div>`:''}${q.ref?`<div><b>Reference:</b> ${esc(q.ref)}</div>`:''}</div></div>
+  <table class="pt"><tr class="h"><td>#</td><td>Description</td><td>Qty</td><td>Unit price</td><td>Line total</td></tr>${rows}
+   <tr class="x"><td colspan="4"><b>Total (LKR)</b></td><td class="v r">${money(sub)}</td></tr></table>
+  ${q.note?`<div class="ln"></div><div class="h2">Note</div><div class="nt">${esc(q.note)}</div>`:''}
+  ${String(q.terms!=null&&q.terms!==''?q.terms:pl.terms).trim()?`<div class="ln"></div><div class="h2">Terms &amp; Conditions</div><ul class="bl">${LI(q.terms!=null&&q.terms!==''?q.terms:pl.terms)}</ul>`:''}
+  ${pl.showSign?`<div class="sg"><div>${esc(pl.sign1)}</div><div>${esc(pl.sign2)}</div></div>`:''}</div>`;
+  const fitJs=`<script>(function(){var f=document.getElementById('fitbox');if(!f)return;var H=${Math.round((HH-2*M)*3.7795)-10};function fit(){f.style.zoom=1;var h=f.getBoundingClientRect().height,z=1,k=0;while(h>H-4&&k<12){z=z*((H-6)/h);f.style.zoom=z.toFixed(4);h=f.getBoundingClientRect().height;k++}}fit();window.addEventListener('load',fit);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);var im=f.querySelectorAll('img');for(var i=0;i<im.length;i++)im[i].addEventListener('load',fit)})()<\/script>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>PO ${esc(q.po_no||'')} ${esc(q.supplier_name||'')}</title><style>${css}</style></head><body><div class="sheet">${body}</div>${fitJs}</body></html>`;
+}
+let PO_ROWS={},POF=null,PO_SUP=[];
+const poRecToQ=r=>({id:r.id,kind:'po',quote_no:r.po_no,po_no:r.po_no,po_date:r.po_date,supplier_name:r.supplier_name,supplier_address:r.supplier_address||'',items:(r.data&&r.data.items)||[],note:(r.data&&r.data.note)||'',terms:(r.data&&r.data.terms)||'',delivery:(r.data&&r.data.delivery)||'',ref:(r.data&&r.data.ref)||''});
+const poBlank=()=>({id:null,kind:'po',po_no:'',po_date:today(),supplier_name:'',supplier_address:'',items:[{qty:1,desc:'',price:''}],note:'',terms:'',delivery:'',ref:''});
+PAGES.po=async()=>{
+  $('#main').innerHTML=`<div class="top"><h2>Purchase orders</h2><div class="bar"><div style="flex:2"><input id="pos" placeholder="Search supplier / PO no / product" oninput="poLoad()"></div><div style="flex:0;white-space:nowrap"><button class="btn" onclick="poNew()">+ New purchase order</button></div></div></div>
+  <div class="tw"><table><thead><tr><th>PO No</th><th>Date</th><th>Supplier</th><th>Products</th><th class="r">Total (LKR)</th><th></th></tr></thead><tbody id="pobt"></tbody></table></div>`;
+  poLoad();
+};
+async function poLoad(){
+  const d=await run(sb.from('purchase_orders').select('*').order('created_at',{ascending:false}).limit(300));
+  const s=($('#pos')&&$('#pos').value||'').trim().toLowerCase();PO_ROWS={};d.forEach(r=>PO_ROWS[r.id]=r);
+  const txt=r=>((r.data&&r.data.items)||[]).map(i=>i.desc).join(' ');
+  const rows=d.filter(r=>!s||String(r.supplier_name||'').toLowerCase().includes(s)||String(r.po_no||'').toLowerCase().includes(s)||txt(r).toLowerCase().includes(s));
+  const ed=hasP('edit_po');
+  $('#pobt').innerHTML=rows.map(r=>`<tr><td><b>${esc(r.po_no)}</b></td><td>${esc(r.po_date)}</td><td>${esc(r.supplier_name)}</td><td>${((r.data&&r.data.items)||[]).map(i=>`<div><b>${esc(i.desc)}</b> <span class="mut">x${esc(i.qty)}</span></div>`).join('')}</td><td class="r">${money(r.total)}</td>
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="poView(${r.id})">Preview</button> <button class="btn sec sm" onclick="poPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="poPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="poCopy(${r.id})">Copy</button>${ed?` <button class="btn sec sm" onclick="poEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="poDel(${r.id},'${esc(r.po_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">No purchase orders yet.</td></tr>';
+}
+const poGet=async id=>PO_ROWS[id]||await run(sb.from('purchase_orders').select('*').eq('id',id).single());
+async function poView(id){const r=await poGet(id);openModal(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Purchase order ${esc(r.po_no||'')}</h3><button class="btn" onclick="closeModal()">Close &#10005;</button></div><iframe id="q_pvf" style="width:100%;height:70vh;border:1px solid #ccc;margin:8px 0"></iframe>`,'900px');$('#q_pvf').srcdoc=poDoc(poRecToQ(r),getPL(),true)}
+async function poPrint(id){const r=await poGet(id);slipPrintDoc(poDoc(poRecToQ(r),getPL(),false))}
+async function poPdf(id){const r=await poGet(id);return qtPdfDownload(poRecToQ(r))}
+async function poDel(id,no){if(!hasP('edit_po')||!confirm('Delete purchase order '+no+'?'))return;await run(sb.from('purchase_orders').delete().eq('id',id));toast('Deleted');poLoad()}
+function poNew(){POF=poBlank();go('poform')}
+function poEdit(id){if(!hasP('edit_po'))return;const r=PO_ROWS[id];if(!r)return;POF=poRecToQ(r);POF.items=JSON.parse(JSON.stringify(POF.items));go('poform')}
+function poCopy(id){const r=PO_ROWS[id];if(!r)return;POF={...poRecToQ(r),id:null,po_no:'',po_date:today()};POF.items=JSON.parse(JSON.stringify(POF.items));go('poform')}
+PAGES.poform=async()=>{
+  if(!POF)POF=poBlank();
+  try{PO_SUP=await sb.from('suppliers').select('name,address').order('name').limit(1000).then(r=>r.data||[])}catch(e){PO_SUP=[]}
+  $('#main').innerHTML=`<div class="top"><h2>${POF.id?'Edit purchase order '+esc(POF.po_no):'New purchase order'}</h2><div class="bar"><div style="flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end"><button class="btn sec" onclick="go('po')">Back</button> <button class="btn sec" onclick="poPreview()">Preview</button> <button class="btn" onclick="poSave(false)">Save</button> <button class="btn" onclick="poSave(true)">Save &amp; print</button> <button class="btn" onclick="poSave('pdf')">Save &amp; PDF</button></div></div></div>
+  <div class="card"><b>Supplier</b><div class="bar" style="margin-top:8px"><div style="flex:2"><label>Supplier name (pick a saved supplier or type)</label><input id="po_sn" list="po_sl" value="${esc(POF.supplier_name)}" oninput="poSup(this.value)" autocomplete="off"><datalist id="po_sl">${PO_SUP.map(s=>`<option value="${esc(s.name)}">`).join('')}</datalist></div><div style="flex:0 0 160px"><label>Date</label><input id="po_dt" type="date" value="${esc(POF.po_date)}"></div><div style="flex:0 0 170px"><label>Delivery date (optional)</label><input id="po_dl" value="${esc(POF.delivery)}" placeholder="e.g. 20/11/2026"></div><div style="flex:1"><label>Reference (optional)</label><input id="po_rf" value="${esc(POF.ref)}"></div></div>
+   <div style="margin-top:8px"><label>Supplier address (optional)</label><textarea id="po_ad" rows="2" style="width:100%">${esc(POF.supplier_address)}</textarea></div></div>
+  <div class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><b>Products</b><span class="mut">Add products one by one with quantity and price. The page shrinks to stay on one A4.</span></div>
+   <div class="qar qah"><span>Qty</span><span>Description</span><span>Unit price (LKR)</span><span>Line total</span><span></span></div><div id="po_rows"></div>
+   <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="poAdd()">+ Add product</button><button class="btn sec" onclick="poAdd(5)">+ Add 5 rows</button></div>
+   <div style="margin-top:12px"><label>Paste products (from Excel or text). One per line: <b>Qty, Description, Unit price</b> (Tab or comma)</label><textarea id="po_ps" rows="3" style="width:100%"></textarea><button class="btn sec sm" style="margin-top:4px" onclick="poImport()">Import lines</button></div></div>
+  <div class="card" id="po_tot" style="text-align:right"></div>
+  <div class="card"><label>Note (optional)</label><textarea id="po_nt" rows="2" style="width:100%">${esc(POF.note)}</textarea><label style="margin-top:8px;display:block">Terms for this order (empty = standard terms from the Purchase order editor; one point per line)</label><textarea id="po_tm" rows="3" style="width:100%">${esc(POF.terms)}</textarea></div>`;
+  poDraw();
+};
+function poSup(v){const s=PO_SUP.find(x=>x.name===v);if(s&&s.address&&!$('#po_ad').value)$('#po_ad').value=s.address}
+function poDraw(){
+  $('#po_rows').innerHTML=POF.items.map((it,i)=>`<div class="qar"><input type="number" min="0" step="1" value="${esc(it.qty)}" oninput="POF.items[${i}].qty=this.value;poTot()"><input value="${esc(it.desc)}" placeholder="Product description" oninput="POF.items[${i}].desc=this.value"><input type="number" step="0.01" min="0" value="${esc(it.price)}" oninput="POF.items[${i}].price=this.value;poTot()"><b class="r" id="po_lt${i}">${money((+it.qty||0)*(+it.price||0))}</b><button class="btn sec sm" onclick="poDelRow(${i})" title="Remove">&#10005;</button></div>`).join('');
+  poTot();
+}
+const poSum=()=>POF.items.reduce((a,i)=>a+(+i.qty||0)*(+i.price||0),0);
+function poTot(){POF.items.forEach((it,i)=>{const e=$('#po_lt'+i);if(e)e.textContent=money((+it.qty||0)*(+it.price||0))});const e=$('#po_tot');if(e)e.innerHTML=`<b style="font-size:18px">Total: LKR ${money(poSum())}</b>`}
+function poRead(){POF.supplier_name=$('#po_sn').value.trim();POF.po_date=$('#po_dt').value||today();POF.delivery=$('#po_dl').value.trim();POF.ref=$('#po_rf').value.trim();POF.supplier_address=$('#po_ad').value.trim();POF.note=$('#po_nt').value;POF.terms=$('#po_tm').value}
+function poAdd(n){poRead();for(let i=0;i<(n||1);i++)POF.items.push({qty:1,desc:'',price:''});poDraw()}
+function poDelRow(i){POF.items.splice(i,1);if(!POF.items.length)POF.items.push({qty:1,desc:'',price:''});poDraw()}
+function poImport(){
+  const t=$('#po_ps').value,out=[],num=x=>/^[\d,]+(\.\d+)?$/.test(x)?+x.replace(/,/g,''):NaN;
+  t.split(/\r?\n/).forEach(l=>{
+    l=l.trim();if(!l)return;
+    let c=l.split('\t').map(x=>x.trim()).filter(x=>x!=='');
+    if(c.length<3&&l.includes(',')&&!/\t/.test(l)){const m=l.match(/^([\d,.]+)\s*,\s*(.+?)\s*,\s*([\d,]+(?:\.\d+)?)$/);if(m)c=[m[1],m[2],m[3]]}
+    let r=null,m;
+    if(c.length>=3){
+      if(!isNaN(num(c[0]))&&isNaN(num(c[1])))r={qty:num(c[0]),desc:c[1],price:num(c[c.length-1])};
+      else if(isNaN(num(c[0]))&&!isNaN(num(c[1]))&&!isNaN(num(c[2])))r={qty:num(c[1]),desc:c[0],price:num(c[2])};
+      else r={qty:1,desc:c.slice(0,-1).join(' '),price:num(c[c.length-1])};
+    }else if(c.length===2){
+      if(!isNaN(num(c[1])))r={qty:1,desc:c[0],price:num(c[1])};
+      else if(!isNaN(num(c[0])))r={qty:num(c[0]),desc:c[1],price:''};
+    }
+    if(!r&&(m=l.match(/^(\d+)\s*(?:[x×*]\s*)?(.+?)\s+(?:LKR|Rs\.?)?\s*([\d,]+(?:\.\d+)?)$/i)))r={qty:+m[1],desc:m[2].trim(),price:num(m[3])};
+    if(!r)r={qty:1,desc:l,price:''};
+    if(isNaN(r.qty)||!r.qty)r.qty=1;if(isNaN(r.price))r.price='';
+    out.push(r);
+  });
+  if(!out.length)return toast('Nothing to import',true);
+  poRead();
+  if(POF.items.length===1&&!String(POF.items[0].desc||'').trim()&&!POF.items[0].price)POF.items=[];
+  POF.items.push(...out);$('#po_ps').value='';poDraw();toast('Imported '+out.length+' product(s). Please check them.');
+}
+
+function poPreview(){poRead();openModal(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Preview</h3><button class="btn" onclick="closeModal()">Close &#10005;</button></div><iframe id="q_pvf" style="width:100%;height:70vh;border:1px solid #ccc;margin:8px 0"></iframe>`,'900px');$('#q_pvf').srcdoc=poDoc(POF,getPL(),true)}
+async function poSave(print){
+  poRead();if(!POF.supplier_name)return toast('Enter the supplier name',true);
+  POF.items=POF.items.filter(i=>String(i.desc||'').trim()||+i.price);if(!POF.items.length){POF.items=[{qty:1,desc:'',price:''}];return toast('Enter at least one product',true)}
+  const row={po_date:POF.po_date,supplier_name:POF.supplier_name,supplier_address:POF.supplier_address,data:{items:POF.items,note:POF.note,terms:POF.terms,delivery:POF.delivery,ref:POF.ref},total:poSum()};
+  const rec=POF.id?await run(sb.from('purchase_orders').update(row).eq('id',POF.id).select().single()):await run(sb.from('purchase_orders').insert(row).select().single());
+  toast('Purchase order saved: '+rec.po_no);
+  if(print===true)slipPrintDoc(poDoc(poRecToQ(rec),getPL(),false));else if(print==='pdf')await qtPdfDownload(poRecToQ(rec));
+  POF=null;go('po');
+}
+/* ---------- purchase order editor ---------- */
+let POLOGO='';
+PAGES.poeditor=async()=>{
+  const pl=getPL();POLOGO=pl.logo||'';
+  const ck=(id,v,l)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''} onchange="poPrev()"> ${l}</label>`;
+  const inp=(id,l,v,t)=>`<div style="flex:1;min-width:140px"><label>${l}</label><input id="${id}" ${t||''} value="${esc(v)}" oninput="poPrev()"></div>`;
+  const col=(id,l,v)=>`<div style="flex:0 0 130px"><label>${l}</label><input id="${id}" type="color" value="${esc(v)}" oninput="poPrev()" style="width:100%;height:34px;padding:2px"></div>`;
+  $('#main').innerHTML=`<div class="top"><h2>Purchase order editor</h2><div class="bar"><div style="flex:0"><button class="btn" onclick="poEdSave()">Save</button></div></div></div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start"><div style="flex:1 1 380px;min-width:300px">
+   <div class="card"><b>Paper &amp; layout</b><div class="bar" style="margin-top:8px"><div style="flex:1"><label>Paper</label><select id="pe_sz" onchange="poPrev()"><option ${pl.size==='A4'?'selected':''}>A4</option><option ${pl.size==='Letter'?'selected':''}>Letter</option></select></div>${inp('pe_mg','Margin (mm)',pl.margin,'type="number"')}${inp('pe_fs','Font size (px)',pl.fontSize,'type="number"')}</div>
+    <div class="bar">${inp('pe_ti','Title',pl.title)}${inp('pe_sl','Supplier heading',pl.supLabel)}</div>
+    ${ck('pe_lh',pl.showLH,'Company details under the logo')}</div>
+   <div class="card"><b>Logo</b><div class="mut" style="margin:6px 0">Laptopcare logo is used automatically (from the invoice editor / config). Upload another one only if you want a different logo.</div>
+    ${ck('pe_lo',pl.logoOn,'Show logo')}${ck('pe_ul',pl.useInvLogo,'Use the invoice editor logo')}
+    <div class="bar">${inp('pe_lg','Logo height (px)',pl.logoH,'type="number" min="16" max="140"')}</div>
+    <div class="row"><label>Upload a different logo</label><input type="file" accept="image/*" onchange="poLogo(this)"> <button class="btn sec sm" onclick="POLOGO='';poPrev()">Use default logo</button></div></div>
+   <div class="card"><b>Colours &amp; font</b><div class="bar" style="margin-top:8px">${col('pe_ac','Headings',pl.accent)}${col('pe_bd','Table border',pl.border)}${col('pe_hb','Table heading bg',pl.headBg)}${col('pe_ht','Heading text',pl.headText)}${col('pe_tx','Text',pl.text)}</div><div class="bar">${inp('pe_ff','Font (empty = default, e.g. Arial)',pl.font)}</div></div>
+   <div class="card"><b>Standard texts</b><label style="display:block;margin-top:6px">Terms (one point per line)</label><textarea id="pe_tm" rows="4" style="width:100%" oninput="poPrev()">${esc(pl.terms)}</textarea><div class="bar" style="margin-top:8px">${inp('pe_s1','Signature 1',pl.sign1)}${inp('pe_s2','Signature 2',pl.sign2)}</div>${ck('pe_sg',pl.showSign,'Show signature lines')}</div>
+  </div><div style="flex:1 1 520px;min-width:300px"><div class="card"><b>Live preview</b><div id="pe_w" style="margin-top:8px;overflow:hidden"><iframe id="pe_pv" style="border:1px solid #ccc;background:#fff;transform-origin:0 0"></iframe></div></div></div></div>`;
+  poPrev();
+};
+function poLayRead(){const g=id=>$('#'+id);return {size:g('pe_sz').value,margin:+g('pe_mg').value||12,fontSize:+g('pe_fs').value||12,title:g('pe_ti').value,supLabel:g('pe_sl').value,showLH:g('pe_lh').checked,logoOn:g('pe_lo').checked,useInvLogo:g('pe_ul').checked,logoH:+g('pe_lg').value||44,logo:POLOGO,accent:g('pe_ac').value,border:g('pe_bd').value,headBg:g('pe_hb').value,headText:g('pe_ht').value,text:g('pe_tx').value,font:g('pe_ff').value,terms:g('pe_tm').value,sign1:g('pe_s1').value,sign2:g('pe_s2').value,showSign:g('pe_sg').checked,note:''}}
+function poPrev(){
+  const pl={...PO_DEF,...poLayRead()},f=$('#pe_pv'),LET=pl.size==='Letter',px=Math.round((LET?215.9:210)*3.7795)+10,ww=$('#pe_w').clientWidth||600,z=Math.min(1,(ww-4)/px);
+  const q={po_no:'PO-0001',po_date:today(),supplier_name:'Sample Supplier (Pvt) Ltd',supplier_address:'No 5, Main Street, Colombo 10',delivery:'',ref:'',items:[{qty:10,desc:'Laptop charger 65W',price:2500},{qty:5,desc:'Laptop battery HP 14',price:6500}]};
+  f.style.width=px+'px';f.style.height=Math.round((LET?279.4:297)*3.7795+40)+'px';f.style.transform='scale('+z+')';$('#pe_w').style.height=Math.round(parseFloat(f.style.height)*z+6)+'px';
+  f.srcdoc=poDoc(q,pl,true);
+}
+function poLogo(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,600/im.width),c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);POLOGO=c.toDataURL('image/png');poPrev()};im.src=r.result};r.readAsDataURL(f)}
+async function poEdSave(){const row={key:'po_layout',value:JSON.stringify(poLayRead())};await run(sb.from('settings').upsert([row]));settings.po_layout=row.value;toast('Purchase order layout saved')}
+
 /* ===================== Supplier set-off + Purchases ===================== */
-PERMS.push(['setoff','Supplier set-off & purchases']);
+PERMS.push(['setoff','Supplier set-off & purchases']);PERMS.push(['po','Purchase orders'],['edit_po','Edit / delete purchase orders']);
 PERMS.push(['edit_items','Edit / delete items & categories'],['edit_people','Edit / delete customers & suppliers'],['edit_inv','Edit / delete invoices'],['edit_grn','Edit / delete GRN'],['edit_jobs','Edit / delete job notes'],['edit_quotes','Edit / delete quotations'],['setoff_undo','Undo supplier set-off'],['reps','Manage sales reps'],['editors','Use layout editors']);
 let SO={sup:0,cust:0,g:null,i:null,all:false,G:[],I:[],H:[]};
 const soQ=s=>String(s||'').replace(/["\\]/g,'');
