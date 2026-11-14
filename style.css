@@ -19,6 +19,18 @@
   --acc-bg: color-mix(in srgb, var(--acc) 10%, #fff);     /* very light tint */
   --acc-mid: color-mix(in srgb, var(--acc) 65%, #fff);    /* lighter shade (gradients) */
 
+  /* form fields + labels (Editors > Form look editor can change these) */
+  --fld-border: #aab1c5;   /* box border colour */
+  --fld-bw: 1px;           /* box border thickness */
+  --fld-bg: #fff;          /* box background */
+  --fld-text: #111827;     /* typed text colour */
+  --fld-fs: 14px;          /* typed text size */
+  --fld-pad: 9px;          /* box height (top/bottom padding) */
+  --fld-radius: 10px;      /* rounded corners */
+  --lbl: #3d4559;          /* label colour (small text above the boxes) */
+  --lbl-fs: 13px;          /* label size */
+  --lbl-fw: 600;           /* label weight (400 normal, 600 semi-bold, 700 bold) */
+
   /* left menu (sidebar) */
   --nav: #fff;             /* sidebar background */
   --navt: #4a5167;         /* sidebar text */
@@ -69,11 +81,12 @@ input,
 select,
 textarea {
   font: inherit;
-  padding: 9px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #fff;
-  color: var(--ink);
+  font-size: var(--fld-fs);
+  padding: var(--fld-pad) 12px;
+  border: var(--fld-bw) solid var(--fld-border);
+  border-radius: var(--fld-radius);
+  background: var(--fld-bg);
+  color: var(--fld-text);
   width: 100%;
   transition: border-color .15s, box-shadow .15s;
 }
@@ -87,8 +100,9 @@ button:focus-visible {
 }
 label {
   display: block;
-  font-size: 12.5px;
-  color: var(--mut);
+  font-size: var(--lbl-fs);
+  font-weight: var(--lbl-fw);
+  color: var(--lbl);
   margin-bottom: 3px;
 }
 
