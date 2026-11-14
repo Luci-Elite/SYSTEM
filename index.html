@@ -2764,7 +2764,7 @@ function advDoc(q,pl,pv){
   const [PW,HH]=qtPaper(pl.size),M=+pl.margin>=0?+pl.margin:8,fs=+pl.fontSize||11,ff=pl.font||'Calibri, Arial, Helvetica, sans-serif',co=coInfo(),ly=getLY();
   const logo=pl.useInvLogo?(ly.logo||QT_LOGO):(pl.logo||QT_LOGO||ly.logo||'');
   const addr=String(co.a||'').split('\n').filter(Boolean).join(', ');
-  const total=+q.total||0,paid=+q.paid||0,bal=total-paid;
+  const total=+q.total||0,paid=+q.paid||0,bal=total-paid,sett=!!q.settled;
   const models=String(q.models||'').split(/\n+/).map(x=>x.trim()).filter(Boolean);
   const LI=t=>String(t||'').split(/\n+/).map(x=>x.trim()).filter(Boolean).map(x=>`<li>${esc(x)}</li>`).join('');
   const terms=q.terms!=null&&String(q.terms).trim()!==''?q.terms:pl.terms;
@@ -2782,6 +2782,7 @@ ul.md{margin:0;padding-left:${fs*1.4}px;font-weight:700}
 table.am{width:100%;border-collapse:collapse;border:1px solid ${pl.border};margin-top:${fs*.6}px}table.am td{border:1px solid ${pl.border};padding:5px 8px;font-size:${fs}px}
 table.am td.v{text-align:right;font-weight:700;width:38%}table.am tr.b td{background:${pl.headBg};color:${pl.headText};font-weight:700}
 ul.bl{margin:0;padding-left:${fs*1.4}px;font-size:${fs*.82}px}
+.stamp{margin:${fs*.8}px auto 0;width:max-content;border:3px solid #1e8e3e;color:#1e8e3e;font:800 ${fs*1.6}px Arial,sans-serif;letter-spacing:.12em;padding:3px 16px;border-radius:6px;transform:rotate(-4deg)}
 .sg{display:flex;justify-content:space-between;gap:30px;margin-top:${fs*3}px}.sg div{flex:1;border-top:1px solid #000;padding-top:3px;text-align:center;font-size:${fs*.8}px}`;
   const body=`<div id="fitbox"><table class="ah"><tr><td>${pl.logoOn&&logo?`<img src="${logo}">`:''}</td><td class="t">${esc(pl.title||'ADVANCE RECEIPT')}</td></tr></table>
   ${pl.showLH?`<div class="co"><b>${esc(String(co.n||'').toUpperCase())}</b>${addr?`<div>${esc(addr)}</div>`:''}<div>${esc([co.p||'',ly.email||''].filter(Boolean).join('  |  '))}</div></div>`:''}
@@ -2793,7 +2794,7 @@ ul.bl{margin:0;padding-left:${fs*1.4}px;font-size:${fs*.82}px}
   <div class="ln"></div>
   <div class="h2">Reserved item(s)</div>
   ${models.length?`<ul class="md">${models.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>`:'<div class="mut">-</div>'}
-  <table class="am"><tr><td>Total amount</td><td class="v">LKR ${money(total)}</td></tr><tr><td>Advance paid${q.paid_date?' ('+esc(qtDmy(q.paid_date))+')':''}${q.method?' - '+esc(q.method):''}</td><td class="v">LKR ${money(paid)}</td></tr><tr class="b"><td>Balance amount</td><td class="v">LKR ${money(bal)}</td></tr></table>
+  <table class="am"><tr><td>Total amount</td><td class="v">LKR ${money(total)}</td></tr><tr><td>Advance paid${q.paid_date?' ('+esc(qtDmy(q.paid_date))+')':''}${q.method?' - '+esc(q.method):''}</td><td class="v">LKR ${money(paid)}</td></tr>${sett?`<tr><td>Balance paid (${esc(qtDmy(q.settled_date))})${q.settled_method?' - '+esc(q.settled_method):''}</td><td class="v">LKR ${money(bal)}</td></tr>`:''}<tr class="b"><td>Balance amount</td><td class="v">LKR ${money(sett?0:bal)}</td></tr></table>${sett?`<div class="stamp">FULLY PAID</div>`:''}
   ${q.note?`<div class="ln"></div><div style="font-size:${fs*.9}px;white-space:pre-wrap"><b>Note:</b> ${esc(q.note)}</div>`:''}
   ${String(terms).trim()?`<div class="ln"></div><div class="h2">Terms</div><ul class="bl">${LI(terms)}</ul>`:''}
   ${pl.showSign?`<div class="sg"><div>${esc(pl.sign1)}</div><div>${esc(pl.sign2)}</div></div>`:''}</div>`;
@@ -2801,11 +2802,11 @@ ul.bl{margin:0;padding-left:${fs*1.4}px;font-size:${fs*.82}px}
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Advance ${esc(q.adv_no||'')} ${esc(q.customer_name||'')}</title><style>${css}</style></head><body><div class="sheet">${body}</div>${fitJs}</body></html>`;
 }
 let AD_ROWS={},ADF=null,AD_CUS=[];
-const advRecToQ=r=>({id:r.id,kind:'adv',quote_no:r.adv_no,adv_no:r.adv_no,paid_date:r.paid_date,customer_name:r.customer_name,customer_address:r.customer_address||'',phone:r.phone||'',nic:r.nic||'',models:(r.data&&r.data.models)||'',total:r.total_amount,paid:r.paid_amount,method:(r.data&&r.data.method)||'',note:(r.data&&r.data.note)||'',terms:(r.data&&r.data.terms)||''});
+const advRecToQ=r=>({id:r.id,kind:'adv',quote_no:r.adv_no,adv_no:r.adv_no,paid_date:r.paid_date,customer_name:r.customer_name,customer_address:r.customer_address||'',phone:r.phone||'',nic:r.nic||'',models:(r.data&&r.data.models)||'',total:r.total_amount,paid:r.paid_amount,method:(r.data&&r.data.method)||'',note:(r.data&&r.data.note)||'',terms:(r.data&&r.data.terms)||'',settled:!!(r.data&&r.data.settled),settled_date:(r.data&&r.data.settled_date)||'',settled_method:(r.data&&r.data.settled_method)||''});
 const advBlank=()=>({id:null,kind:'adv',adv_no:'',paid_date:today(),customer_name:'',customer_address:'',phone:'',nic:'',models:'',total:'',paid:'',method:'Cash',note:'',terms:''});
 PAGES.adv=async()=>{
   $('#main').innerHTML=`<div class="top"><h2>Advance receipts</h2><div class="bar"><div style="flex:2"><input id="avs" placeholder="Search customer / receipt no / NIC / model" oninput="advLoad()"></div><div style="flex:0;white-space:nowrap"><button class="btn" onclick="advNew()">+ New advance receipt</button></div></div></div>
-  <div class="tw"><table><thead><tr><th>No</th><th>Paid date</th><th>Customer</th><th>Model(s)</th><th class="r">Total</th><th class="r">Advance</th><th class="r">Balance</th><th></th></tr></thead><tbody id="avbt"></tbody></table></div>`;
+  <div class="tw"><table><thead><tr><th>No</th><th>Paid date</th><th>Customer</th><th>Model(s)</th><th class="r">Total</th><th class="r">Advance</th><th class="r">Balance</th><th>Status</th><th></th></tr></thead><tbody id="avbt"></tbody></table></div>`;
   advLoad();
 };
 async function advLoad(){
@@ -2813,14 +2814,29 @@ async function advLoad(){
   const s=($('#avs')&&$('#avs').value||'').trim().toLowerCase();AD_ROWS={};d.forEach(r=>AD_ROWS[r.id]=r);
   const rows=d.filter(r=>!s||[r.customer_name,r.adv_no,r.nic,r.phone,(r.data&&r.data.models)||''].join(' ').toLowerCase().includes(s));
   const ed=hasP('edit_adv');
-  $('#avbt').innerHTML=rows.map(r=>`<tr><td><b>${esc(r.adv_no)}</b></td><td>${esc(r.paid_date)}</td><td>${esc(r.customer_name)}<div class="mut">${esc(r.phone||'')}${r.nic?' | '+esc(r.nic):''}</div></td><td>${String((r.data&&r.data.models)||'').split(/\n+/).filter(Boolean).map(m=>`<div><b>${esc(m)}</b></div>`).join('')}</td><td class="r">${money(r.total_amount)}</td><td class="r">${money(r.paid_amount)}</td><td class="r"><b>${money((+r.total_amount||0)-(+r.paid_amount||0))}</b></td>
-   <td style="white-space:nowrap"><button class="btn sec sm" onclick="advView(${r.id})">Preview</button> <button class="btn sec sm" onclick="advPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="advPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="advCopy(${r.id})">Copy</button>${ed?` <button class="btn sec sm" onclick="advEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="advDel(${r.id},'${esc(r.adv_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8" class="mut">No advance receipts yet.</td></tr>';
+  $('#avbt').innerHTML=rows.map(r=>`<tr><td><b>${esc(r.adv_no)}</b></td><td>${esc(r.paid_date)}</td><td>${esc(r.customer_name)}<div class="mut">${esc(r.phone||'')}${r.nic?' | '+esc(r.nic):''}</div></td><td>${String((r.data&&r.data.models)||'').split(/\n+/).filter(Boolean).map(m=>`<div><b>${esc(m)}</b></div>`).join('')}</td><td class="r">${money(r.total_amount)}</td><td class="r">${money(r.paid_amount)}</td><td class="r"><b>${money(r.data&&r.data.settled?0:(+r.total_amount||0)-(+r.paid_amount||0))}</b></td><td>${r.data&&r.data.settled?'<span class="tag ok">Fully paid</span><div class="mut">'+esc(r.data.settled_date||'')+'</div>':'<span class="tag">Advance only</span>'}</td>
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="advView(${r.id})">Preview</button> ${ed?(r.data&&r.data.settled?`<button class="btn sec sm" onclick="advUnsettle(${r.id})">Undo full paid</button> `:`<button class="btn sm" onclick="advSettle(${r.id})">Full paid</button> `):''}<button class="btn sec sm" onclick="advPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="advPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="advCopy(${r.id})">Copy</button>${ed?` <button class="btn sec sm" onclick="advEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="advDel(${r.id},'${esc(r.adv_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="9" class="mut">No advance receipts yet.</td></tr>';
 }
 const advGet=async id=>AD_ROWS[id]||await run(sb.from('advance_receipts').select('*').eq('id',id).single());
 async function advView(id){const r=await advGet(id);openModal(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Advance receipt ${esc(r.adv_no||'')}</h3><button class="btn" onclick="closeModal()">Close &#10005;</button></div><iframe id="q_pvf" style="width:100%;height:70vh;border:1px solid #ccc;margin:8px 0"></iframe>`,'800px');$('#q_pvf').srcdoc=advDoc(advRecToQ(r),getAL(),true)}
 async function advPrint(id){const r=await advGet(id);slipPrintDoc(advDoc(advRecToQ(r),getAL(),false))}
 async function advPdf(id){const r=await advGet(id);return qtPdfDownload(advRecToQ(r))}
 async function advDel(id,no){if(!hasP('edit_adv')||!confirm('Delete advance receipt '+no+'?'))return;await run(sb.from('advance_receipts').delete().eq('id',id));toast('Deleted');advLoad()}
+function advSettle(id){
+  const r=AD_ROWS[id];if(!r||!hasP('edit_adv'))return;const bal=(+r.total_amount||0)-(+r.paid_amount||0);
+  openModal(`<h3 style="margin-top:0">Full payment - ${esc(r.adv_no)}</h3><p>${esc(r.customer_name)}<br>Total LKR ${money(r.total_amount)} | Advance LKR ${money(r.paid_amount)}<br><b>Balance to receive now: LKR ${money(bal)}</b></p>
+   <div class="bar"><div><label>Paid date</label><input id="fs_dt" type="date" value="${today()}"></div><div><label>Method</label><select id="fs_mt">${['Cash','Bank transfer','Card','Cheque'].map(m=>`<option>${m}</option>`).join('')}</select></div></div>
+   <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button class="btn sec" onclick="closeModal()">Cancel</button> <button class="btn" onclick="advSettleDo(${id},false)">Mark full paid</button> <button class="btn" onclick="advSettleDo(${id},true)">Mark full paid &amp; print</button></div>`);
+}
+async function advSettleDo(id,print){
+  const r=AD_ROWS[id],dt=$('#fs_dt').value||today(),mt=$('#fs_mt').value;
+  const rec=await run(sb.from('advance_receipts').update({data:{...(r.data||{}),settled:true,settled_date:dt,settled_method:mt}}).eq('id',id).select().single());
+  closeModal();toast('Marked as fully paid');if(print)slipPrintDoc(advDoc(advRecToQ(rec),getAL(),false));advLoad();
+}
+async function advUnsettle(id){
+  const r=AD_ROWS[id];if(!r||!hasP('edit_adv')||!confirm('Undo "fully paid" for '+r.adv_no+'?'))return;
+  await run(sb.from('advance_receipts').update({data:{...(r.data||{}),settled:false,settled_date:'',settled_method:''}}).eq('id',id));toast('Reverted');advLoad();
+}
 function advNew(){ADF=advBlank();go('advform')}
 function advEdit(id){if(!hasP('edit_adv'))return;const r=AD_ROWS[id];if(!r)return;ADF=advRecToQ(r);go('advform')}
 function advCopy(id){const r=AD_ROWS[id];if(!r)return;ADF={...advRecToQ(r),id:null,adv_no:'',paid_date:today()};go('advform')}
@@ -2843,7 +2859,7 @@ function advPreview(){advRead();openModal(`<div style="display:flex;justify-cont
 async function advSave(print){
   advRead();if(!ADF.customer_name)return toast('Enter the customer name',true);if(!ADF.models)return toast('Enter the laptop model',true);if(!(+ADF.paid>0))return toast('Enter the advance paid amount',true);
   if((+ADF.paid)>(+ADF.total||0))return toast('Advance cannot be more than the total amount',true);
-  const row={paid_date:ADF.paid_date,customer_name:ADF.customer_name,customer_address:ADF.customer_address,phone:ADF.phone,nic:ADF.nic,total_amount:+ADF.total||0,paid_amount:+ADF.paid||0,data:{models:ADF.models,method:ADF.method,note:ADF.note,terms:ADF.terms}};
+  const row={paid_date:ADF.paid_date,customer_name:ADF.customer_name,customer_address:ADF.customer_address,phone:ADF.phone,nic:ADF.nic,total_amount:+ADF.total||0,paid_amount:+ADF.paid||0,data:{models:ADF.models,method:ADF.method,note:ADF.note,terms:ADF.terms,settled:!!ADF.settled,settled_date:ADF.settled_date||'',settled_method:ADF.settled_method||''}};
   const rec=ADF.id?await run(sb.from('advance_receipts').update(row).eq('id',ADF.id).select().single()):await run(sb.from('advance_receipts').insert(row).select().single());
   toast('Advance receipt saved: '+rec.adv_no);
   if(print===true)slipPrintDoc(advDoc(advRecToQ(rec),getAL(),false));else if(print==='pdf')await qtPdfDownload(advRecToQ(rec));
