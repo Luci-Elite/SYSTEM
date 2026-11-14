@@ -23,6 +23,7 @@ const CFG = {
     setoff:true,     // Supplier set-off + Purchases
     po:true,         // Purchase orders (+ Purchase order editor)
     adv:true,        // Advance receipts (+ Advance receipt editor)
+    pf:true,         // Proforma invoices (+ Proforma invoice editor)
     staff:true       // Staff management & salary (+ Salary slip editor)
   },
   quote: {                                                    // default texts of the quotation (can still be edited in Quotation editor)
