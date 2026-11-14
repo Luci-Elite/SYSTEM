@@ -93,7 +93,7 @@ const modOn = k => !(typeof CFG!=='undefined' && CFG.modules && CFG.modules[k]==
 const hasP = k => modOn(k) && (isAdmin() || (me && (me.perms || []).includes(k)));
 const PERMS=[['invoice','Create invoice'],['invoices','View / reprint invoices'],['stock','Stock check'],['serial','Serial number check'],['grn','GRN (goods received)'],['items','Add items and categories'],['customers','Create customers'],['suppliers','Create suppliers'],['reports','Sales reports'],['jobs','Job notes (create, change status)'],['cost','See cost prices'],['profit','See profit in sales report'],['price','Change price on invoice'],['backdate','Change invoice / GRN date'],['quotes','Quotations (create, print)']];
 const DEF_PERMS=['invoice','invoices'];
-const PGROUPS=[['Sales &amp; invoices',['invoice','invoices','reports','price','backdate','cost','profit']],['Stock',['stock','serial','grn','items']],['Customers &amp; suppliers',['customers','suppliers','setoff']],['Job notes &amp; quotations',['jobs','quotes','po','adv']],['Staff',['staff']],['Edit / delete',['edit_items','edit_people','edit_inv','edit_grn','edit_jobs','edit_quotes','edit_po','edit_adv','setoff_undo']],['Admin tools',['reps','editors']]];
+const PGROUPS=[['Sales &amp; invoices',['invoice','invoices','reports','price','backdate','cost','profit']],['Stock',['stock','serial','grn','items']],['Customers &amp; suppliers',['customers','suppliers','setoff']],['Job notes &amp; quotations',['jobs','quotes','po','adv','pf']],['Staff',['staff']],['Edit / delete',['edit_items','edit_people','edit_inv','edit_grn','edit_jobs','edit_quotes','edit_po','edit_adv','edit_pf','setoff_undo']],['Admin tools',['reps','editors']]];
 const permBoxes=(pre,sel)=>{
   const ok=PERMS.filter(x=>modOn(x[0])),used=new Set();
   const chip=([k,l])=>`<label class="jchk"><input type="checkbox" id="${pre}_${k}" ${sel.includes(k)?'checked':''}> ${l}</label>`;
@@ -219,6 +219,8 @@ const ICO={
  job_service:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
  quotes:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 14l2 2 4-4"/>',
  lookeditor:'<path d="M12 3a9 9 0 100 18c1.7 0 2-1 1.4-2-.6-1 0-2 1.3-2H17a4 4 0 004-4c0-5-4-10-9-10z"/>',
+ pf:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+ pfeditor:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
  adv:'<path d="M4 6h16v12H4z"/><path d="M4 10h16M8 15h3"/>',
  adveditor:'<path d="M4 6h16v12H4z"/><path d="M4 10h16M8 15h3"/>',
  po:'<path d="M6 3h12l2 4v14H4V7z"/><path d="M4 7h16M9 11h6M9 15h6"/>',
@@ -247,11 +249,12 @@ function buildNav(){
   if(hasP('quotes'))s3.push(G('quotes','Quotations',[L('quotes','Laptops'),L('quotes_acc','Accessories')]));
   if(hasP('po'))s3.push(L('po','Purchase orders'));
   if(hasP('adv'))s3.push(L('adv','Advance receipts'));
+  if(hasP('pf'))s3.push(L('pf','Proforma invoices'));
   if(hasP('setoff'))s3.push(G('setoff','Supplier',[['setoff','Set-off'],['purchases','Purchases']].map(g=>L(g[0],g[1]))));
   if(hasP('staff'))s3.push(G('staff','Staff management',[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1]))));
   const s4=[];
   if(isAdmin())s4.push(L('users','Users'));
-  if(hasP('editors')&&['invoice','jobs','staff','quotes','po','adv'].some(modOn))s4.push(G('editors','Editors',[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes'],['quoteeditor_acc','Accessories quotation editor','quotes'],['poeditor','Purchase order editor','po'],['adveditor','Advance receipt editor','adv'],['lookeditor','Form look editor','editors']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1]))));
+  if(hasP('editors')&&['invoice','jobs','staff','quotes','po','adv','pf'].some(modOn))s4.push(G('editors','Editors',[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes'],['quoteeditor_acc','Accessories quotation editor','quotes'],['poeditor','Purchase order editor','po'],['adveditor','Advance receipt editor','adv'],['pfeditor','Proforma invoice editor','pf'],['lookeditor','Form look editor','editors']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1]))));
   $('#nav').innerHTML=sec('OVERVIEW',s1)+sec('TRADE',s2)+sec('MANAGE',s3)+sec('ADMIN',s4);
 }
 function navFilter(q){
@@ -295,7 +298,7 @@ async function logout(){await sb.auth.signOut();location.reload()}
 const PAGES={};
 function grpToggle(a){const g=a.parentNode,was=g.classList.contains('open');document.querySelectorAll('#nav .grp.open').forEach(x=>x.classList.remove('open'));if(!was)g.classList.add('open')}
 async function go(p){
-  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quotes_acc:'quotes',quoteform:'quotes',reps:'reps',setoff:'setoff',purchases:'setoff',settings:'editors',jobeditor:'editors',slipeditor:'editors',quoteeditor:'editors',quoteeditor_acc:'editors',poeditor:'editors',adveditor:'editors',lookeditor:'editors',adv:'adv',advform:'adv',po:'po',poform:'po',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
+  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quotes_acc:'quotes',quoteform:'quotes',reps:'reps',setoff:'setoff',purchases:'setoff',settings:'editors',jobeditor:'editors',slipeditor:'editors',quoteeditor:'editors',quoteeditor_acc:'editors',poeditor:'editors',adveditor:'editors',pfeditor:'editors',pf:'pf',pfform:'pf',lookeditor:'editors',adv:'adv',advform:'adv',po:'po',poform:'po',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
   if((need[p]&&!hasP(need[p]))||(p==='users'&&!isAdmin()))p='dash';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
   document.querySelectorAll('#nav .grp').forEach(g=>g.classList.remove('has-on'));const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('has-on')}
@@ -2112,6 +2115,7 @@ function qtTotal(items){return (items||[]).reduce((t,i)=>t+(+i.price||0)*(+i.qty
 function qtDoc(q,ql,pv,sel){
   if(q.kind==='po')return poDoc(q,ql,pv);
   if(q.kind==='adv')return advDoc(q,ql,pv);
+  if(q.kind==='pf')return pfDoc(q,ql,pv);
   if(q.kind==='acc')return qtDocAcc(q,ql,pv,sel);
   const G={...QT_GDEF,...(ql.g||{})},ST=ql.st||{},LET=ql.size==='Letter',W=LET?215.9:210,HH=LET?279.4:297,M=+ql.margin>=0?+ql.margin:12,fs=+ql.fontSize||12,ff=G.font||'Calibri, Arial, Helvetica, sans-serif';
   const co=coInfo(),ly=getLY();
@@ -2242,7 +2246,7 @@ async function qLoad(){
   const s=($('#qs')&&$('#qs').value||'').trim().toLowerCase();QROWS={};d.forEach(r=>QROWS[r.id]=r);
   const rows=d.filter(r=>qIsAcc(r)===(QK==='acc')).filter(r=>!s||String(r.customer_name||'').toLowerCase().includes(s)||String(r.quote_no||'').toLowerCase().includes(s)||qModels(r).toLowerCase().includes(s));
   $('#qbt').innerHTML=rows.map(r=>`<tr><td><b>${esc(r.quote_no)}</b></td><td>${esc(r.q_date)}</td><td>${esc(r.customer_name)}<div class="mut">${esc(r.customer_address)}${r.data&&r.data.customer_email?' | '+esc(r.data.customer_email):''}</div></td><td>${qModelsHtml(r)}</td>${QK==='acc'?'':`<td>${esc(r.subject)}</td>`}<td class="r">${money(r.total)}</td>
-   <td style="white-space:nowrap"><button class="btn sec sm" onclick="qView(${r.id})">Preview</button> <button class="btn sec sm" onclick="qPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="qPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="qMail(${r.id})">Outlook</button> <button class="btn sec sm" onclick="qMail(${r.id},'gmail')">Gmail</button> <button class="btn sec sm" onclick="qCopy(${r.id})">Copy</button>${hasP('edit_quotes')?` <button class="btn sec sm" onclick="qEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="qDel(${r.id},'${esc(r.quote_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mut">No quotations yet.</td></tr>';
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="qView(${r.id})">Preview</button> <button class="btn sec sm" onclick="qPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="qPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="qMail(${r.id})">Outlook</button> <button class="btn sec sm" onclick="qMail(${r.id},'gmail')">Gmail</button> <button class="btn sec sm" onclick="qCopy(${r.id})">Copy</button>${hasP('pf')?` <button class="btn sec sm" onclick="pfMakeFromQuote(${r.id})">Proforma</button>`:''}${hasP('edit_quotes')?` <button class="btn sec sm" onclick="qEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="qDel(${r.id},'${esc(r.quote_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mut">No quotations yet.</td></tr>';
 }
 const qItems=r=>((r.data&&r.data.items)||[]).filter(i=>String(i.model||'').trim());
 const qModels=r=>qItems(r).map(i=>i.model).join(' ');
@@ -2456,7 +2460,7 @@ async function qfFetch(i){
 /* ---------- PDF download + e-mail (no external libraries) ---------- */
 async function qtPdfBlob(q,ql){
   const [Wmm,Hmm]=qtPaper(ql.size),M=+ql.margin>=0?+ql.margin:12,cw=Wmm-2*M,px=Math.round(cw*96/25.4),mmpx=cw/px,S=2;
-  const f=document.createElement('iframe');f.style.cssText='position:fixed;left:-20000px;top:0;border:0;width:'+px+'px;height:'+(q.kind==='acc'||q.kind==='po'||q.kind==='adv'?'20px':'1200px');document.body.appendChild(f);
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;left:-20000px;top:0;border:0;width:'+px+'px;height:'+(q.kind==='acc'||q.kind==='po'||q.kind==='adv'||q.kind==='pf'?'20px':'1200px');document.body.appendChild(f);
   try{
     await new Promise(r=>{f.onload=r;f.srcdoc=qtDoc(q,ql,false)});await new Promise(r=>setTimeout(r,250));
     const d=f.contentDocument,win=f.contentWindow;f.style.height=Math.ceil(d.documentElement.scrollHeight)+'px';
@@ -2497,10 +2501,10 @@ function qtPdfBuild(pg,Wmm,Hmm,M){
   add('trailer\n<</Size '+(N+1)+'/Root 1 0 R>>\nstartxref\n'+xr+'\n%%EOF');
   return new Blob(ch,{type:'application/pdf'});
 }
-const qFileName=q=>((q.kind==='po'?'PurchaseOrder-':q.kind==='adv'?'AdvanceReceipt-':'Quotation-')+(q.quote_no||'draft')+'-'+String((q.kind==='po'?q.supplier_name:q.customer_name)||'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')).slice(0,80)+'.pdf';
+const qFileName=q=>((q.kind==='po'?'PurchaseOrder-':q.kind==='adv'?'AdvanceReceipt-':q.kind==='pf'?'Proforma-':'Quotation-')+(q.quote_no||'draft')+'-'+String((q.kind==='po'?q.supplier_name:q.customer_name)||'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')).slice(0,80)+'.pdf';
 async function qtPdfDownload(q){
   toast('Creating PDF...');
-  try{const blob=await qtPdfBlob(q,q.kind==='po'?getPL():q.kind==='adv'?getAL():getQL()),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=qFileName(q);document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href)},4000);toast('PDF downloaded: '+a.download);return true}
+  try{const blob=await qtPdfBlob(q,q.kind==='po'?getPL():q.kind==='adv'?getAL():q.kind==='pf'?getFL():getQL()),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=qFileName(q);document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href)},4000);toast('PDF downloaded: '+a.download);return true}
   catch(e){console.error(e);toast('PDF failed: '+e.message,true);return false}
 }
 async function qtEmail(q,mode,w){
@@ -2915,8 +2919,181 @@ function lookPrev(){applyLook(lookRead())}
 function lookReset(){settings.ui_look='{}';applyLook({});PAGES.lookeditor()}
 async function lookSave(){const row={key:'ui_look',value:JSON.stringify(lookRead())};await run(sb.from('settings').upsert([row]));settings.ui_look=row.value;applyLook();toast('Form look saved')}
 
+
+/* ===================== Proforma invoices (manual or imported from a quotation) ===================== */
+const PF_DEF={size:'A4',margin:12,fontSize:12,logoOn:true,useInvLogo:false,logo:'',logoH:44,title:'PROFORMA INVOICE',showLH:true,
+  terms:'This is a proforma invoice and not a tax invoice\nGoods will be released after payment\nPrices are valid until the date mentioned above',
+  bankName:'',bankAcc:'',bankNo:'',showSign:true,sign1:'Customer signature',sign2:'Authorized by',
+  accent:'#323E4F',border:'#000000',headBg:'#f2f2f2',headText:'#000000',text:'#262626',font:''};
+function getFL(){let o={};try{o=JSON.parse(settings.pf_layout||'{}')}catch(e){}const ql=getQL();return {...PF_DEF,bankName:ql.accBankName||'',bankAcc:ql.accBankAcc||'',bankNo:ql.accBankNo||'',...o}}
+function pfDoc(q,pl,pv){
+  const [PW,HH]=qtPaper(pl.size),M=+pl.margin>=0?+pl.margin:12,fs=+pl.fontSize||12,ff=pl.font||'Calibri, Arial, Helvetica, sans-serif',co=coInfo(),ly=getLY();
+  const logo=pl.useInvLogo?(ly.logo||QT_LOGO):(pl.logo||QT_LOGO||ly.logo||'');
+  const addr=String(co.a||'').split('\n').filter(Boolean).join(', ');
+  const items=(q.items||[]).filter(i=>String(i.desc||'').trim()||+i.price);
+  const sub=items.reduce((a,i)=>a+(+i.qty||0)*(+i.price||0),0),d=Math.min(+q.discount||0,sub),net=sub-d,fill=Math.max(0,6-items.length);
+  const LI=t=>String(t||'').split(/\n+/).map(x=>x.trim()).filter(Boolean).map(x=>`<li>${esc(x)}</li>`).join('');
+  const terms=q.terms!=null&&String(q.terms).trim()!==''?q.terms:pl.terms;
+  const rows=items.map((i,n)=>`<tr><td class="c">${n+1}</td><td>${esc(i.desc||'')}</td><td class="c">${esc(i.qty)}</td><td class="r">${(+i.price)?money(i.price):''}</td><td class="r">${(+i.price)?money((+i.qty||0)*(+i.price||0)):''}</td></tr>`).join('')+Array(fill).fill('<tr class="em"><td></td><td></td><td></td><td></td><td></td></tr>').join('');
+  const bank=(pl.bankName||pl.bankAcc||pl.bankNo)?`<div class="ln"></div><div class="h2">Bank details</div><div class="kv">${pl.bankName?`<div><b>Bank:</b> ${esc(pl.bankName)}</div>`:''}${pl.bankAcc?`<div><b>Account name:</b> ${esc(pl.bankAcc)}</div>`:''}${pl.bankNo?`<div><b>Account number:</b> ${esc(pl.bankNo)}</div>`:''}</div>`:'';
+  const css=`@page{size:${pl.size==='Letter'?'Letter':pl.size==='A5'?'A5':'A4'};margin:${M}mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0;padding:0}body{font:${fs}px/1.4 ${ff};color:${pl.text};${pv?'background:#dfe3e8;':''}}
+.sheet{${pv?`width:${PW}mm;min-height:${HH}mm;padding:${M}mm;background:#fff;margin:0 auto;`:''}}
+.ah{width:100%;border-collapse:collapse}.ah td{padding:0;vertical-align:middle}.ah img{display:block;height:${Math.min(+pl.logoH||44,140)}px}.ah .t{text-align:right;font-size:${fs*2}px;font-weight:700;color:${pl.accent}}
+.co{margin-top:8px;font-size:${fs*.85}px;color:#595959;line-height:1.5}.co b{color:${pl.accent}}
+.ln{border-top:1px solid #bfbfbf;margin:${fs}px 0}.meta{display:flex;justify-content:space-between;gap:20px}.meta>div{flex:1}
+.h2{font:700 ${fs*1.1}px Cambria,Georgia,serif;color:${pl.accent};margin:0 0 4px}.kv{font-size:${fs*.95}px;line-height:1.6}.kv b{display:inline-block;min-width:100px}.sn{font:700 ${fs*1.15}px Cambria,Georgia,serif}
+table.pt{width:100%;border-collapse:collapse;border:1px solid ${pl.border};margin-top:${fs*.8}px}table.pt td{border:1px solid ${pl.border};padding:4px 7px;font-size:${fs*.95}px}
+table.pt tr.h td{font:700 ${fs*.7}px Arial,sans-serif;text-align:center;background:${pl.headBg};color:${pl.headText};text-transform:uppercase;letter-spacing:.04em}
+table.pt td.c{text-align:center;width:8%}table.pt td.r{text-align:right;width:17%}table.pt tr.em td{height:${fs*1.7}px}
+table.pt tr.x td{border:0;text-align:right;padding:3px 7px}table.pt tr.x td.v{border:1px solid ${pl.border};font-weight:700}
+ul.bl{margin:0;padding-left:${fs*1.5}px;font-size:${fs*.9}px}.nt{font-size:${fs*.9}px;white-space:pre-wrap}
+.sg{display:flex;justify-content:space-between;gap:40px;margin-top:${fs*3.5}px}.sg div{flex:1;border-top:1px solid #000;padding-top:4px;text-align:center;font-size:${fs*.85}px}`;
+  const body=`<div id="fitbox"><table class="ah"><tr><td>${pl.logoOn&&logo?`<img src="${logo}">`:''}</td><td class="t">${esc(pl.title||'PROFORMA INVOICE')}</td></tr></table>
+  ${pl.showLH?`<div class="co"><b>${esc(String(co.n||'').toUpperCase())}</b>${addr?`<div>${esc(addr)}</div>`:''}<div>${esc([co.p||'',ly.email||''].filter(Boolean).join('  |  '))}</div></div>`:''}
+  <div class="ln"></div>
+  <div class="meta"><div><div class="h2">Bill to</div><div class="sn">${esc(q.customer_name||'')}</div>${q.customer_address?`<div class="kv">${esc(q.customer_address).replace(/\n/g,', ')}</div>`:''}${q.phone?`<div class="kv">${esc(q.phone)}</div>`:''}</div>
+   <div class="kv" style="flex:0 0 250px"><div><b>Proforma No:</b> ${esc(q.pf_no||'')}</div><div><b>Date:</b> ${esc(qtDmy(q.pf_date))}</div>${q.valid?`<div><b>Valid until:</b> ${esc(q.valid)}</div>`:''}${q.quote_ref?`<div><b>Quotation ref:</b> ${esc(q.quote_ref)}</div>`:''}</div></div>
+  <table class="pt"><tr class="h"><td>#</td><td>Description</td><td>Qty</td><td>Unit price</td><td>Line total</td></tr>${rows}
+   ${d?`<tr class="x"><td colspan="4">Subtotal</td><td class="r" style="border:1px solid ${pl.border}">${money(sub)}</td></tr><tr class="x"><td colspan="4">Discount</td><td class="r" style="border:1px solid ${pl.border}">- ${money(d)}</td></tr>`:''}
+   <tr class="x"><td colspan="4"><b>Total (LKR)</b></td><td class="v r">${money(net)}</td></tr></table>
+  ${q.note?`<div class="ln"></div><div class="h2">Note</div><div class="nt">${esc(q.note)}</div>`:''}
+  ${bank}
+  ${String(terms).trim()?`<div class="ln"></div><div class="h2">Terms &amp; Conditions</div><ul class="bl">${LI(terms)}</ul>`:''}
+  ${pl.showSign?`<div class="sg"><div>${esc(pl.sign1)}</div><div>${esc(pl.sign2)}</div></div>`:''}</div>`;
+  const fitJs=`<script>(function(){var f=document.getElementById('fitbox');if(!f)return;var H=${Math.round((HH-2*M)*3.7795)-10};function fit(){f.style.zoom=1;var h=f.getBoundingClientRect().height,z=1,k=0;while(h>H-4&&k<12){z=z*((H-6)/h);f.style.zoom=z.toFixed(4);h=f.getBoundingClientRect().height;k++}}fit();window.addEventListener('load',fit);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);var im=f.querySelectorAll('img');for(var i=0;i<im.length;i++)im[i].addEventListener('load',fit)})()<\/script>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Proforma ${esc(q.pf_no||'')} ${esc(q.customer_name||'')}</title><style>${css}</style></head><body><div class="sheet">${body}</div>${fitJs}</body></html>`;
+}
+let PF_ROWS={},PFF=null,PF_CUS=[];
+const pfRecToQ=r=>({id:r.id,kind:'pf',quote_no:r.pf_no,pf_no:r.pf_no,pf_date:r.pf_date,customer_name:r.customer_name,customer_address:r.customer_address||'',phone:r.phone||'',items:(r.data&&r.data.items)||[],discount:(r.data&&r.data.discount)||'',note:(r.data&&r.data.note)||'',terms:(r.data&&r.data.terms)||'',valid:(r.data&&r.data.valid)||'',quote_ref:(r.data&&r.data.quote_ref)||'',email:(r.data&&r.data.email)||''});
+const pfBlank=()=>({id:null,kind:'pf',pf_no:'',pf_date:today(),customer_name:'',customer_address:'',phone:'',email:'',items:[{qty:1,desc:'',price:''}],discount:'',note:'',terms:'',valid:'',quote_ref:''});
+/* turn a saved quotation (laptop or accessories) into a proforma draft */
+function pfFromQuoteRec(r){
+  const d=r.data||{},acc=d.kind==='acc',its=(d.items||[]).map(i=>({qty:Number(i.qty)||1,desc:String(acc?(i.desc||i.model):(i.desc||i.model)||'').trim(),price:i.price===''||i.price==null?'':+i.price}));
+  return {...pfBlank(),customer_name:r.customer_name||'',customer_address:r.customer_address||'',email:d.customer_email||'',items:its.length?its:[{qty:1,desc:'',price:''}],discount:acc?(d.discount||''):'',note:acc?'':(d.note||''),quote_ref:r.quote_no||''};
+}
+async function pfMakeFromQuote(id){const r=QROWS[id]||await run(sb.from('quotations').select('*').eq('id',id).single());PFF=pfFromQuoteRec(r);go('pfform');toast('Imported from '+r.quote_no+'. Check the details and save.')}
+PAGES.pf=async()=>{
+  $('#main').innerHTML=`<div class="top"><h2>Proforma invoices</h2><div class="bar"><div style="flex:2"><input id="pfs" placeholder="Search customer / proforma no / product" oninput="pfLoad()"></div><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="pfNew(true)">Import from quotation</button> <button class="btn" onclick="pfNew()">+ New proforma</button></div></div></div>
+  <div class="tw"><table><thead><tr><th>No</th><th>Date</th><th>Customer</th><th>Products</th><th>Quotation</th><th class="r">Total (LKR)</th><th></th></tr></thead><tbody id="pfbt"></tbody></table></div>`;
+  pfLoad();
+};
+const pfNet=(items,disc)=>Math.max(0,(items||[]).reduce((a,i)=>a+(+i.qty||0)*(+i.price||0),0)-(+disc||0));
+async function pfLoad(){
+  const d=await run(sb.from('proforma_invoices').select('*').order('created_at',{ascending:false}).limit(300));
+  const s=($('#pfs')&&$('#pfs').value||'').trim().toLowerCase();PF_ROWS={};d.forEach(r=>PF_ROWS[r.id]=r);
+  const txt=r=>((r.data&&r.data.items)||[]).map(i=>i.desc).join(' ');
+  const rows=d.filter(r=>!s||[r.customer_name,r.pf_no,txt(r)].join(' ').toLowerCase().includes(s)),ed=hasP('edit_pf');
+  $('#pfbt').innerHTML=rows.map(r=>`<tr><td><b>${esc(r.pf_no)}</b></td><td>${esc(r.pf_date)}</td><td>${esc(r.customer_name)}<div class="mut">${esc(r.customer_address||'')}</div></td><td>${((r.data&&r.data.items)||[]).map(i=>`<div><b>${esc(i.desc)}</b> <span class="mut">x${esc(i.qty)}</span></div>`).join('')}</td><td>${esc((r.data&&r.data.quote_ref)||'')}</td><td class="r">${money(r.total)}</td>
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="pfView(${r.id})">Preview</button> <button class="btn sec sm" onclick="pfPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="pfPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="pfCopy(${r.id})">Copy</button>${ed?` <button class="btn sec sm" onclick="pfEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="pfDel(${r.id},'${esc(r.pf_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mut">No proforma invoices yet.</td></tr>';
+}
+const pfGet=async id=>PF_ROWS[id]||await run(sb.from('proforma_invoices').select('*').eq('id',id).single());
+async function pfView(id){const r=await pfGet(id);openModal(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Proforma ${esc(r.pf_no||'')}</h3><button class="btn" onclick="closeModal()">Close &#10005;</button></div><iframe id="q_pvf" style="width:100%;height:70vh;border:1px solid #ccc;margin:8px 0"></iframe>`,'900px');$('#q_pvf').srcdoc=pfDoc(pfRecToQ(r),getFL(),true)}
+async function pfPrint(id){const r=await pfGet(id);slipPrintDoc(pfDoc(pfRecToQ(r),getFL(),false))}
+async function pfPdf(id){const r=await pfGet(id);return qtPdfDownload(pfRecToQ(r))}
+async function pfDel(id,no){if(!hasP('edit_pf')||!confirm('Delete proforma '+no+'?'))return;await run(sb.from('proforma_invoices').delete().eq('id',id));toast('Deleted');pfLoad()}
+function pfNew(imp){PFF=pfBlank();go('pfform');if(imp)setTimeout(pfPickQuote,400)}
+function pfEdit(id){if(!hasP('edit_pf'))return;const r=PF_ROWS[id];if(!r)return;PFF=pfRecToQ(r);PFF.items=JSON.parse(JSON.stringify(PFF.items));go('pfform')}
+function pfCopy(id){const r=PF_ROWS[id];if(!r)return;PFF={...pfRecToQ(r),id:null,pf_no:'',pf_date:today()};PFF.items=JSON.parse(JSON.stringify(PFF.items));go('pfform')}
+PAGES.pfform=async()=>{
+  if(!PFF)PFF=pfBlank();
+  try{PF_CUS=await sb.from('customers').select('name,phone,address').order('name').limit(1000).then(r=>r.data||[])}catch(e){PF_CUS=[]}
+  $('#main').innerHTML=`<div class="top"><h2>${PFF.id?'Edit proforma '+esc(PFF.pf_no):'New proforma invoice'}</h2><div class="bar"><div style="flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end"><button class="btn sec" onclick="go('pf')">Back</button> <button class="btn sec" onclick="pfPickQuote()">Import from quotation</button> <button class="btn sec" onclick="pfPreview()">Preview</button> <button class="btn" onclick="pfSave(false)">Save</button> <button class="btn" onclick="pfSave(true)">Save &amp; print</button> <button class="btn" onclick="pfSave('pdf')">Save &amp; PDF</button></div></div></div>
+  ${PFF.quote_ref?`<div class="card" style="background:var(--acc-bg)">Imported from quotation <b>${esc(PFF.quote_ref)}</b></div>`:''}
+  <div class="card"><b>Customer</b><div class="bar" style="margin-top:8px"><div style="flex:2"><label>Customer name (pick a saved customer or type)</label><input id="pf_cn" list="pf_cl" value="${esc(PFF.customer_name)}" oninput="pfCus(this.value)" autocomplete="off"><datalist id="pf_cl">${PF_CUS.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist></div><div style="flex:1"><label>Contact number</label><input id="pf_ph" value="${esc(PFF.phone)}"></div><div style="flex:0 0 160px"><label>Date</label><input id="pf_dt" type="date" value="${esc(PFF.pf_date)}"></div><div style="flex:0 0 150px"><label>Valid until</label><input id="pf_vl" value="${esc(PFF.valid)}" placeholder="e.g. 7 days"></div></div>
+   <div style="margin-top:8px"><label>Address</label><textarea id="pf_ad" rows="2" style="width:100%">${esc(PFF.customer_address)}</textarea></div></div>
+  <div class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><b>Products</b><span class="mut">Type them, paste them, or import everything from a quotation.</span></div>
+   <div class="qar qah"><span>Qty</span><span>Description</span><span>Unit price (LKR)</span><span>Line total</span><span></span></div><div id="pf_rows"></div>
+   <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="pfAdd()">+ Add product</button><button class="btn sec" onclick="pfAdd(5)">+ Add 5 rows</button></div>
+   <div style="margin-top:12px"><label>Paste products (Excel or text). One per line: <b>Qty, Description, Unit price</b></label><textarea id="pf_ps" rows="3" style="width:100%"></textarea><button class="btn sec sm" style="margin-top:4px" onclick="pfImport()">Import lines</button></div></div>
+  <div class="bar"><div style="flex:0 0 220px"><label>Discount (LKR, optional)</label><input id="pf_dc" type="number" step="0.01" min="0" value="${esc(PFF.discount)}" oninput="PFF.discount=this.value;pfTot()"></div><div class="card" id="pf_tot" style="flex:1;margin:0;text-align:right"></div></div>
+  <div class="card" style="margin-top:14px"><label>Note (optional)</label><textarea id="pf_nt" rows="2" style="width:100%">${esc(PFF.note)}</textarea><label style="margin-top:8px;display:block">Terms for this proforma (empty = standard terms from the Proforma editor; one per line)</label><textarea id="pf_tm" rows="3" style="width:100%">${esc(PFF.terms)}</textarea></div>`;
+  pfDraw();
+};
+function pfCus(v){const c=PF_CUS.find(x=>x.name===v);if(!c)return;if(c.phone&&!$('#pf_ph').value)$('#pf_ph').value=c.phone;if(c.address&&!$('#pf_ad').value)$('#pf_ad').value=c.address}
+function pfDraw(){
+  $('#pf_rows').innerHTML=PFF.items.map((it,i)=>`<div class="qar"><input type="number" min="0" step="1" value="${esc(it.qty)}" oninput="PFF.items[${i}].qty=this.value;pfTot()"><input value="${esc(it.desc)}" placeholder="Product description" oninput="PFF.items[${i}].desc=this.value"><input type="number" step="0.01" min="0" value="${esc(it.price)}" oninput="PFF.items[${i}].price=this.value;pfTot()"><b class="r" id="pf_lt${i}">${money((+it.qty||0)*(+it.price||0))}</b><button class="btn sec sm" onclick="pfDelRow(${i})" title="Remove">&#10005;</button></div>`).join('');
+  pfTot();
+}
+function pfTot(){PFF.items.forEach((it,i)=>{const e=$('#pf_lt'+i);if(e)e.textContent=money((+it.qty||0)*(+it.price||0))});const sub=PFF.items.reduce((a,i)=>a+(+i.qty||0)*(+i.price||0),0),e=$('#pf_tot');if(e)e.innerHTML=`<div class="mut">Subtotal LKR ${money(sub)}${+PFF.discount?' | Discount '+money(PFF.discount):''}</div><div style="font-size:18px"><b>Total: LKR ${money(pfNet(PFF.items,PFF.discount))}</b></div>`}
+function pfRead(){Object.assign(PFF,{customer_name:$('#pf_cn').value.trim(),phone:$('#pf_ph').value.trim(),pf_date:$('#pf_dt').value||today(),valid:$('#pf_vl').value.trim(),customer_address:$('#pf_ad').value.trim(),discount:$('#pf_dc').value,note:$('#pf_nt').value,terms:$('#pf_tm').value})}
+function pfAdd(n){pfRead();for(let i=0;i<(n||1);i++)PFF.items.push({qty:1,desc:'',price:''});pfDraw()}
+function pfDelRow(i){PFF.items.splice(i,1);if(!PFF.items.length)PFF.items.push({qty:1,desc:'',price:''});pfDraw()}
+function pfImport(){
+  const t=$('#pf_ps').value,out=[],num=x=>/^[\d,]+(\.\d+)?$/.test(x)?+x.replace(/,/g,''):NaN;
+  t.split(/\r?\n/).forEach(l=>{
+    l=l.trim();if(!l)return;
+    let c=l.split('\t').map(x=>x.trim()).filter(x=>x!=='');
+    if(c.length<3&&l.includes(',')&&!/\t/.test(l)){const m=l.match(/^([\d,.]+)\s*,\s*(.+?)\s*,\s*([\d,]+(?:\.\d+)?)$/);if(m)c=[m[1],m[2],m[3]]}
+    let r=null,m;
+    if(c.length>=3){
+      if(!isNaN(num(c[0]))&&isNaN(num(c[1])))r={qty:num(c[0]),desc:c[1],price:num(c[c.length-1])};
+      else if(isNaN(num(c[0]))&&!isNaN(num(c[1]))&&!isNaN(num(c[2])))r={qty:num(c[1]),desc:c[0],price:num(c[2])};
+      else r={qty:1,desc:c.slice(0,-1).join(' '),price:num(c[c.length-1])};
+    }else if(c.length===2){
+      if(!isNaN(num(c[1])))r={qty:1,desc:c[0],price:num(c[1])};
+      else if(!isNaN(num(c[0])))r={qty:num(c[0]),desc:c[1],price:''};
+    }
+    if(!r&&(m=l.match(/^(\d+)\s*(?:[x×*]\s*)?(.+?)\s+(?:LKR|Rs\.?)?\s*([\d,]+(?:\.\d+)?)$/i)))r={qty:+m[1],desc:m[2].trim(),price:num(m[3])};
+    if(!r)r={qty:1,desc:l,price:''};
+    if(isNaN(r.qty)||!r.qty)r.qty=1;if(isNaN(r.price))r.price='';
+    out.push(r);
+  });
+  if(!out.length)return toast('Nothing to import',true);
+  pfRead();
+  if(PFF.items.length===1&&!String(PFF.items[0].desc||'').trim()&&!PFF.items[0].price)PFF.items=[];
+  PFF.items.push(...out);$('#pf_ps').value='';pfDraw();toast('Imported '+out.length+' product(s). Please check them.');
+}
+
+async function pfPickQuote(){
+  const d=await run(sb.from('quotations').select('*').order('created_at',{ascending:false}).limit(300));QROWS={};d.forEach(r=>QROWS[r.id]=r);
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Import from a quotation</h3><button class="btn" onclick="closeModal()">Close &#10005;</button></div><input id="pfq_s" placeholder="Search customer / quotation no / product" oninput="pfPickDraw()" style="margin:10px 0"><div style="max-height:60vh;overflow:auto"><table><thead><tr><th>No</th><th>Date</th><th>Customer</th><th>Products</th><th class="r">Total</th><th></th></tr></thead><tbody id="pfq_b"></tbody></table></div>`,'900px');
+  pfPickDraw();
+}
+function pfPickDraw(){
+  const s=($('#pfq_s').value||'').trim().toLowerCase();
+  $('#pfq_b').innerHTML=Object.values(QROWS).filter(r=>!s||[r.customer_name,r.quote_no,((r.data&&r.data.items)||[]).map(i=>(i.model||'')+' '+(i.desc||'')).join(' ')].join(' ').toLowerCase().includes(s)).map(r=>`<tr><td><b>${esc(r.quote_no)}</b><div class="mut">${r.data&&r.data.kind==='acc'?'Accessories':'Laptops'}</div></td><td>${esc(r.q_date)}</td><td>${esc(r.customer_name)}</td><td>${qModelsHtml(r)}</td><td class="r">${money(r.total)}</td><td><button class="btn sm" onclick="pfUseQuote(${r.id})">Use</button></td></tr>`).join('')||'<tr><td colspan="6" class="mut">No quotations found.</td></tr>';
+}
+function pfUseQuote(id){const r=QROWS[id];if(!r)return;const keep=PFF&&PFF.id?{id:PFF.id,pf_no:PFF.pf_no}:{};PFF={...pfFromQuoteRec(r),...keep};closeModal();go('pfform');toast('Imported from '+r.quote_no+'. Check the details and save.')}
+function pfPreview(){pfRead();openModal(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Preview</h3><button class="btn" onclick="closeModal()">Close &#10005;</button></div><iframe id="q_pvf" style="width:100%;height:70vh;border:1px solid #ccc;margin:8px 0"></iframe>`,'900px');$('#q_pvf').srcdoc=pfDoc(PFF,getFL(),true)}
+async function pfSave(print){
+  pfRead();if(!PFF.customer_name)return toast('Enter the customer name',true);
+  PFF.items=PFF.items.filter(i=>String(i.desc||'').trim()||+i.price);if(!PFF.items.length){PFF.items=[{qty:1,desc:'',price:''}];return toast('Enter at least one product',true)}
+  const row={pf_date:PFF.pf_date,customer_name:PFF.customer_name,customer_address:PFF.customer_address,phone:PFF.phone,data:{items:PFF.items,discount:PFF.discount,note:PFF.note,terms:PFF.terms,valid:PFF.valid,quote_ref:PFF.quote_ref||'',email:PFF.email||''},total:pfNet(PFF.items,PFF.discount)};
+  const rec=PFF.id?await run(sb.from('proforma_invoices').update(row).eq('id',PFF.id).select().single()):await run(sb.from('proforma_invoices').insert(row).select().single());
+  toast('Proforma saved: '+rec.pf_no);
+  if(print===true)slipPrintDoc(pfDoc(pfRecToQ(rec),getFL(),false));else if(print==='pdf')await qtPdfDownload(pfRecToQ(rec));
+  PFF=null;go('pf');
+}
+/* ---------- proforma editor ---------- */
+let PFLOGO='';
+PAGES.pfeditor=async()=>{
+  const pl=getFL();PFLOGO=pl.logo||'';
+  const ck=(id,v,l)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''} onchange="pfPrev()"> ${l}</label>`;
+  const inp=(id,l,v,t)=>`<div style="flex:1;min-width:140px"><label>${l}</label><input id="${id}" ${t||''} value="${esc(v)}" oninput="pfPrev()"></div>`;
+  const col=(id,l,v)=>`<div style="flex:0 0 130px"><label>${l}</label><input id="${id}" type="color" value="${esc(v)}" oninput="pfPrev()" style="width:100%;height:34px;padding:2px"></div>`;
+  $('#main').innerHTML=`<div class="top"><h2>Proforma invoice editor</h2><div class="bar"><div style="flex:0"><button class="btn" onclick="pfEdSave()">Save</button></div></div></div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start"><div style="flex:1 1 380px;min-width:300px">
+   <div class="card"><b>Paper &amp; layout</b><div class="bar" style="margin-top:8px"><div style="flex:1"><label>Paper</label><select id="fe_sz" onchange="pfPrev()">${['A4','A5','Letter'].map(s=>`<option ${pl.size===s?'selected':''}>${s}</option>`).join('')}</select></div>${inp('fe_mg','Margin (mm)',pl.margin,'type="number"')}${inp('fe_fs','Font size (px)',pl.fontSize,'type="number"')}</div><div class="bar">${inp('fe_ti','Title',pl.title)}</div>${ck('fe_lh',pl.showLH,'Company details under the logo')}</div>
+   <div class="card"><b>Logo</b><div class="mut" style="margin:6px 0">Laptopcare logo is used automatically. Upload another one only if you want a different logo.</div>${ck('fe_lo',pl.logoOn,'Show logo')}${ck('fe_ul',pl.useInvLogo,'Use the invoice editor logo')}<div class="bar">${inp('fe_lg','Logo height (px)',pl.logoH,'type="number" min="16" max="140"')}</div><div class="row"><label>Upload a different logo</label><input type="file" accept="image/*" onchange="pfLogo(this)"> <button class="btn sec sm" onclick="PFLOGO='';pfPrev()">Use default logo</button></div></div>
+   <div class="card"><b>Colours &amp; font</b><div class="bar" style="margin-top:8px">${col('fe_ac','Headings',pl.accent)}${col('fe_bd','Table border',pl.border)}${col('fe_hb','Table heading bg',pl.headBg)}${col('fe_ht','Heading text',pl.headText)}${col('fe_tx','Text',pl.text)}</div><div class="bar">${inp('fe_ff','Font (empty = default)',pl.font)}</div></div>
+   <div class="card"><b>Bank details (empty = hidden)</b><div class="bar" style="margin-top:8px">${inp('fe_bn','Bank name',pl.bankName)}${inp('fe_ba','Account name',pl.bankAcc)}${inp('fe_bx','Account number',pl.bankNo)}</div></div>
+   <div class="card"><b>Standard texts</b><label style="display:block;margin-top:6px">Terms (one per line)</label><textarea id="fe_tm" rows="4" style="width:100%" oninput="pfPrev()">${esc(pl.terms)}</textarea><div class="bar" style="margin-top:8px">${inp('fe_s1','Signature 1',pl.sign1)}${inp('fe_s2','Signature 2',pl.sign2)}</div>${ck('fe_sg',pl.showSign,'Show signature lines')}</div>
+  </div><div style="flex:1 1 520px;min-width:300px"><div class="card"><b>Live preview</b><div id="fe_w" style="margin-top:8px;overflow:hidden"><iframe id="fe_pv" style="border:1px solid #ccc;background:#fff;transform-origin:0 0"></iframe></div></div></div></div>`;
+  pfPrev();
+};
+function pfLayRead(){const g=id=>$('#'+id);return {size:g('fe_sz').value,margin:+g('fe_mg').value||12,fontSize:+g('fe_fs').value||12,title:g('fe_ti').value,showLH:g('fe_lh').checked,logoOn:g('fe_lo').checked,useInvLogo:g('fe_ul').checked,logoH:+g('fe_lg').value||44,logo:PFLOGO,accent:g('fe_ac').value,border:g('fe_bd').value,headBg:g('fe_hb').value,headText:g('fe_ht').value,text:g('fe_tx').value,font:g('fe_ff').value,bankName:g('fe_bn').value,bankAcc:g('fe_ba').value,bankNo:g('fe_bx').value,terms:g('fe_tm').value,sign1:g('fe_s1').value,sign2:g('fe_s2').value,showSign:g('fe_sg').checked}}
+function pfPrev(){
+  const pl={...PF_DEF,...pfLayRead()},f=$('#fe_pv'),[PW,PH]=qtPaper(pl.size),px=Math.round(PW*3.7795)+10,ww=$('#fe_w').clientWidth||600,z=Math.min(1,(ww-4)/px);
+  const q={pf_no:'PF-0001',pf_date:today(),valid:'7 days',quote_ref:'QT-00012',customer_name:'Sample Customer (Pvt) Ltd',customer_address:'No 10, Main Street, Colombo 03',items:[{qty:2,desc:'HP Victus 15 Ryzen 5 / 16GB / 512GB',price:285000},{qty:5,desc:'Logitech B100 USB Optical Mouse',price:1900}]};
+  f.style.width=px+'px';f.style.height=Math.round(PH*3.7795+40)+'px';f.style.transform='scale('+z+')';$('#fe_w').style.height=Math.round(parseFloat(f.style.height)*z+6)+'px';
+  f.srcdoc=pfDoc(q,pl,true);
+}
+function pfLogo(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,600/im.width),c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);PFLOGO=c.toDataURL('image/png');pfPrev()};im.src=r.result};r.readAsDataURL(f)}
+async function pfEdSave(){const row={key:'pf_layout',value:JSON.stringify(pfLayRead())};await run(sb.from('settings').upsert([row]));settings.pf_layout=row.value;toast('Proforma layout saved')}
+
 /* ===================== Supplier set-off + Purchases ===================== */
-PERMS.push(['setoff','Supplier set-off & purchases']);PERMS.push(['po','Purchase orders'],['edit_po','Edit / delete purchase orders'],['adv','Advance receipts'],['edit_adv','Edit / delete advance receipts']);
+PERMS.push(['setoff','Supplier set-off & purchases']);PERMS.push(['po','Purchase orders'],['edit_po','Edit / delete purchase orders'],['adv','Advance receipts'],['edit_adv','Edit / delete advance receipts'],['pf','Proforma invoices'],['edit_pf','Edit / delete proforma invoices']);
 PERMS.push(['edit_items','Edit / delete items & categories'],['edit_people','Edit / delete customers & suppliers'],['edit_inv','Edit / delete invoices'],['edit_grn','Edit / delete GRN'],['edit_jobs','Edit / delete job notes'],['edit_quotes','Edit / delete quotations'],['setoff_undo','Undo supplier set-off'],['reps','Manage sales reps'],['editors','Use layout editors']);
 let SO={sup:0,cust:0,g:null,i:null,all:false,G:[],I:[],H:[]};
 const soQ=s=>String(s||'').replace(/["\\]/g,'');
