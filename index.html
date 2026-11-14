@@ -7,7 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>document.write('<script src="config.js?t='+Date.now()+'"><\/script>')</script>
 <script>try{if(typeof CFG!=='undefined'&&CFG.theme&&CFG.theme.accent)document.documentElement.style.setProperty('--acc',CFG.theme.accent)}catch(e){}</script>
-<link rel="stylesheet" href="style.css?v=18">
+<link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
 <div id="cssWarn" style="background:#b42318;color:#fff;padding:12px 16px;font:14px Arial,sans-serif">style.css was not found. Upload <b>style.css</b> into the same folder as index.html on GitHub (same level, same name), then reload this page.</div>
@@ -218,6 +218,7 @@ const ICO={
  job_repair:'<path d="M15 5a4 4 0 00-4 5L4 17l3 3 7-7a4 4 0 005-4l-3 2-2-2 2-3z"/>',
  job_service:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
  quotes:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 14l2 2 4-4"/>',
+ lookeditor:'<path d="M12 3a9 9 0 100 18c1.7 0 2-1 1.4-2-.6-1 0-2 1.3-2H17a4 4 0 004-4c0-5-4-10-9-10z"/>',
  adv:'<path d="M4 6h16v12H4z"/><path d="M4 10h16M8 15h3"/>',
  adveditor:'<path d="M4 6h16v12H4z"/><path d="M4 10h16M8 15h3"/>',
  po:'<path d="M6 3h12l2 4v14H4V7z"/><path d="M4 7h16M9 11h6M9 15h6"/>',
@@ -250,7 +251,7 @@ function buildNav(){
   if(hasP('staff'))s3.push(G('staff','Staff management',[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1]))));
   const s4=[];
   if(isAdmin())s4.push(L('users','Users'));
-  if(hasP('editors')&&['invoice','jobs','staff','quotes','po','adv'].some(modOn))s4.push(G('editors','Editors',[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes'],['quoteeditor_acc','Accessories quotation editor','quotes'],['poeditor','Purchase order editor','po'],['adveditor','Advance receipt editor','adv']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1]))));
+  if(hasP('editors')&&['invoice','jobs','staff','quotes','po','adv'].some(modOn))s4.push(G('editors','Editors',[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes'],['quoteeditor_acc','Accessories quotation editor','quotes'],['poeditor','Purchase order editor','po'],['adveditor','Advance receipt editor','adv'],['lookeditor','Form look editor','editors']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1]))));
   $('#nav').innerHTML=sec('OVERVIEW',s1)+sec('TRADE',s2)+sec('MANAGE',s3)+sec('ADMIN',s4);
 }
 function navFilter(q){
@@ -265,7 +266,10 @@ function navFilter(q){
 }
 function tbToggle(e){e.stopPropagation();$('#tbMenuBox').classList.toggle('open')}
 document.addEventListener('click',e=>{const m=$('#tbMenuBox');if(m&&!e.target.closest('.tb-user'))m.classList.remove('open')});
-function uiAfterLogin(){
+/* ---- form look (Editors > Form look editor) ---- */
+const LOOK_DEF={'--fld-border':'#aab1c5','--fld-bw':'1px','--fld-bg':'#ffffff','--fld-text':'#111827','--fld-fs':'14px','--fld-pad':'9px','--fld-radius':'10px','--lbl':'#3d4559','--lbl-fs':'13px','--lbl-fw':'600'};
+function applyLook(o){let v={};try{v=o||JSON.parse(settings.ui_look||'{}')}catch(e){}Object.keys(LOOK_DEF).forEach(k=>document.documentElement.style.setProperty(k,v[k]||LOOK_DEF[k]))}
+function uiAfterLogin(){applyLook();
   const nm=(settings.company_name||'Company');
   $('#coLogo').textContent=(nm.trim()[0]||'L').toUpperCase();
   $('#tbAv').textContent=(me.username||'U').trim()[0].toUpperCase();
@@ -291,7 +295,7 @@ async function logout(){await sb.auth.signOut();location.reload()}
 const PAGES={};
 function grpToggle(a){const g=a.parentNode,was=g.classList.contains('open');document.querySelectorAll('#nav .grp.open').forEach(x=>x.classList.remove('open'));if(!was)g.classList.add('open')}
 async function go(p){
-  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quotes_acc:'quotes',quoteform:'quotes',reps:'reps',setoff:'setoff',purchases:'setoff',settings:'editors',jobeditor:'editors',slipeditor:'editors',quoteeditor:'editors',quoteeditor_acc:'editors',poeditor:'editors',adveditor:'editors',adv:'adv',advform:'adv',po:'po',poform:'po',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
+  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quotes_acc:'quotes',quoteform:'quotes',reps:'reps',setoff:'setoff',purchases:'setoff',settings:'editors',jobeditor:'editors',slipeditor:'editors',quoteeditor:'editors',quoteeditor_acc:'editors',poeditor:'editors',adveditor:'editors',lookeditor:'editors',adv:'adv',advform:'adv',po:'po',poform:'po',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
   if((need[p]&&!hasP(need[p]))||(p==='users'&&!isAdmin()))p='dash';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
   document.querySelectorAll('#nav .grp').forEach(g=>g.classList.remove('has-on'));const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('has-on')}
@@ -2892,6 +2896,24 @@ function advPrev(){
 }
 function advLogo(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,600/im.width),c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);ADLOGO=c.toDataURL('image/png');advPrev()};im.src=r.result};r.readAsDataURL(f)}
 async function advEdSave(){const row={key:'adv_layout',value:JSON.stringify(advLayRead())};await run(sb.from('settings').upsert([row]));settings.adv_layout=row.value;toast('Advance receipt layout saved')}
+
+/* ---------- form look editor ---------- */
+PAGES.lookeditor=async()=>{
+  let cur={};try{cur=JSON.parse(settings.ui_look||'{}')}catch(e){}const v=k=>cur[k]||LOOK_DEF[k],n=k=>parseFloat(v(k));
+  const col=(k,l)=>`<div style="flex:0 0 150px"><label>${l}</label><input data-k="${k}" type="color" value="${v(k)}" oninput="lookPrev()" style="height:36px;padding:2px"></div>`;
+  const num=(k,l,mn,mx,st)=>`<div style="flex:0 0 150px"><label>${l}</label><input data-k="${k}" data-u="px" type="number" min="${mn}" max="${mx}" step="${st||1}" value="${n(k)}" oninput="lookPrev()"></div>`;
+  $('#main').innerHTML=`<div class="top"><h2>Form look editor</h2><div class="bar"><div style="flex:0;white-space:nowrap"><button class="btn sec" onclick="lookReset()">Reset to default</button> <button class="btn" onclick="lookSave()">Save</button></div></div></div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start"><div style="flex:1 1 420px;min-width:300px">
+   <div class="card"><b>Input boxes (where you type)</b><div class="bar" style="margin-top:8px">${col('--fld-border','Border colour')}${col('--fld-bg','Background')}${col('--fld-text','Text colour')}</div>
+    <div class="bar">${num('--fld-bw','Border thickness (px)',0,4)}${num('--fld-fs','Text size (px)',11,22)}${num('--fld-pad','Box height / padding (px)',3,18)}${num('--fld-radius','Round corners (px)',0,24)}</div></div>
+   <div class="card"><b>Labels (small text above the boxes)</b><div class="bar" style="margin-top:8px">${col('--lbl','Label colour')}${num('--lbl-fs','Label size (px)',10,20)}<div style="flex:0 0 150px"><label>Weight</label><select data-k="--lbl-fw" onchange="lookPrev()">${[['400','Normal'],['600','Semi-bold'],['700','Bold']].map(x=>`<option value="${x[0]}" ${v('--lbl-fw')===x[0]?'selected':''}>${x[1]}</option>`).join('')}</select></div></div></div>
+   <div class="mut">This changes every form in the system (for all users) after you press Save. The main colour of the whole system is theme.accent in config.js.</div>
+  </div><div style="flex:1 1 380px;min-width:280px"><div class="card"><b>Preview</b><div style="margin-top:10px"><label>Customer name</label><input value="Kasun Perera"><label style="margin-top:10px">Contact number</label><input placeholder="07X XXX XXXX"><label style="margin-top:10px">Address</label><textarea rows="2">No 5, Galle Road, Colombo</textarea><label style="margin-top:10px">Method</label><select><option>Cash</option></select></div></div></div></div>`;
+};
+function lookRead(){const o={};document.querySelectorAll('[data-k^="--"]').forEach(e=>{o[e.dataset.k]=e.value+(e.dataset.u||'')});return o}
+function lookPrev(){applyLook(lookRead())}
+function lookReset(){settings.ui_look='{}';applyLook({});PAGES.lookeditor()}
+async function lookSave(){const row={key:'ui_look',value:JSON.stringify(lookRead())};await run(sb.from('settings').upsert([row]));settings.ui_look=row.value;applyLook();toast('Form look saved')}
 
 /* ===================== Supplier set-off + Purchases ===================== */
 PERMS.push(['setoff','Supplier set-off & purchases']);PERMS.push(['po','Purchase orders'],['edit_po','Edit / delete purchase orders'],['adv','Advance receipts'],['edit_adv','Edit / delete advance receipts']);
