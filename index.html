@@ -93,7 +93,7 @@ const modOn = k => !(typeof CFG!=='undefined' && CFG.modules && CFG.modules[k]==
 const hasP = k => modOn(k) && (isAdmin() || (me && (me.perms || []).includes(k)));
 const PERMS=[['invoice','Create invoice'],['invoices','View / reprint invoices'],['stock','Stock check'],['serial','Serial number check'],['grn','GRN (goods received)'],['items','Add items and categories'],['customers','Create customers'],['suppliers','Create suppliers'],['reports','Sales reports'],['jobs','Job notes (create, change status)'],['cost','See cost prices'],['profit','See profit in sales report'],['price','Change price on invoice'],['backdate','Change invoice / GRN date'],['quotes','Quotations (create, print)']];
 const DEF_PERMS=['invoice','invoices'];
-const PGROUPS=[['Sales &amp; invoices',['invoice','invoices','reports','price','backdate','cost','profit']],['Stock',['stock','serial','grn','items']],['Customers &amp; suppliers',['customers','suppliers','setoff']],['Job notes &amp; quotations',['jobs','quotes','po']],['Staff',['staff']],['Edit / delete',['edit_items','edit_people','edit_inv','edit_grn','edit_jobs','edit_quotes','edit_po','setoff_undo']],['Admin tools',['reps','editors']]];
+const PGROUPS=[['Sales &amp; invoices',['invoice','invoices','reports','price','backdate','cost','profit']],['Stock',['stock','serial','grn','items']],['Customers &amp; suppliers',['customers','suppliers','setoff']],['Job notes &amp; quotations',['jobs','quotes','po','adv']],['Staff',['staff']],['Edit / delete',['edit_items','edit_people','edit_inv','edit_grn','edit_jobs','edit_quotes','edit_po','edit_adv','setoff_undo']],['Admin tools',['reps','editors']]];
 const permBoxes=(pre,sel)=>{
   const ok=PERMS.filter(x=>modOn(x[0])),used=new Set();
   const chip=([k,l])=>`<label class="jchk"><input type="checkbox" id="${pre}_${k}" ${sel.includes(k)?'checked':''}> ${l}</label>`;
@@ -218,6 +218,8 @@ const ICO={
  job_repair:'<path d="M15 5a4 4 0 00-4 5L4 17l3 3 7-7a4 4 0 005-4l-3 2-2-2 2-3z"/>',
  job_service:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
  quotes:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 14l2 2 4-4"/>',
+ adv:'<path d="M4 6h16v12H4z"/><path d="M4 10h16M8 15h3"/>',
+ adveditor:'<path d="M4 6h16v12H4z"/><path d="M4 10h16M8 15h3"/>',
  po:'<path d="M6 3h12l2 4v14H4V7z"/><path d="M4 7h16M9 11h6M9 15h6"/>',
  poeditor:'<path d="M6 3h12l2 4v14H4V7z"/><path d="M4 7h16M9 11h6M9 15h6"/>',
  quoteeditor_acc:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/>',
@@ -243,11 +245,12 @@ function buildNav(){
   if(hasP('jobs'))s3.push(G('jobs','Job note',[['job_warranty','Warranty'],['job_repair','Repair'],['job_service','Service']].map(g=>L(g[0],g[1]))));
   if(hasP('quotes'))s3.push(G('quotes','Quotations',[L('quotes','Laptops'),L('quotes_acc','Accessories')]));
   if(hasP('po'))s3.push(L('po','Purchase orders'));
+  if(hasP('adv'))s3.push(L('adv','Advance receipts'));
   if(hasP('setoff'))s3.push(G('setoff','Supplier',[['setoff','Set-off'],['purchases','Purchases']].map(g=>L(g[0],g[1]))));
   if(hasP('staff'))s3.push(G('staff','Staff management',[['staff','Staff &amp; attendance'],['staff_adv','Advances'],['staff_sal','Salary sheet']].map(g=>L(g[0],g[1]))));
   const s4=[];
   if(isAdmin())s4.push(L('users','Users'));
-  if(hasP('editors')&&['invoice','jobs','staff','quotes','po'].some(modOn))s4.push(G('editors','Editors',[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes'],['quoteeditor_acc','Accessories quotation editor','quotes'],['poeditor','Purchase order editor','po']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1]))));
+  if(hasP('editors')&&['invoice','jobs','staff','quotes','po','adv'].some(modOn))s4.push(G('editors','Editors',[['settings','Invoice editor','invoice'],['jobeditor','Job note editor','jobs'],['slipeditor','Salary slip editor','staff'],['quoteeditor','Quotation editor','quotes'],['quoteeditor_acc','Accessories quotation editor','quotes'],['poeditor','Purchase order editor','po'],['adveditor','Advance receipt editor','adv']].filter(g=>modOn(g[2])).map(g=>L(g[0],g[1]))));
   $('#nav').innerHTML=sec('OVERVIEW',s1)+sec('TRADE',s2)+sec('MANAGE',s3)+sec('ADMIN',s4);
 }
 function navFilter(q){
@@ -288,7 +291,7 @@ async function logout(){await sb.auth.signOut();location.reload()}
 const PAGES={};
 function grpToggle(a){const g=a.parentNode,was=g.classList.contains('open');document.querySelectorAll('#nav .grp.open').forEach(x=>x.classList.remove('open'));if(!was)g.classList.add('open')}
 async function go(p){
-  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quotes_acc:'quotes',quoteform:'quotes',reps:'reps',setoff:'setoff',purchases:'setoff',settings:'editors',jobeditor:'editors',slipeditor:'editors',quoteeditor:'editors',quoteeditor_acc:'editors',poeditor:'editors',po:'po',poform:'po',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
+  const need={stock:'stock',serial:'serial',invoice:'invoice',invoices:'invoices',grn:'grn',items:'items',cats:'items',customers:'customers',suppliers:'suppliers',reports:'reports',job_warranty:'jobs',job_repair:'jobs',job_service:'jobs',jobform:'jobs',quotes:'quotes',quotes_acc:'quotes',quoteform:'quotes',reps:'reps',setoff:'setoff',purchases:'setoff',settings:'editors',jobeditor:'editors',slipeditor:'editors',quoteeditor:'editors',quoteeditor_acc:'editors',poeditor:'editors',adveditor:'editors',adv:'adv',advform:'adv',po:'po',poform:'po',staff:'staff',staff_adv:'staff',staff_sal:'staff'};
   if((need[p]&&!hasP(need[p]))||(p==='users'&&!isAdmin()))p='dash';
   document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('on'));
   document.querySelectorAll('#nav .grp').forEach(g=>g.classList.remove('has-on'));const n=$('#n_'+p);if(n){n.classList.add('on');const g=n.closest('.grp');if(g)g.classList.add('has-on')}
@@ -2104,6 +2107,7 @@ const qtDate=s=>{const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return 
 function qtTotal(items){return (items||[]).reduce((t,i)=>t+(+i.price||0)*(+i.qty||0),0)}
 function qtDoc(q,ql,pv,sel){
   if(q.kind==='po')return poDoc(q,ql,pv);
+  if(q.kind==='adv')return advDoc(q,ql,pv);
   if(q.kind==='acc')return qtDocAcc(q,ql,pv,sel);
   const G={...QT_GDEF,...(ql.g||{})},ST=ql.st||{},LET=ql.size==='Letter',W=LET?215.9:210,HH=LET?279.4:297,M=+ql.margin>=0?+ql.margin:12,fs=+ql.fontSize||12,ff=G.font||'Calibri, Arial, Helvetica, sans-serif';
   const co=coInfo(),ly=getLY();
@@ -2447,8 +2451,8 @@ async function qfFetch(i){
 }
 /* ---------- PDF download + e-mail (no external libraries) ---------- */
 async function qtPdfBlob(q,ql){
-  const LET=ql.size==='Letter',Wmm=LET?215.9:210,Hmm=LET?279.4:297,M=+ql.margin>=0?+ql.margin:12,cw=Wmm-2*M,px=Math.round(cw*96/25.4),mmpx=cw/px,S=2;
-  const f=document.createElement('iframe');f.style.cssText='position:fixed;left:-20000px;top:0;border:0;width:'+px+'px;height:'+(q.kind==='acc'||q.kind==='po'?'20px':'1200px');document.body.appendChild(f);
+  const [Wmm,Hmm]=qtPaper(ql.size),M=+ql.margin>=0?+ql.margin:12,cw=Wmm-2*M,px=Math.round(cw*96/25.4),mmpx=cw/px,S=2;
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;left:-20000px;top:0;border:0;width:'+px+'px;height:'+(q.kind==='acc'||q.kind==='po'||q.kind==='adv'?'20px':'1200px');document.body.appendChild(f);
   try{
     await new Promise(r=>{f.onload=r;f.srcdoc=qtDoc(q,ql,false)});await new Promise(r=>setTimeout(r,250));
     const d=f.contentDocument,win=f.contentWindow;f.style.height=Math.ceil(d.documentElement.scrollHeight)+'px';
@@ -2489,10 +2493,10 @@ function qtPdfBuild(pg,Wmm,Hmm,M){
   add('trailer\n<</Size '+(N+1)+'/Root 1 0 R>>\nstartxref\n'+xr+'\n%%EOF');
   return new Blob(ch,{type:'application/pdf'});
 }
-const qFileName=q=>((q.kind==='po'?'PurchaseOrder-':'Quotation-')+(q.quote_no||'draft')+'-'+String((q.kind==='po'?q.supplier_name:q.customer_name)||'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')).slice(0,80)+'.pdf';
+const qFileName=q=>((q.kind==='po'?'PurchaseOrder-':q.kind==='adv'?'AdvanceReceipt-':'Quotation-')+(q.quote_no||'draft')+'-'+String((q.kind==='po'?q.supplier_name:q.customer_name)||'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')).slice(0,80)+'.pdf';
 async function qtPdfDownload(q){
   toast('Creating PDF...');
-  try{const blob=await qtPdfBlob(q,q.kind==='po'?getPL():getQL()),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=qFileName(q);document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href)},4000);toast('PDF downloaded: '+a.download);return true}
+  try{const blob=await qtPdfBlob(q,q.kind==='po'?getPL():q.kind==='adv'?getAL():getQL()),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=qFileName(q);document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href)},4000);toast('PDF downloaded: '+a.download);return true}
   catch(e){console.error(e);toast('PDF failed: '+e.message,true);return false}
 }
 async function qtEmail(q,mode,w){
@@ -2748,8 +2752,133 @@ function poPrev(){
 function poLogo(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,600/im.width),c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);POLOGO=c.toDataURL('image/png');poPrev()};im.src=r.result};r.readAsDataURL(f)}
 async function poEdSave(){const row={key:'po_layout',value:JSON.stringify(poLayRead())};await run(sb.from('settings').upsert([row]));settings.po_layout=row.value;toast('Purchase order layout saved')}
 
+
+/* ===================== Advance receipts (laptop reservations, A5) ===================== */
+const AD_DEF={size:'A5',margin:8,fontSize:11,logoOn:true,useInvLogo:false,logo:'',logoH:38,title:'ADVANCE RECEIPT',showLH:true,
+  terms:'Advance payment is received to reserve the above item(s)\nBalance must be paid when the item is collected\nAdvance is non-refundable unless agreed in writing',
+  showSign:true,sign1:'Customer signature',sign2:'Authorized by',
+  accent:'#323E4F',border:'#000000',headBg:'#f2f2f2',headText:'#000000',text:'#262626',font:''};
+function getAL(){let o={};try{o=JSON.parse(settings.adv_layout||'{}')}catch(e){}return {...AD_DEF,...o}}
+const qtPaper=s=>s==='Letter'?[215.9,279.4]:s==='A5'?[148,210]:[210,297];
+function advDoc(q,pl,pv){
+  const [PW,HH]=qtPaper(pl.size),M=+pl.margin>=0?+pl.margin:8,fs=+pl.fontSize||11,ff=pl.font||'Calibri, Arial, Helvetica, sans-serif',co=coInfo(),ly=getLY();
+  const logo=pl.useInvLogo?(ly.logo||QT_LOGO):(pl.logo||QT_LOGO||ly.logo||'');
+  const addr=String(co.a||'').split('\n').filter(Boolean).join(', ');
+  const total=+q.total||0,paid=+q.paid||0,bal=total-paid;
+  const models=String(q.models||'').split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  const LI=t=>String(t||'').split(/\n+/).map(x=>x.trim()).filter(Boolean).map(x=>`<li>${esc(x)}</li>`).join('');
+  const terms=q.terms!=null&&String(q.terms).trim()!==''?q.terms:pl.terms;
+  const row=(l,v)=>v?`<tr><td class="l">${l}</td><td>${esc(v).replace(/\n/g,', ')}</td></tr>`:'';
+  const css=`@page{size:${pl.size==='Letter'?'Letter':pl.size==='A5'?'A5':'A4'};margin:${M}mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0;padding:0}body{font:${fs}px/1.4 ${ff};color:${pl.text};${pv?'background:#dfe3e8;':''}}
+.sheet{${pv?`width:${PW}mm;min-height:${HH}mm;padding:${M}mm;background:#fff;margin:0 auto;`:''}}
+.ah{width:100%;border-collapse:collapse}.ah td{padding:0;vertical-align:middle}.ah img{display:block;height:${Math.min(+pl.logoH||38,120)}px}.ah .t{text-align:right;font-size:${fs*1.7}px;font-weight:700;color:${pl.accent}}
+.co{margin-top:6px;font-size:${fs*.82}px;color:#595959;line-height:1.45}.co b{color:${pl.accent}}
+.ln{border-top:1px solid #bfbfbf;margin:${fs*.7}px 0}
+.meta{display:flex;justify-content:space-between;font-size:${fs}px;font-weight:700}
+table.kv{width:100%;border-collapse:collapse}table.kv td{padding:2px 0;vertical-align:top;font-size:${fs}px}table.kv td.l{width:34%;font-weight:700;color:${pl.accent}}
+.h2{font:700 ${fs*1.05}px Cambria,Georgia,serif;color:${pl.accent};margin:0 0 3px}
+ul.md{margin:0;padding-left:${fs*1.4}px;font-weight:700}
+table.am{width:100%;border-collapse:collapse;border:1px solid ${pl.border};margin-top:${fs*.6}px}table.am td{border:1px solid ${pl.border};padding:5px 8px;font-size:${fs}px}
+table.am td.v{text-align:right;font-weight:700;width:38%}table.am tr.b td{background:${pl.headBg};color:${pl.headText};font-weight:700}
+ul.bl{margin:0;padding-left:${fs*1.4}px;font-size:${fs*.82}px}
+.sg{display:flex;justify-content:space-between;gap:30px;margin-top:${fs*3}px}.sg div{flex:1;border-top:1px solid #000;padding-top:3px;text-align:center;font-size:${fs*.8}px}`;
+  const body=`<div id="fitbox"><table class="ah"><tr><td>${pl.logoOn&&logo?`<img src="${logo}">`:''}</td><td class="t">${esc(pl.title||'ADVANCE RECEIPT')}</td></tr></table>
+  ${pl.showLH?`<div class="co"><b>${esc(String(co.n||'').toUpperCase())}</b>${addr?`<div>${esc(addr)}</div>`:''}<div>${esc([co.p||'',ly.email||''].filter(Boolean).join('  |  '))}</div></div>`:''}
+  <div class="ln"></div>
+  <div class="meta"><span>Receipt No: ${esc(q.adv_no||'')}</span><span>Date: ${esc(qtDmy(q.paid_date))}</span></div>
+  <div class="ln"></div>
+  <div class="h2">Customer</div>
+  <table class="kv">${row('Name',q.customer_name)}${row('Contact',q.phone)}${row('Address',q.customer_address)}${row('NIC No',q.nic)}</table>
+  <div class="ln"></div>
+  <div class="h2">Reserved item(s)</div>
+  ${models.length?`<ul class="md">${models.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>`:'<div class="mut">-</div>'}
+  <table class="am"><tr><td>Total amount</td><td class="v">LKR ${money(total)}</td></tr><tr><td>Advance paid${q.paid_date?' ('+esc(qtDmy(q.paid_date))+')':''}${q.method?' - '+esc(q.method):''}</td><td class="v">LKR ${money(paid)}</td></tr><tr class="b"><td>Balance amount</td><td class="v">LKR ${money(bal)}</td></tr></table>
+  ${q.note?`<div class="ln"></div><div style="font-size:${fs*.9}px;white-space:pre-wrap"><b>Note:</b> ${esc(q.note)}</div>`:''}
+  ${String(terms).trim()?`<div class="ln"></div><div class="h2">Terms</div><ul class="bl">${LI(terms)}</ul>`:''}
+  ${pl.showSign?`<div class="sg"><div>${esc(pl.sign1)}</div><div>${esc(pl.sign2)}</div></div>`:''}</div>`;
+  const fitJs=`<script>(function(){var f=document.getElementById('fitbox');if(!f)return;var H=${Math.round((HH-2*M)*3.7795)-10};function fit(){f.style.zoom=1;var h=f.getBoundingClientRect().height,z=1,k=0;while(h>H-4&&k<12){z=z*((H-6)/h);f.style.zoom=z.toFixed(4);h=f.getBoundingClientRect().height;k++}}fit();window.addEventListener('load',fit);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);var im=f.querySelectorAll('img');for(var i=0;i<im.length;i++)im[i].addEventListener('load',fit)})()<\/script>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Advance ${esc(q.adv_no||'')} ${esc(q.customer_name||'')}</title><style>${css}</style></head><body><div class="sheet">${body}</div>${fitJs}</body></html>`;
+}
+let AD_ROWS={},ADF=null,AD_CUS=[];
+const advRecToQ=r=>({id:r.id,kind:'adv',quote_no:r.adv_no,adv_no:r.adv_no,paid_date:r.paid_date,customer_name:r.customer_name,customer_address:r.customer_address||'',phone:r.phone||'',nic:r.nic||'',models:(r.data&&r.data.models)||'',total:r.total_amount,paid:r.paid_amount,method:(r.data&&r.data.method)||'',note:(r.data&&r.data.note)||'',terms:(r.data&&r.data.terms)||''});
+const advBlank=()=>({id:null,kind:'adv',adv_no:'',paid_date:today(),customer_name:'',customer_address:'',phone:'',nic:'',models:'',total:'',paid:'',method:'Cash',note:'',terms:''});
+PAGES.adv=async()=>{
+  $('#main').innerHTML=`<div class="top"><h2>Advance receipts</h2><div class="bar"><div style="flex:2"><input id="avs" placeholder="Search customer / receipt no / NIC / model" oninput="advLoad()"></div><div style="flex:0;white-space:nowrap"><button class="btn" onclick="advNew()">+ New advance receipt</button></div></div></div>
+  <div class="tw"><table><thead><tr><th>No</th><th>Paid date</th><th>Customer</th><th>Model(s)</th><th class="r">Total</th><th class="r">Advance</th><th class="r">Balance</th><th></th></tr></thead><tbody id="avbt"></tbody></table></div>`;
+  advLoad();
+};
+async function advLoad(){
+  const d=await run(sb.from('advance_receipts').select('*').order('created_at',{ascending:false}).limit(300));
+  const s=($('#avs')&&$('#avs').value||'').trim().toLowerCase();AD_ROWS={};d.forEach(r=>AD_ROWS[r.id]=r);
+  const rows=d.filter(r=>!s||[r.customer_name,r.adv_no,r.nic,r.phone,(r.data&&r.data.models)||''].join(' ').toLowerCase().includes(s));
+  const ed=hasP('edit_adv');
+  $('#avbt').innerHTML=rows.map(r=>`<tr><td><b>${esc(r.adv_no)}</b></td><td>${esc(r.paid_date)}</td><td>${esc(r.customer_name)}<div class="mut">${esc(r.phone||'')}${r.nic?' | '+esc(r.nic):''}</div></td><td>${String((r.data&&r.data.models)||'').split(/\n+/).filter(Boolean).map(m=>`<div><b>${esc(m)}</b></div>`).join('')}</td><td class="r">${money(r.total_amount)}</td><td class="r">${money(r.paid_amount)}</td><td class="r"><b>${money((+r.total_amount||0)-(+r.paid_amount||0))}</b></td>
+   <td style="white-space:nowrap"><button class="btn sec sm" onclick="advView(${r.id})">Preview</button> <button class="btn sec sm" onclick="advPrint(${r.id})">Print</button> <button class="btn sec sm" onclick="advPdf(${r.id})">PDF</button> <button class="btn sec sm" onclick="advCopy(${r.id})">Copy</button>${ed?` <button class="btn sec sm" onclick="advEdit(${r.id})">Edit</button> <button class="btn sec sm" onclick="advDel(${r.id},'${esc(r.adv_no)}')">Delete</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8" class="mut">No advance receipts yet.</td></tr>';
+}
+const advGet=async id=>AD_ROWS[id]||await run(sb.from('advance_receipts').select('*').eq('id',id).single());
+async function advView(id){const r=await advGet(id);openModal(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Advance receipt ${esc(r.adv_no||'')}</h3><button class="btn" onclick="closeModal()">Close &#10005;</button></div><iframe id="q_pvf" style="width:100%;height:70vh;border:1px solid #ccc;margin:8px 0"></iframe>`,'800px');$('#q_pvf').srcdoc=advDoc(advRecToQ(r),getAL(),true)}
+async function advPrint(id){const r=await advGet(id);slipPrintDoc(advDoc(advRecToQ(r),getAL(),false))}
+async function advPdf(id){const r=await advGet(id);return qtPdfDownload(advRecToQ(r))}
+async function advDel(id,no){if(!hasP('edit_adv')||!confirm('Delete advance receipt '+no+'?'))return;await run(sb.from('advance_receipts').delete().eq('id',id));toast('Deleted');advLoad()}
+function advNew(){ADF=advBlank();go('advform')}
+function advEdit(id){if(!hasP('edit_adv'))return;const r=AD_ROWS[id];if(!r)return;ADF=advRecToQ(r);go('advform')}
+function advCopy(id){const r=AD_ROWS[id];if(!r)return;ADF={...advRecToQ(r),id:null,adv_no:'',paid_date:today()};go('advform')}
+PAGES.advform=async()=>{
+  if(!ADF)ADF=advBlank();
+  try{AD_CUS=await sb.from('customers').select('name,phone,address').order('name').limit(1000).then(r=>r.data||[])}catch(e){AD_CUS=[]}
+  const f=(id,l,v,x)=>`<div style="flex:1;min-width:170px"><label>${l}</label><input id="${id}" value="${esc(v)}" ${x||''}></div>`;
+  $('#main').innerHTML=`<div class="top"><h2>${ADF.id?'Edit advance receipt '+esc(ADF.adv_no):'New advance receipt'}</h2><div class="bar"><div style="flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end"><button class="btn sec" onclick="go('adv')">Back</button> <button class="btn sec" onclick="advPreview()">Preview</button> <button class="btn" onclick="advSave(false)">Save</button> <button class="btn" onclick="advSave(true)">Save &amp; print (A5)</button> <button class="btn" onclick="advSave('pdf')">Save &amp; PDF</button></div></div></div>
+  <div class="card"><b>Customer</b><div class="bar" style="margin-top:8px"><div style="flex:2;min-width:200px"><label>Customer name (pick a saved customer or type)</label><input id="ad_cn" list="ad_cl" value="${esc(ADF.customer_name)}" oninput="advCus(this.value)" autocomplete="off"><datalist id="ad_cl">${AD_CUS.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist></div>${f('ad_ph','Contact number',ADF.phone)}${f('ad_nic','National ID number',ADF.nic)}</div>
+   <div style="margin-top:8px"><label>Address</label><textarea id="ad_ad" rows="2" style="width:100%">${esc(ADF.customer_address)}</textarea></div></div>
+  <div class="card"><b>Reserved laptop(s)</b><div style="margin-top:6px"><label>Laptop model(s) - one per line</label><textarea id="ad_md" rows="3" style="width:100%" placeholder="HP Victus 15 Ryzen 5 / 16GB / 512GB">${esc(ADF.models)}</textarea></div>
+   <div class="bar" style="margin-top:8px"><div style="flex:1"><label>Total amount (LKR)</label><input id="ad_tt" type="number" step="0.01" min="0" value="${esc(ADF.total)}" oninput="advCalc()"></div><div style="flex:1"><label>Advance paid (LKR)</label><input id="ad_pd" type="number" step="0.01" min="0" value="${esc(ADF.paid)}" oninput="advCalc()"></div><div style="flex:1"><label>Balance amount (auto)</label><input id="ad_bl" readonly></div><div style="flex:0 0 160px"><label>Paid date</label><input id="ad_dt" type="date" value="${esc(ADF.paid_date)}"></div><div style="flex:0 0 140px"><label>Method</label><select id="ad_mt">${['Cash','Bank transfer','Card','Cheque'].map(m=>`<option ${ADF.method===m?'selected':''}>${m}</option>`).join('')}</select></div></div></div>
+  <div class="card"><label>Note (optional)</label><textarea id="ad_nt" rows="2" style="width:100%">${esc(ADF.note)}</textarea><label style="margin-top:8px;display:block">Terms for this receipt (empty = standard terms from the Advance receipt editor; one per line)</label><textarea id="ad_tm" rows="3" style="width:100%">${esc(ADF.terms)}</textarea></div>`;
+  advCalc();
+};
+function advCus(v){const c=AD_CUS.find(x=>x.name===v);if(!c)return;if(c.phone&&!$('#ad_ph').value)$('#ad_ph').value=c.phone;if(c.address&&!$('#ad_ad').value)$('#ad_ad').value=c.address}
+function advCalc(){$('#ad_bl').value=money((+$('#ad_tt').value||0)-(+$('#ad_pd').value||0))}
+function advRead(){const g=id=>$('#'+id).value;Object.assign(ADF,{customer_name:g('ad_cn').trim(),phone:g('ad_ph').trim(),nic:g('ad_nic').trim(),customer_address:g('ad_ad').trim(),models:g('ad_md').trim(),total:g('ad_tt'),paid:g('ad_pd'),paid_date:g('ad_dt')||today(),method:g('ad_mt'),note:g('ad_nt'),terms:g('ad_tm')})}
+function advPreview(){advRead();openModal(`<div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Preview</h3><button class="btn" onclick="closeModal()">Close &#10005;</button></div><iframe id="q_pvf" style="width:100%;height:70vh;border:1px solid #ccc;margin:8px 0"></iframe>`,'800px');$('#q_pvf').srcdoc=advDoc(ADF,getAL(),true)}
+async function advSave(print){
+  advRead();if(!ADF.customer_name)return toast('Enter the customer name',true);if(!ADF.models)return toast('Enter the laptop model',true);if(!(+ADF.paid>0))return toast('Enter the advance paid amount',true);
+  if((+ADF.paid)>(+ADF.total||0))return toast('Advance cannot be more than the total amount',true);
+  const row={paid_date:ADF.paid_date,customer_name:ADF.customer_name,customer_address:ADF.customer_address,phone:ADF.phone,nic:ADF.nic,total_amount:+ADF.total||0,paid_amount:+ADF.paid||0,data:{models:ADF.models,method:ADF.method,note:ADF.note,terms:ADF.terms}};
+  const rec=ADF.id?await run(sb.from('advance_receipts').update(row).eq('id',ADF.id).select().single()):await run(sb.from('advance_receipts').insert(row).select().single());
+  toast('Advance receipt saved: '+rec.adv_no);
+  if(print===true)slipPrintDoc(advDoc(advRecToQ(rec),getAL(),false));else if(print==='pdf')await qtPdfDownload(advRecToQ(rec));
+  ADF=null;go('adv');
+}
+/* ---------- advance receipt editor ---------- */
+let ADLOGO='';
+PAGES.adveditor=async()=>{
+  const pl=getAL();ADLOGO=pl.logo||'';
+  const ck=(id,v,l)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?'checked':''} onchange="advPrev()"> ${l}</label>`;
+  const inp=(id,l,v,t)=>`<div style="flex:1;min-width:130px"><label>${l}</label><input id="${id}" ${t||''} value="${esc(v)}" oninput="advPrev()"></div>`;
+  const col=(id,l,v)=>`<div style="flex:0 0 120px"><label>${l}</label><input id="${id}" type="color" value="${esc(v)}" oninput="advPrev()" style="width:100%;height:34px;padding:2px"></div>`;
+  $('#main').innerHTML=`<div class="top"><h2>Advance receipt editor</h2><div class="bar"><div style="flex:0"><button class="btn" onclick="advEdSave()">Save</button></div></div></div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start"><div style="flex:1 1 360px;min-width:300px">
+   <div class="card"><b>Paper &amp; layout</b><div class="bar" style="margin-top:8px"><div style="flex:1"><label>Paper</label><select id="ae_sz" onchange="advPrev()">${['A5','A4','Letter'].map(s=>`<option ${pl.size===s?'selected':''}>${s}</option>`).join('')}</select></div>${inp('ae_mg','Margin (mm)',pl.margin,'type="number"')}${inp('ae_fs','Font size (px)',pl.fontSize,'type="number"')}</div>
+    <div class="bar">${inp('ae_ti','Title',pl.title)}</div>${ck('ae_lh',pl.showLH,'Company details under the logo')}</div>
+   <div class="card"><b>Logo</b><div class="mut" style="margin:6px 0">Laptopcare logo is used automatically. Upload another one only if you want a different logo.</div>${ck('ae_lo',pl.logoOn,'Show logo')}${ck('ae_ul',pl.useInvLogo,'Use the invoice editor logo')}<div class="bar">${inp('ae_lg','Logo height (px)',pl.logoH,'type="number" min="16" max="120"')}</div>
+    <div class="row"><label>Upload a different logo</label><input type="file" accept="image/*" onchange="advLogo(this)"> <button class="btn sec sm" onclick="ADLOGO='';advPrev()">Use default logo</button></div></div>
+   <div class="card"><b>Colours &amp; font</b><div class="bar" style="margin-top:8px">${col('ae_ac','Headings',pl.accent)}${col('ae_bd','Border',pl.border)}${col('ae_hb','Balance row bg',pl.headBg)}${col('ae_ht','Balance row text',pl.headText)}${col('ae_tx','Text',pl.text)}</div><div class="bar">${inp('ae_ff','Font (empty = default)',pl.font)}</div></div>
+   <div class="card"><b>Standard texts</b><label style="display:block;margin-top:6px">Terms (one per line)</label><textarea id="ae_tm" rows="4" style="width:100%" oninput="advPrev()">${esc(pl.terms)}</textarea><div class="bar" style="margin-top:8px">${inp('ae_s1','Signature 1',pl.sign1)}${inp('ae_s2','Signature 2',pl.sign2)}</div>${ck('ae_sg',pl.showSign,'Show signature lines')}</div>
+  </div><div style="flex:1 1 420px;min-width:300px"><div class="card"><b>Live preview</b><div id="ae_w" style="margin-top:8px;overflow:hidden"><iframe id="ae_pv" style="border:1px solid #ccc;background:#fff;transform-origin:0 0"></iframe></div></div></div></div>`;
+  advPrev();
+};
+function advLayRead(){const g=id=>$('#'+id);return {size:g('ae_sz').value,margin:+g('ae_mg').value||8,fontSize:+g('ae_fs').value||11,title:g('ae_ti').value,showLH:g('ae_lh').checked,logoOn:g('ae_lo').checked,useInvLogo:g('ae_ul').checked,logoH:+g('ae_lg').value||38,logo:ADLOGO,accent:g('ae_ac').value,border:g('ae_bd').value,headBg:g('ae_hb').value,headText:g('ae_ht').value,text:g('ae_tx').value,font:g('ae_ff').value,terms:g('ae_tm').value,sign1:g('ae_s1').value,sign2:g('ae_s2').value,showSign:g('ae_sg').checked}}
+function advPrev(){
+  const pl={...AD_DEF,...advLayRead()},f=$('#ae_pv'),[PW,PH]=qtPaper(pl.size),px=Math.round(PW*3.7795)+10,ww=$('#ae_w').clientWidth||500,z=Math.min(1,(ww-4)/px);
+  const q={adv_no:'ADV-0001',paid_date:today(),customer_name:'Sample Customer',phone:'0771234567',nic:'199012345678',customer_address:'No 10, Main Street, Colombo 03',models:'HP Victus 15 Ryzen 5 / 16GB / 512GB',total:285000,paid:50000,method:'Cash'};
+  f.style.width=px+'px';f.style.height=Math.round(PH*3.7795+40)+'px';f.style.transform='scale('+z+')';$('#ae_w').style.height=Math.round(parseFloat(f.style.height)*z+6)+'px';
+  f.srcdoc=advDoc(q,pl,true);
+}
+function advLogo(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const sc=Math.min(1,600/im.width),c=document.createElement('canvas');c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext('2d').drawImage(im,0,0,c.width,c.height);ADLOGO=c.toDataURL('image/png');advPrev()};im.src=r.result};r.readAsDataURL(f)}
+async function advEdSave(){const row={key:'adv_layout',value:JSON.stringify(advLayRead())};await run(sb.from('settings').upsert([row]));settings.adv_layout=row.value;toast('Advance receipt layout saved')}
+
 /* ===================== Supplier set-off + Purchases ===================== */
-PERMS.push(['setoff','Supplier set-off & purchases']);PERMS.push(['po','Purchase orders'],['edit_po','Edit / delete purchase orders']);
+PERMS.push(['setoff','Supplier set-off & purchases']);PERMS.push(['po','Purchase orders'],['edit_po','Edit / delete purchase orders'],['adv','Advance receipts'],['edit_adv','Edit / delete advance receipts']);
 PERMS.push(['edit_items','Edit / delete items & categories'],['edit_people','Edit / delete customers & suppliers'],['edit_inv','Edit / delete invoices'],['edit_grn','Edit / delete GRN'],['edit_jobs','Edit / delete job notes'],['edit_quotes','Edit / delete quotations'],['setoff_undo','Undo supplier set-off'],['reps','Manage sales reps'],['editors','Use layout editors']);
 let SO={sup:0,cust:0,g:null,i:null,all:false,G:[],I:[],H:[]};
 const soQ=s=>String(s||'').replace(/["\\]/g,'');
